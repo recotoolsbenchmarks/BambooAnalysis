@@ -3,10 +3,8 @@
 derived from the pypa example, see https://github.com/pypa/sampleproject
 """
 
-# Always prefer setuptools over distutils
 from setuptools import setup, find_packages
-# To use a consistent encoding
-from codecs import open
+from io import open
 from os import path
 
 here = path.abspath(path.dirname(__file__))
@@ -18,9 +16,9 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 setup(
     name="bamboo",
 
-    version="0.1.0-alpha.1",
+    version="0.1.0a1",
 
-    description="A high-level HEP analysis library for ROOT::RDataFrame"
+    description="A high-level HEP analysis library for ROOT::RDataFrame",
     long_description=long_description,
     long_description_content_type="text/markdown",
 

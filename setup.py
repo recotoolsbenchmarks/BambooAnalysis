@@ -4,13 +4,45 @@ derived from the pypa example, see https://github.com/pypa/sampleproject
 """
 
 from setuptools import setup, find_packages
-from io import open
-from os import path
+import os, os.path
 
-here = path.abspath(path.dirname(__file__))
+here = os.path.abspath(os.path.dirname(__file__))
+
+import contextlib
+@contextlib.contextmanager
+def chdirback(whereTo):
+    import os
+    cwd = os.path.abspath(os.getcwd())
+    import os
+    os.chdir(whereTo)
+    yield
+    os.chdir(cwd)
+
+import setuptools.command.build_clib
+class build_clib(setuptools.command.build_clib.build_clib):
+    """ Build libraries with {"cmake" : sourcedir} in their build_info by running cmake in that directory """
+    def build_libraries(self, libraries):
+        for (lib_name, build_info) in libraries:
+            if build_info.get("cmake"):
+                self.build_cmake(lib_name, build_info.get("cmake"))
+        super(build_clib, self).build_libraries([ (lib_name, build_info) for lib_name, build_info in libraries if not build_info.get("cmake") ])
+
+    def build_cmake(self, name, cmPath):
+        import pathlib
+        pathlib.Path(self.build_temp).mkdir(parents=True, exist_ok=True)
+        install_prefix = os.path.dirname(os.path.abspath(self.build_clib))
+        buildType = "Debug" if self.debug else "Release"
+        with chdirback(self.build_temp):
+            self.spawn(['cmake',
+                "-DCMAKE_INSTALL_PREFIX={0}".format(install_prefix),
+                "-DCMAKE_BUILD_TYPE={0}".format(buildType),
+                os.path.join(here, cmPath)])
+            if not self.dry_run:
+                self.spawn(["cmake", "--build", ".", "--target", "install", "--config", buildType])
 
 # Get the long description from the relevant file
-with open(path.join(here, "README.md"), encoding="utf-8") as f:
+from io import open
+with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
@@ -50,11 +82,13 @@ setup(
     packages=["bamboo"],
 
     install_requires=[],
-
     extras_require={},
 
     package_data={},
     data_files=[],
 
     entry_points={},
+
+    libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
+    cmdclass={"build_clib":build_clib},
 )

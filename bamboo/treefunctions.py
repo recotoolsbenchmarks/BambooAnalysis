@@ -8,8 +8,11 @@ import os.path
 pkgRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import ROOT
 ROOT.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
-for fname in ("range.h", "jmesystematics.h"):
-    ROOT.gROOT.ProcessLine('#include "{}"'.format(os.path.join(pkgRoot, "cpp", fname)))
+ROOT.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "build", "include"))
+ROOT.gSystem.Load(os.path.join(pkgRoot, "build", "lib", "libBinnedValues"))
+ROOT.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
+for fname in ("range.h", "jmesystematics.h", "scalefactors.h"):
+    ROOT.gROOT.ProcessLine('#include "{}"'.format(fname))
 del ROOT
 del os
 

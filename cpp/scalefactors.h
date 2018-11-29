@@ -103,6 +103,8 @@ public:
         return std::min(nominal+std::sqrt(error_squared), 1.f);
       } else if ( variation == Down ) {
         return std::max(0.f, nominal-std::sqrt(error_squared));
+      } else {
+        throw std::invalid_argument("Unsupported variation: "+std::to_string(variation));
       }
     }
   }
@@ -134,7 +136,7 @@ public:
       case Flavour::Light:
         return m_lightValues .get(parameters)[static_cast<std::size_t>(variation)];
       default:
-        throw std::invalid_argument("Unsupported flavour: "+flavour);
+        throw std::invalid_argument("Unsupported flavour: "+std::to_string(flavour));
     }
   }
 private:
@@ -145,7 +147,7 @@ private:
 
 #include <vector>
 #include <algorithm>
-#include "IndexRangeIterator.h"
+#include "range.h"
 /**
  * Weight between different scale factors
  */
@@ -161,7 +163,8 @@ public:
   virtual ~WeightedScaleFactor() {}
 
   virtual float get(Args&&... args, Variation variation) const override final {
-    return std::accumulate(IndexRangeIterator<std::size_t>(0, m_terms.size()), IndexRangeIterator<std::size_t>(m_terms.size(), m_terms.size()), 0.,
+    const auto myRange = rdfhelpers::IndexRange<std::size_t>(m_terms.size());
+    return std::accumulate(myRange.begin(), myRange.end(), 0.,
         [this,&args...,variation] ( float wsum, std::size_t i ) -> float {
           return wsum + m_probs[i]*m_terms[i]->get(std::forward<Args>(args)..., variation);
         }

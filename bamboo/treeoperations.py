@@ -292,7 +292,7 @@ class CallMemberMethod(TupleOp):
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMemberMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        for arg in (self.this, self.args):
+        for arg in chain((self.this,), self.args):
             if select(arg):
                 yield arg
             yield from arg.deps(defCache=defCache, select=select)
@@ -323,6 +323,7 @@ class GetDataMember(TupleOp):
         yield from self.this.deps(defCache=defCache, select=select)
     @property
     def result(self):
+        from .treeproxies import makeProxy
         if not self.name.startswith("_"):
             try:
                 protoTp = self.this.result._typ
@@ -331,11 +332,11 @@ class GetDataMember(TupleOp):
                 tpNm = type(att).__name__
                 if protoTp.__name__.startswith("pair<") and self.name in ("first", "second"):
                     tpNms = tuple(tok.strip() for tok in protoTp.__name__[5:-1].split(","))
-                    return makeStubForType((tpNms[0] if self.name == "first" else tpNms[1]), self)
-                return makeStubForType(tpNm, self)
+                    return makeProxy((tpNms[0] if self.name == "first" else tpNms[1]), self)
+                return makeProxy(tpNm, self)
             except Exception as e:
                 print("Problem getting type of data member {0} of {1!r}".format(self.name, self.this), e)
-        return makeStubForType("void", self)
+        return makeProxy("void", self)
     def __eq__(self, other):
         return isinstance(other, GetDataMember) and ( self.this == other.this ) and ( self.name == other.name )
     def __repr__(self):
@@ -353,7 +354,8 @@ class ExtVar(TupleOp):
         super(ExtVar, self).__init__()
     @property
     def result(self):
-        return makeStubForType(self.typeName, self)
+        from .treeproxies import makeProxy
+        return makeProxy(self.typeName, self)
     def __eq__(self, other):
         return isinstance(other, ExtVar) and ( self.typeName == other.typeName ) and ( self.name == other.name )
     def __repr__(self):
@@ -362,6 +364,25 @@ class ExtVar(TupleOp):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=None):
         return self.name
+
+class DefinedVar(TupleOp):
+    """ Defined variable (used by name), first use will trigger definition """
+    def __init__(self, typeName, definition):
+        self.typeName = typeName
+        self.definition = definition
+        super(DefinedVar, self).__init__()
+    @property
+    def result(self):
+        from .treeproxies import makeProxy
+        return makeProxy(self.typeName, self)
+    def __eq__(self, other):
+        return isinstance(other, DefinedVar) and ( self.typeName == other.typeName ) and ( self.definition == other.definition )
+    def __repr__(self):
+        return "DefinedVar({0!r}, {1!r})".format(self.typeName, self.definition)
+    def __hash__(self):
+        return hash(self.__repr__())
+    def get_cppStr(self, defCache=cppNoRedir):
+        return defCache.symbol(self.definition)
 
 class InitList(TupleOp):
     def __init__(self, typeName, elmType, elms):
@@ -375,7 +396,8 @@ class InitList(TupleOp):
             yield from elm.deps(defCache=defCache, select=select)
     @property
     def result(self):
-        return makeStubForType(self.typeName, self)
+        from .treeproxies import makeProxy
+        return makeProxy(self.typeName, self)
     def __eq__(self, other):
         return isinstance(other, InitList) and ( self.typeName == other.typeName ) and len(self.elms) == len(other.elms) and all( ( ea == eb ) for ea, eb in zip(self.elms, other.elms) )
     def __repr__(self):
@@ -584,7 +606,7 @@ class KinematicVariation(TupleOp):
             "{{\n"
             "  return rdfhelpers::modifyKinCollection({idxs},\n"
             "     [{captures_modif}] ( std::size_t i ) {{ return {modifExpr}; }},\n"
-            "     [{captures_pred}] ( const rdfhelpers::ModifiedKinCollection::LorentzVector& p4Mod, std::size_t i ) {{ return {predExpr}; }},\n"
+            "     [{captures_pred}] ( const rdfhelpers::ModifiedKinCollection::LorentzVector& p4Mod, std::size_t i ) {{ return {predExpr}; }}\n"
             "  );\n"
             "}};\n"
             ).format(
@@ -595,7 +617,7 @@ class KinematicVariation(TupleOp):
                 idxs=defCache(self.rng._idxs.op),
                 captures_modif=",".join("&{0}".format(ld.name) for ld in depList_modif),
                 captures_pred=",".join("&{0}".format(ld.name) for ld in depList_pred),
-                modifexpr=defCache(self.modifExpr).replace("<changeme>", "i"),
-                predexpr=defCache(self.predExpr).replace("<changeme>", "i").replace("<modp4>", "p4Mod")
+                modifExpr=defCache(self.modifExpr).replace("<changeme>", "i"),
+                predExpr=defCache(self.predExpr).replace("<changeme>", "i").replace("<modp4>", "p4Mod")
             ))
         return "{0}({1})".format(funName, ", ".join(ld.name for ld in depList_merged))

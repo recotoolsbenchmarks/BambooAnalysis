@@ -46,6 +46,8 @@ def construct(typeName, args):
     return _to.Construct(typeName, args).result
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elmName, elms).result
+def define(typeName, definition):
+    return _to.DefinedVar(typeName, definition).result
 
 ## math
 def abs(sth):

@@ -72,6 +72,20 @@ mostCentralMuon = op.rng_min_element_by(t.Muon, lambda mu : op.abs(mu.eta))
 mostCentralMuPt = Plot.make1D("mostCentralMuPt", mostCentralMuon.pt, hasCentralMuon,
             EquidistantBinning(50, 0., 200.), title="Most central muon PT")
 
+# Also scalefactors are easy to add, as weight factors for the Selection:
+from bamboo.scalefactors import get_scalefactor
+lSF = get_scalefactor("lepton", ("muon_2016_80", "iso_loose_id_loose"), combine="weight")
+twoMuSelSF = noSel.refine("twoMuonsSF", cut=[ op.rng_len(t.Muon) > 1 ], weight=[ lSF(t.Muon[0], withMCCheck=False), lSF(t.Muon[1], withMCCheck=False) ])
+newMPlot = Plot.make1D("dimuSF_M", op.invariant_mass(t.Muon[0].p4, t.Muon[1].p4), twoMuSelSF,
+            EquidistantBinning(100, 20., 120.), title="Dimuon invariant mass")
+
+# The basic infrastructure for on-the-fly jet systematic variations is also in place,
+# this example does not modify the jet branches, but could be made to do so by calling
+# a method in C++. `t.Jet.nominal` (or `t.Jet["nominal"]`) has the original jet,
+# `t.Jet[variation]` a modified jet container.
+op.addKinematicVariation(t.Jet, "no-op", modif=( lambda j : j.p4 ), pred=( lambda mp4, j : mp4.Pt() > 10. ))
+nJets = Plot.make1D("nJets", op.rng_len(t.Jet["no-op"]), noSel, EquidistantBinning(10, 0., 10.), title="Unmodified jet multiplicity")
+
 # That's a nice start - but we haven't plotted any histograms yet!
 # The `ROOT::RDataFrame` will do that as soon as we ask for one of them:
 cv = ROOT.TCanvas("c1", "A few dimuon plots", 1500, 350)
@@ -105,17 +119,19 @@ be.getPlotResult(mostCentralMuPt).Draw()
 cv3.Update()
 cv3.Draw()
 
+cv4 = ROOT.TCanvas("c4")
+cv4.Divide(2)
+cv4.cd(1)
+be.getPlotResult(newMPlot).Draw()
+cv4.cd(2)
+be.getPlotResult(nJets).Draw()
+cv4.Update()
+
 # There are a few more things to figure out:
 #   - integrate with slurm. The easiest is probably to have a common module
 #     that runs either in a single thread or on slurm, that gets a list of plots
 #     from a method `definePlots(tree, noSel)`, and saves all histograms to a file.
-#   - scale factors: essentially solved, need to copy the code
-#   - systematics (I have an idea for jet systematics, need to implement),
-#     the interface could become `definePlots(tree, noSel, systVar=None)`, such that
-#     the user can choose the right scalefactor or jet transformation based on `systVar`,
-#     but without changing the rest of the code.
 #   - Combinatorics (pairs and triplets of objects)
 #   - "skims" (should be supported through the `Snapshot` method)
 #   - other tree formats?
-#   - a cool package name
 #   - `your idea here`

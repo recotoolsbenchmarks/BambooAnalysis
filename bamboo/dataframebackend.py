@@ -21,7 +21,7 @@ class SelWithDefines(top.CppStrRedir):
             self.parent = None
             self.backend = parent
         if weights:
-            self._initWeight(wName, weights)
+            self._initWeights(wName, weights)
         else:
             assert not wName
         self.wName = wName
@@ -29,7 +29,7 @@ class SelWithDefines(top.CppStrRedir):
     
     def _initWeights(self, wName, weights):
         weightExpr = Selection._makeExprProduct(
-            ([adaptArg(op.extVar(self.parent.wName), typeHint="Float_t")]+weights) if self.parent
+            ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
             else weights
             )
         logger.debug("Defining {0} as {1}".format(wName, self(weightExpr)))

@@ -30,7 +30,7 @@ ModifiedKinCollection modifyKinCollection(const RANGE& range, FUN&& fun, PRED&& 
   for ( const auto obj : range ) {
     ModifiedKinCollection::LorentzVector mod = fun(obj);
     if ( pred(mod, obj) ) {
-      indices.push_back(obj);
+      indices.push_back(typename RANGE::value_type(obj));
       momenta.push_back(ModifiedKinCollection::LorentzVector(mod));
     }
   }

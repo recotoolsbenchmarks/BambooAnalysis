@@ -76,7 +76,9 @@ a local clone, such that you can use it to test and propose changes, using
 (you will need to upgrade with `pip install --upgrade /path/to/your/clone` still
 because installing in editable mode does not work well with extensions etc.).
 
-On ingrid-ui1, you can run the following test to check the installation:
+On ingrid-ui1 (or elsewhere, provided that you have a test NanoAOD with muons),
+you can run the following [test module](examples/nanozmumu.py) to check if the
+installation works correctly:
 ```bash
-% bambooRun -m /home/ucl/cp3/pdavid/bambootest/nanozmumu.py:NanoZMuMu --worker /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
+% bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --worker /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
 ```

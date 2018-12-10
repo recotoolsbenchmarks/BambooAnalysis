@@ -4,17 +4,17 @@ math/builtins-like module for tree operations
 ## used as a namespace, so avoid filling it with lower-level objects
 from . import treeoperations as _to
 from . import treeproxies as _tp
+import sys
 import os.path
 pkgRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import ROOT
 ROOT.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
-ROOT.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "build", "include"))
-ROOT.gSystem.Load(os.path.join(pkgRoot, "build", "lib", "libBinnedValues"))
-ROOT.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
+pkgPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
+ROOT.gInterpreter.AddIncludePath(os.path.join(pkgPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo"))
+ROOT.gSystem.Load(os.path.join(pkgRoot, "libBinnedValues"))
 for fname in ("range.h", "jmesystematics.h", "scalefactors.h"):
     ROOT.gROOT.ProcessLine('#include "{}"'.format(fname))
-del ROOT
-del os
+del ROOT,os,sys
 
 ## simple type support
 def c_bool(arg):

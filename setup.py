@@ -85,11 +85,10 @@ setup(
     install_requires=[],
     extras_require={},
 
-    package_data={},
-    data_files=[],
-
     entry_points={},
 
     libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
     cmdclass={"build_clib":build_clib},
+    headers=[ os.path.join(root, item) for incPath in ("cpp", os.path.join("ext", "include"))
+                for root, subFolder, files in os.walk(incPath) for item in files ],
 )

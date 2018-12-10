@@ -48,3 +48,33 @@ one or more variables to use for the x-axis (y-axis, ...), the corresponding
 binnings, and other information to make up the graph (axis titles, line/area
 styles etc.). These are intended to be the basic building blocks of analysis
 workflows.
+
+## Getting started
+
+Bamboo needs only python3 and a recent version of ROOT (at least 6.14,
+for the necessary features of RDataFrame). On ingrid and lxplus (or any machine
+with cvmfs), an easy way to get such a recent version of ROOT is through
+a CMSSW release that depends on it (`10_4` or later), or from the lcgsoft
+distribution, e.g.
+```bash
+source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
+python -m venv bamboovenv
+source bamboovenv/bin/activate
+```
+
+The package can be installed with pip, minimally
+```bash
+pip install git+https://cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
+```
+or
+```bash
+pip install git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
+```
+but in the current development stage it may be useful to install from
+a local clone, such that you can use it to test and propose changes, using
+```bash
+git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/clone
+pip install /path/to/your/clone
+```
+(you will need to upgrade with `pip install --upgrade /path/to/your/clone` still
+because installing in editable mode does not work well with extensions etc.).

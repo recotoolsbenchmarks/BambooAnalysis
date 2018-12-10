@@ -54,8 +54,8 @@ workflows.
 Bamboo needs only python3 and a recent version of ROOT (at least 6.14,
 for the necessary features of RDataFrame). On ingrid and lxplus (or any machine
 with cvmfs), an easy way to get such a recent version of ROOT is through
-a CMSSW release that depends on it (`10_4` or later), or from the lcgsoft
-distribution, e.g.
+a CMSSW release that depends on it (`10_4` has a recent enough ROOT, but no
+python3 yet), or from the lcgsoft distribution, e.g.
 ```bash
 source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
 python -m venv bamboovenv

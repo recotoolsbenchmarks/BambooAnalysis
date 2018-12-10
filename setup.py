@@ -80,6 +80,7 @@ setup(
     keywords='ROOT DataFrame',
 
     packages=["bamboo"],
+    scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
 
     install_requires=[],
     extras_require={},

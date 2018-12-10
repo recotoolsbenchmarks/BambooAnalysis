@@ -62,19 +62,21 @@ python -m venv bamboovenv
 source bamboovenv/bin/activate
 ```
 
-The package can be installed with pip, minimally
+The package can be installed with pip, minimally either one of
 ```bash
-pip install git+https://cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
-```
-or
-```bash
-pip install git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
+% pip install git+https://cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
+% pip install git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git
 ```
 but in the current development stage it may be useful to install from
 a local clone, such that you can use it to test and propose changes, using
 ```bash
-git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/clone
-pip install /path/to/your/clone
+% git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/clone
+% pip install /path/to/your/clone
 ```
 (you will need to upgrade with `pip install --upgrade /path/to/your/clone` still
 because installing in editable mode does not work well with extensions etc.).
+
+On ingrid-ui1, you can run the following test to check the installation:
+```bash
+% bambooRun -m /home/ucl/cp3/pdavid/bambootest/nanozmumu.py:NanoZMuMu --worker /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
+```

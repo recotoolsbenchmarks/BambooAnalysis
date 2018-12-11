@@ -87,7 +87,11 @@ input file names, in sequential mode (no `--distributed` option) and for
 the driver task the positional argument is reserved for a json/yaml file
 that contains more information, such as input file locations.
 for several samples, normalisation etc.)
+
 The same test module can also be used to play around with the decorated tree,
 by passing the `-i` (or `--interactive`) option in addition. This will start
 an IPython shell, where the `tree` variable is the decorated tree (a `TChain`
-with one input file, to get the correct structure).
+with one input file, to get the correct structure), e.g.
+```bash
+% bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --distributed=worker -i /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
+```

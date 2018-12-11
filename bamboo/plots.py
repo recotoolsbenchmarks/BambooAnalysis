@@ -3,7 +3,6 @@ Helper classes describing histograms, binnings etc.
 """
 __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection")
 
-import numpy as np
 from itertools import chain
 
 class FactoryBackend(object):
@@ -39,7 +38,7 @@ class VariableBinning(object):
     """
     __slots__ = ("__weakref__", "binEdges")
     def __init__(self, binEdges):
-        self.binEdges = np.array(binEdges)
+        self.binEdges = list(binEdges)
     @property
     def N(self):
         return len(self.binEdges)-1

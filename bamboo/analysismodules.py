@@ -17,6 +17,7 @@ class AnalysisModule(object):
         parser.add_argument("-o", "--output", type=str, default="out.root", help="Output file name")
         parser.add_argument("input", nargs="*")
         parser.add_argument("--tree", type=str, default="Events", help="Tree name")
+        parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         self.addArgs(parser)
         self.args = parser.parse_args(args)
         if self.args.module_help:
@@ -31,16 +32,19 @@ class AnalysisModule(object):
         pass
     def run(self):
         """ Main method """
-        if self.args.distributed == "worker":
-            self.processTrees(self.args.input, self.args.output)
-        elif ( not self.args.distributed ) or self.args.distributed == "driver":
-            inOutList = self.getTasks()
-            if not self.args.distributed: ## sequential mode
-                for inputs, output in inOutList:
-                    self.processTrees(inputs, output)
-            else:
-                pass ## TODO figure out how to distribute them (local/slurm/...), splitting etc. and configure that
-            self.postProcess(inOutList)
+        if self.args.interactive:
+            self.interact()
+        else:
+            if self.args.distributed == "worker":
+                self.processTrees(self.args.input, self.args.output)
+            elif ( not self.args.distributed ) or self.args.distributed == "driver":
+                inOutList = self.getTasks()
+                if not self.args.distributed: ## sequential mode
+                    for inputs, output in inOutList:
+                        self.processTrees(inputs, output)
+                else:
+                    pass ## TODO figure out how to distribute them (local/slurm/...), splitting etc. and configure that
+                self.postProcess(inOutList)
     def processTrees(self, inputFiles, outputFile):
         """ worker method """
         pass
@@ -50,6 +54,9 @@ class AnalysisModule(object):
     def postProcess(self, taskList):
         """ Do postprocessing on the results of the tasks, if needed """
         pass
+    def interact(self):
+        """ Interactive mode (load some things and embed IPython) """
+        pass ## define things and embed IPython
 
 class HistogramsModule(AnalysisModule):
     """ Base histogram analysis module """
@@ -60,6 +67,15 @@ class HistogramsModule(AnalysisModule):
     def initialize(self):
         if self.args.distributed == "worker" and len(self.args.input) == 0:
             raise RuntimeError("Worker task needs at least one input file")
+
+    def interact(self):
+        if self.args.distributed == "worker":
+            import ROOT
+            tup = ROOT.TChain(self.args.tree)
+            tup.Add(self.args.input[0])
+            tree, noSel, backend = self.prepareTree(tup)
+        import IPython
+        IPython.embed()
 
     def processTrees(self, inputFiles, outputFile):
         """ Worker sequence: open inputs, define histograms, fill them and save to output file """

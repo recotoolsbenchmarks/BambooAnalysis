@@ -80,5 +80,14 @@ On ingrid-ui1 (or elsewhere, provided that you have a test NanoAOD with muons),
 you can run the following [test module](examples/nanozmumu.py) to check if the
 installation works correctly:
 ```bash
-% bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --worker /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
+% bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --distributed=worker /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
 ```
+(`--distributed=worker` is needed to interpret the positional arguments as
+input file names, in sequential mode (no `--distributed` option) and for
+the driver task the positional argument is reserved for a json/yaml file
+that contains more information, such as input file locations.
+for several samples, normalisation etc.)
+The same test module can also be used to play around with the decorated tree,
+by passing the `-i` (or `--interactive`) option in addition. This will start
+an IPython shell, where the `tree` variable is the decorated tree (a `TChain`
+with one input file, to get the correct structure).

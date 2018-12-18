@@ -7,20 +7,16 @@ User-facing module
 from .treeproxies import *
 from . import treefunctions as op
 
-def allLeafs(branch, split=False): ## study splitlevel in tree as well
+def allLeafs(branch):
     """
     Recursively collect TTree leaves (TLeaf and TBranchElement)
     """
-    if split:
-        raise NotImplementedError("Going into TBranchElement not implemented yet")
-    for lv in branch.GetListOfLeaves():
-        yield lv
     for br in branch.GetListOfBranches():
         import ROOT
         if isinstance(br, ROOT.TBranchElement):
             yield br
         else:
-            for lv in allLeafs(br):
+            for lv in br.GetListOfLeaves():
                 yield lv
 
 class SetAsParentOfAtt(object):
@@ -106,10 +102,10 @@ def decorateTTW(aTree, description=None):
                         del tree_dict[arrLv]
                     del tree_dict[cntLvNm]
             aLvNm = next(lv for lv in itm_lvs_vec if "{0}_".format(lv) not in itm_lvs_vec)
-            sizeOp = adaptArg(op.rng_len(GetColumn(allTreeLeafs[aLvNm].GetTypeName(), aLvNm).result)) ## abuse a bit
+            sizeOp = adaptArg(op.rng_len(GetColumn(allTreeLeafs[aLvNm].GetClassName(), aLvNm).result)) ## abuse a bit
             for lvNm in itm_lvs_vec:
                 lvNm_short = lvNm[len(prefix):]
-                col = GetColumn(allTreeLeafs[lvNm].GetTypeName(), lvNm).result
+                col = GetColumn(allTreeLeafs[lvNm].GetClassName(), lvNm).result
                 itm_dict[lvNm_short] = itemProxy(col)
                 del tree_dict[lvNm]
             itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
@@ -131,8 +127,6 @@ def decorateTTW(aTree, description=None):
             for lvNm in grp_lvNms:
                 del tree_dict[lvNm]
             tree_postconstr.append(SetAsParentOfAtt(grpNm))
-
-    print(tree_dict)
 
     TreeProxy = type("{0}Proxy".format(aTree.GetName()), (TreeBaseProxy,), tree_dict)
     treeProxy = TreeProxy(aTree)

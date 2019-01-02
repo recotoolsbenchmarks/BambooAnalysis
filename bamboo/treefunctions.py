@@ -12,7 +12,8 @@ ROOT.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
 pkgPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
 ROOT.gInterpreter.AddIncludePath(os.path.join(pkgPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo"))
 ROOT.gSystem.Load(os.path.join(pkgRoot, "libBinnedValues"))
-for fname in ("range.h", "jmesystematics.h", "scalefactors.h"):
+ROOT.gSystem.Load(os.path.join(pkgRoot, "libBambooLumiMask"))
+for fname in ("range.h", "jmesystematics.h", "scalefactors.h", "LumiMask.h"):
     ROOT.gROOT.ProcessLine('#include "{}"'.format(fname))
 del ROOT,os,sys
 

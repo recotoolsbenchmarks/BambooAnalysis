@@ -1,8 +1,14 @@
 """
 Analysis module base classes
 """
+import argparse
+import copy
 import logging
 logger = logging.getLogger(__name__)
+import os.path
+import subprocess
+import urllib.parse
+from .analysisutils import addLumiMask
 
 class AnalysisModule(object):
     """
@@ -11,17 +17,20 @@ class AnalysisModule(object):
     construct from an arguments list and provide a run method (called by bambooRun)
     """
     def __init__(self, args):
-        import argparse
         parser = argparse.ArgumentParser(description=self.__doc__, prog="bambooRun --module={0}:{1}".format(__name__, self.__class__.__name__), add_help=False)
         parser.add_argument("--module-help", action="store_true", help="show this help message and exit")
         parser.add_argument("--module", type=str, help="Module specification")
         parser.add_argument("--distributed", type=str, help="Role in distributed mode (worker or driver; sequential if not specified)")
-        parser.add_argument("-o", "--output", type=str, default="out.root", help="Output file name")
         parser.add_argument("input", nargs="*")
         parser.add_argument("--tree", type=str, default="Events", help="Tree name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
-        parser.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
-        parser.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
+        driver = parser.add_argument_group("Driver", "Arguments specific to driver tasks (non-distributed, or the main process for a distributed task)")
+        driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
+        driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
+        worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
+        worker.add_argument("-o", "--output", type=str, default="out.root", help="Output file name")
+        worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
+        worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         self.addArgs(parser)
         self.args = parser.parse_args(args)
         if self.args.module_help:
@@ -40,26 +49,27 @@ class AnalysisModule(object):
             self.interact()
         else:
             if self.args.distributed == "worker":
-                self.processTrees(self.args.input, self.args.output)
+                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange))
+                self.processTrees(self.args.input, self.args.output, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis descriptin YAML file)")
                 anaCfgName = self.args.input[0]
                 analysisCfg = self.parseAnalysisConfig(anaCfgName)
-                import IPython, sys; IPython.embed(), sys.exit(1)
-                inOutList = self.getTasks()
+                taskArgs = self.getTasks(analysisCfg)
+                taskArgs, certifLumiFiles = self.downloadCertifiedLumiFiles(taskArgs)
                 if not self.args.distributed: ## sequential mode
-                    for inputs, output in inOutList:
-                        self.processTrees(inputs, output)
+                    for inputs, output, kwargs in taskArgs:
+                        logger.info("Sequantial mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
+                        self.processTrees(inputs, output, **kwargs)
                 else:
                     pass ## TODO figure out how to distribute them (local/slurm/...), splitting etc. and configure that
-                self.postProcess(inOutList)
-    def processTrees(self, inputFiles, outputFile):
+                    ## TODO certifLumiFiles should go into sandbox
+                self.postProcess(taskArgs)
+    def processTrees(self, inputFiles, outputFile, certifiedLumiFile=None, runRange=None):
         """ worker method """
         pass
     def parseAnalysisConfig(self, anaCfgName):
-        import os.path
-        import copy
         cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
         import yaml
         with open(anaCfgName) as anaCfgF:
@@ -105,9 +115,38 @@ class AnalysisModule(object):
             samples[smpName] = smp
         analysisCfg["samples"] = samples
         return analysisCfg
-    def getTasks(self):
+    def getTasks(self, analysisCfg):
         """ Get tasks from args (for driver or sequential mode) """
-        return []
+        tasks = []
+        for sName, sConfig in analysisCfg["samples"].items():
+            tasks.append((sConfig["files"], "{0}.root".format(sName), {
+                "certifiedLumiFile" : sConfig.get("certified_lumi_file"),
+                "runRange"          : sConfig.get("run_range") }))
+        return tasks
+    def downloadCertifiedLumiFiles(self, taskArgs):
+        ## download certified lumi files (if needed) and replace in args
+        taskArgs = copy.deepcopy(taskArgs)
+        certifLumiFiles = set(kwargs["certifiedLumiFile"] for ins,out,kwargs in taskArgs)
+        ## download if needed
+        clf_downloaded = dict()
+        for clfu in certifLumiFiles:
+            purl = urllib.parse.urlparse(clfu)
+            if purl.scheme in ("http", "https"):
+                fname = purl.path.split("/")[-1]
+                if os.path.exists(fname):
+                    logger.warning("File {0} exists, it will not be downloaded again from {1}".format(fname, clfu))
+                else:
+                    subprocess.check_call(["wget", clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                clf_downloaded[clfu] = fname
+        ## update args
+        for ins,outs,kwargs in taskArgs:
+            if "certifiedLumiFile" in kwargs:
+                clf = kwargs["certifiedLumiFile"]
+                if clf in clf_downloaded:
+                    kwargs["certifiedLumiFile"] = clf_downloaded[clf]
+
+        return taskArgs, set(clf_downloaded.keys())
+
     def postProcess(self, taskList):
         """ Do postprocessing on the results of the tasks, if needed """
         pass
@@ -130,17 +169,19 @@ class HistogramsModule(AnalysisModule):
             import ROOT
             tup = ROOT.TChain(self.args.tree)
             tup.Add(self.args.input[0])
-            tree, noSel, backend = self.prepareTree(tup)
+            tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup)
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile):
+    def processTrees(self, inputFiles, outputFile, certifiedLumiFile=None, runRange=None):
         """ Worker sequence: open inputs, define histograms, fill them and save to output file """
         import ROOT
         tup = ROOT.TChain(self.args.tree)
         for fName in inputFiles:
             tup.Add(fName)
-        tree, noSel, backend = self.prepareTree(tup)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup)
+        if certifiedLumiFile:
+            noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
         outF = ROOT.TFile.Open(outputFile, "RECREATE")
         plotList = self.definePlots(tree, noSel, systVar="nominal")
@@ -153,11 +194,21 @@ class HistogramsModule(AnalysisModule):
         outF.Close()
     # processTrees customisation points
     def prepareTree(self, tree):
-        """ Create decorated tree, selection root (noSel) and backend"""
-        return tree, None, None
+        """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions """
+        return tree, None, None, None
     def definePlots(self, tree, systVar="nominal"):
         """ Main method: define plots on the trees """
         return None, [] ## backend, and plot list
+
+    def getTasks(self, analysisCfg):
+        ## TODO figure out work dir, out dir etc. configuration
+        import os
+        if not os.path.exists("histos"):
+            os.makedirs("histos")
+        elif not os.path.isdir("histos"):
+            raise RuntimeError("'histos' exists, but is not a directory")
+        return [ (ins, os.path.join("histos", out), kwargs) for ins, out, kwargs in
+                    super(HistogramsModule, self).getTasks(analysisCfg) ]
 
     def postprocess(self, taskList):
         pass ## TODO write plotit and run it, and configure "postOnly"

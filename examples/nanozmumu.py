@@ -13,7 +13,7 @@ class NanoZMuMu(HistogramsModule):
         from bamboo.dataframebackend import DataframeBackend
         t = decorateNanoAOD(tree)
         be, noSel = DataframeBackend.create(t)
-        return t, noSel, be
+        return t, noSel, be, (t.run, t.luminosityBlock)
 
     def definePlots(self, t, noSel, systVar="nominal"):
         from bamboo.plots import Plot, EquidistantBinning

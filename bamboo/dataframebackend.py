@@ -69,7 +69,7 @@ class DataframeBackend(FactoryBackend):
         super(DataframeBackend, self).__init__()
         self._iCol = 0
         self._iFun = 0
-        self._symbols = dict()
+        self._symbols = dict() ## TODO at least _iFun should be global (to avoid reusing the names in sequential mode), with _symbols some things could also be reused (e.g. lumi mask, standalone functions)
     def _getUSymbName(self):
         self._iFun += 1
         return "myFun{0:d}".format(self._iFun)

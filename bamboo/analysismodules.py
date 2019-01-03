@@ -60,7 +60,7 @@ class AnalysisModule(object):
                 taskArgs, certifLumiFiles = self.downloadCertifiedLumiFiles(taskArgs)
                 if not self.args.distributed: ## sequential mode
                     for inputs, output, kwargs in taskArgs:
-                        logger.info("Sequantial mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
+                        logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
                         self.processTrees(inputs, output, **kwargs)
                 else:
                     pass ## TODO figure out how to distribute them (local/slurm/...), splitting etc. and configure that

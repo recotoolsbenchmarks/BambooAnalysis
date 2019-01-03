@@ -1,13 +1,15 @@
 """
 HTCondor tools (based on cp3-llbb/CommonTools condorSubmitter)
 """
+__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
 
+from itertools import chain
 import logging
 logger = logging.getLogger(__name__)
 import os, os.path
 import subprocess
 
-from .batch import CommandListJob
+from .batch import CommandListJob as CommandListJobBase
 
 def makeExecutable(path):
     """ Set file permissions to executable """
@@ -26,28 +28,27 @@ CondorJobStatus = [
         , "Submission_err"  # 6
         ]
 
-class CommandListCondorJob(CommandListJob):
+class CommandListJob(CommandListJobBase):
     """
     Helper class to create a condor master job from a list of commands (each becoming one subjob)
     
     Default work directory will be $(pwd)/condor_work, default output pattern is "*.root"
     """
-    def __init__(self, commandList, workDir=None, envSetupLines=None, outputPatterns=None):
+    def __init__(self, commandList, workDir=None, cmdLines=None, envSetupLines=None, outputPatterns=None):
         self.envSetupLines = envSetupLines if envSetupLines is not None else []
         self.outputPatterns = outputPatterns if outputPatterns is not None else ["*.root"]
 
-        super(CommandListCondorJob, self).__init__(commandList, workDir=workDir, workdir_default_pattern="condor_work")
+        super(CommandListJob, self).__init__(commandList, workDir=workDir, workdir_default_pattern="condor_work")
 
+        self.cmdLines = cmdLines
         self.masterCmd = self._writeCondorFiles()
         self.clusterId = None ## will be set by submit
  
     MasterCmd = (
         "should_transfer_files   = YES\n"
         "when_to_transfer_output = ON_EXIT\n"
-        "universe       = vanilla\n"
-        "requirements   = (CMSFARM =?= TRUE)&&(Memory > 200)\n"
-        "executable     = {indir}/condor.sh\n"
         "arguments      = $(Process)\n"
+        "executable     = {indir}/condor.sh\n"
         "output         = {logdir_rel}/condor_$(Process).out\n"
         "error          = {logdir_rel}/condor_$(Process).err\n"
         "log            = {logdir_rel}/condor_$(Process).log\n"
@@ -56,18 +57,13 @@ class CommandListCondorJob(CommandListJob):
     MasterShell = (
         "#!/usr/bin/env bash\n"
         "\n"
-        "{indir}/condor_$1.sh\n"
+        ". {indir}/condor_$1.sh\n"
         )
     
     JobShell = (
         "#!/usr/bin/env bash\n"
         "\n"
         "{environment_setup}"
-        # "# Setup our CMS environment\n"
-        # "pushd {CMS_PATH}\n"
-        # "source /cvmfs/cms.cern.ch/cmsset_default.sh\n"
-        # "eval `scram runtime --sh`\n"
-        # "popd\n"
         "\n"
         "function move_files {{\n"
         "{move_fragment}"
@@ -80,14 +76,16 @@ class CommandListCondorJob(CommandListJob):
         """ Create Condor .sh and .cmd files """
         masterCmdName = os.path.join(self.workDirs["in"], "condor.cmd")
         with open(masterCmdName, "w") as masterCmd:
-            masterCmd.write(CommandListCondorJob.MasterCmd.format(
+            if self.cmdLines:
+                masterCmd.write("{0}\n".format("\n".join(self.cmdLines)))
+            masterCmd.write(CommandListJob.MasterCmd.format(
                   indir=self.workDirs["in"]
                 , logdir_rel=os.path.relpath(self.workDirs["log"])
                 , nJobs=len(self.commandList)
                 ))
         masterShName = os.path.join(self.workDirs["in"], "condor.sh")
         with open(masterShName, "w") as masterSh:
-            masterSh.write(CommandListCondorJob.MasterShell.format(
+            masterSh.write(CommandListJob.MasterShell.format(
                   indir=self.workDirs["in"]
                 ))
         makeExecutable(masterShName)
@@ -97,7 +95,7 @@ class CommandListCondorJob(CommandListJob):
             job_outdir = os.path.join(self.workDirs["out"], str(i))
             os.makedirs(job_outdir)
             with open(jobShName, "w") as jobSh:
-                jobSh.write(CommandListCondorJob.JobShell.format(
+                jobSh.write(CommandListJob.JobShell.format(
                       environment_setup="\n".join(self.envSetupLines)
                     , move_fragment="\n".join((
                         " for file in {pattern}; do\n"
@@ -166,7 +164,24 @@ class CommandListCondorJob(CommandListJob):
     def commandStatus(self, command):
         return self.subjobStatus(self.commandList.index(command))
 
-def makeCondorTasksMonitor(jobs=[], tasks=[], interval=120):
+def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
+    cmdLines = []
+    envSetupLines = []
+    ## TODO add settings inferred from from batchConfig, e.g.:
+    cmdLines = [
+        "universe       = vanilla",
+        "requirements   = (CMSFARM =?= TRUE)&&(Memory > 200)",
+        ]
+    if configOpts:
+        cmdLines += configOpts.get("cmd", [])
+        envSetupLines += configOpts.get("env", [])
+    condorJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)),
+            workDir=workdir, cmdLines=cmdLines, envSetupLines=envSetupLines)
+    for task in taskList:
+        task.jobCluster = condorJob
+    return [ condorJob ]
+
+def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     """ make a TasksMonitor for condor jobs """
     from .batch import TasksMonitor
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval

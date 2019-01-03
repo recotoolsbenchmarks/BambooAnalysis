@@ -22,13 +22,14 @@ class AnalysisModule(object):
         parser.add_argument("--module", type=str, help="Module specification")
         parser.add_argument("--distributed", type=str, help="Role in distributed mode (worker or driver; sequential if not specified)")
         parser.add_argument("input", nargs="*")
+        worker.add_argument("-o", "--output", type=str, default=".", help="Output file (worker) or directory (driver) name")
         parser.add_argument("--tree", type=str, default="Events", help="Tree name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         driver = parser.add_argument_group("Driver", "Arguments specific to driver tasks (non-distributed, or the main process for a distributed task)")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
+        driver.add_argument("--batchConfig", type=str, help="Config file to read batch system configuration from")
         worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
-        worker.add_argument("-o", "--output", type=str, default="out.root", help="Output file name")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         self.addArgs(parser)
@@ -49,6 +50,8 @@ class AnalysisModule(object):
             self.interact()
         else:
             if self.args.distributed == "worker":
+                if ( not self.args.output.endswith(".root") ) or os.path.isdir(self.args.output):
+                    raise RuntimeError("Output for worker processes needs to be a ROOT file")
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange))
                 self.processTrees(self.args.input, self.args.output, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
@@ -58,14 +61,54 @@ class AnalysisModule(object):
                 analysisCfg = self.parseAnalysisConfig(anaCfgName)
                 taskArgs = self.getTasks(analysisCfg)
                 taskArgs, certifLumiFiles = self.downloadCertifiedLumiFiles(taskArgs)
+                workdir = self.args.output
+                resultsdir = os.path.join(workdir, "results")
+                if os.path.exists(resultsdir):
+                    logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
+                ##
                 if not self.args.distributed: ## sequential mode
                     for inputs, output, kwargs in taskArgs:
+                        output = os.path.join(resultsdir, output)
                         logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
                         self.processTrees(inputs, output, **kwargs)
                 else:
-                    pass ## TODO figure out how to distribute them (local/slurm/...), splitting etc. and configure that
-                    ## TODO certifLumiFiles should go into sandbox
+                    from .batch import readConfig, splitTask
+                    backend, batchConfig = readConfig(self.args.batchconfig)
+                    tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+
+                                        ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=batchConfig.get("splitting"))
+                                for inputs, output, kwargs in taskArgs ]
+                    if backend == "slurm":
+                        from . import batch_slurm as batchBackend
+                        backendOpts = {
+                                "sbatch_time"     : "0-00:20",
+                                "sbatch_mem"      : "2048",
+                                "stageoutFiles"   : ["*.root"],
+                                "sbatch_workdir"  : os.getcwd(),
+                                "sbatch_additionalOptions" : [ "--export=ALL" ],
+                                }
+                    elif backend == "htcondor":
+                        from . import batch_htcondor as batchBackend
+                        backendOpts = {
+                                "cmd" : [
+                                    "universe     = vanilla",
+                                    "+MaxRuntime  = {0:d}".format(20*60) # 20 minutes
+                                    "getenv       = True"
+                                    ]
+                                }
+                    else:
+                        raise RuntimeError("Unknown backend: {0}".format(backend))
+                    batchworkdir = os.path.join(workdir, "batch")
+                    if os.path.exists(batchworkdir):
+                        raise RuntimeError("Directory '{0}' already exists, previous results would be overwritten".format(resultsdir))
+                    os.makedirs(wd)
+                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=batchworkdir, batchConfig=batchConfig.get(backend), configOpts=backendOpts)
+                    for j in clusJobs:
+                        j.submit()
+                    clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
+                    clusMon.collect() ## wait for batch jobs to finish and finalize
+
                 self.postProcess(taskArgs)
+
     def processTrees(self, inputFiles, outputFile, certifiedLumiFile=None, runRange=None):
         """ worker method """
         pass
@@ -199,16 +242,6 @@ class HistogramsModule(AnalysisModule):
     def definePlots(self, tree, systVar="nominal"):
         """ Main method: define plots on the trees """
         return None, [] ## backend, and plot list
-
-    def getTasks(self, analysisCfg):
-        ## TODO figure out work dir, out dir etc. configuration
-        import os
-        if not os.path.exists("histos"):
-            os.makedirs("histos")
-        elif not os.path.isdir("histos"):
-            raise RuntimeError("'histos' exists, but is not a directory")
-        return [ (ins, os.path.join("histos", out), kwargs) for ins, out, kwargs in
-                    super(HistogramsModule, self).getTasks(analysisCfg) ]
 
     def postprocess(self, taskList):
         pass ## TODO write plotit and run it, and configure "postOnly"

@@ -206,3 +206,46 @@ class TasksMonitor(object):
                 logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))
                 if stats[self.completedStatus] > prevStats[self.completedStatus]:
                     self._tryFinalize()
+
+def splitInChunks(theList, n):
+    from itertools import islice
+    import math
+    N = len(theList)
+    chunkLength = int(math.ceil(1.*N/n))
+    for iStart, iStop in zip(xrange(0, len(theList), chunkLength), xrange(chunkLength, len(theList)+chunkLength, chunkLength)):
+        yield islice(theList, iStart, min(iStop,N))
+
+def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
+    nChunks = 1
+    outArg = next(arg for arg in commonArgs if "--output" in arg)
+    ## TODO maybe pass sample name, take configuration for splitting
+    if "DYJetsToLL_M-10to50" in outArg:
+        nChunks = 4
+    elif "TT_Tune" in outArg:
+        nChunks = 3
+    splitSplitArgs = list(list(chunk) for chunk in splitInChunks(toSplitArgs, nChunks))
+    assert sum(len(ssa) for ssa in splitSplitArgs) == len(toSplitArgs)
+    cmds = [ " ".join(commonArgs+splitArgs) for splitArgs in splitSplitArgs ]
+    return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outDir))
+
+def readConfig(explName=None):
+    from configparser import ConfigParser
+    def readFromFile(name):
+        cfgp = ConfigParser()
+        cfgp.read(name)
+        cfg = dict((sName, dict(cfgp[sName])) for sName in cfgp.sections())
+        return cfgp["batch"]["backend"], cfg
+
+    xdgCfg = os.getenv("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
+    toTry = ["bamboo.ini", "batch.ini", os.path.join(xdgCfg, "bamboo")]
+    if explName:
+        toTry.insert(0, explName)
+    for iniName in toTry:
+        if os.path.exists(iniName):
+            try:
+                res = readFromFile(iniName)
+                logger.info("Read config from file {0}".format(iniName))
+                return res
+            except Exception as ex:
+                logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
+    raise RuntimeError("No valid config file found")

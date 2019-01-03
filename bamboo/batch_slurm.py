@@ -1,14 +1,23 @@
 """
 Slurm tools (based on previous condorhelpers and cp3-llbb/CommonTools condorSubmitter and slurmSubmitter)
 """
+__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
 
+from itertools import chain
 from contextlib import contextmanager
 import logging
 logger = logging.getLogger(__name__)
 import os.path
 import subprocess
 
-from .batch import CommandListJob
+from .batch import CommandListJob as CommandListJobBase
+from .batch import TasksMonitor
+
+try:
+    from CP3SlurmUtils.Configuration import Configuration as CP3SlurmConfiguration
+    from CP3SlurmUtils.SubmitWorker import SubmitWorker as slurmSubmitWorker
+except ImportError as ex:
+    logger.info("Could not import Configuration and slurmSubmitWorker from CP3SlurmUtils.SubmitUtils. Please run 'module load slurm/slurm_utils'")
 
 SlurmJobStatus = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "COMPLETING", "CONFIGURING", "CANCELLED", "BOOT_FAIL", "NODE_FAIL", "PREEMPTED", "RESIZING", "SUSPENDED", "TIMEOUT", "unknown"]
 
@@ -21,45 +30,37 @@ def redirect_stdout(whereto=None):
     yield
     sys.stdout = bk_out
 
-class CommandListSlurmJob(CommandListJob):
+class CommandListJob(CommandListJobBase):
     """
     Helper class to create a slurm job array from a list of commands (each becoming a task in the array)
     
     Default work directory will be $(pwd)/slurm_work, default output pattern is "*.root"
     """
     default_cfg_opts = {
-          "environmentType" : "cms"
-        , "sbatch_time"     : "0-04:00"
-        , "sbatch_mem"      : "2048"
-        , "stageoutFiles"   : ["*.root"]
+          "batchScriptsFilename" : "slurmSubmission.sh"
+        , "stageoutFiles"        : ["*.root"]
+        , "inputParamsNames"     : ["taskcmd"]
+        , "useJobArray"          :  True
+        , "payload"              : ("${taskcmd}")
         }
 
     def __init__(self, commandList, workDir=None, configOpts=None):
-        super(CommandListSlurmJob, self).__init__(commandList, workDir=workDir, workdir_default_pattern="slurm_work")
+        super(CommandListJob, self).__init__(commandList, workDir=workDir, workdir_default_pattern="slurm_work")
         ##
-        from CP3SlurmUtils.Configuration import Configuration
-        self.cfg = Configuration()
+        self.cfg = CP3SlurmConfiguration()
+
+        self.cfg.sbatch_workdir = self.workDir
+        self.cfg.inputSandboxDir = self.workDirs["in"]
+        self.cfg.batchScriptsDir = self.workDir
+        self.cfg.stageoutDir = os.path.join(self.workDirs["out"], "${SLURM_ARRAY_TASK_ID}")
+        self.cfg.stageoutLogsDir = self.workDirs["log"]
+        self.cfg.inputParams = list([cmd] for cmd in self.commandList)
         ## apply user-specified
-        cfg_opts = dict(CommandListSlurmJob.default_cfg_opts)
+        cfg_opts = dict(CommandListJob.default_cfg_opts)
         if configOpts:
             cfg_opts.update(configOpts)
         for k, v in cfg_opts.iteritems():
             setattr(self.cfg, k, v)
-
-        ## check working and output directory
-        self.cfg.sbatch_workdir = self.workDir
-        self.cfg.inputSandboxDir = self.workDirs["in"]
-        self.cfg.batchScriptsDir = self.workDir
-        self.cfg.batchScriptsFilename = "slurmSubmission.sh"
-        self.cfg.stageoutDir = os.path.join(self.workDirs["out"], "${SLURM_ARRAY_TASK_ID}")
-        self.cfg.stageoutLogsDir = self.workDirs["log"]
-        self.cfg.useJobArray = True
-        self.cfg.inputParamsNames = ["taskcmd"]
-        self.cfg.inputParams = list([cmd] for cmd in self.commandList)
-        self.cfg.payload = ("${taskcmd}")
-        self.cfg.sbatch_qos = "normal"
-        self.cfg.sbatch_partition = "Def"
-
 
         self.slurmScript = os.path.join(self.cfg.batchScriptsDir, self.cfg.batchScriptsFilename)
         self.clusterId = None ## will be set by submit
@@ -68,13 +69,9 @@ class CommandListSlurmJob(CommandListJob):
 
         ## output
         try:
-            from CP3SlurmUtils.SubmitWorker import SubmitWorker as slurmSubmitWorker
-        except ImportError as ex:
-            logger.info("Could not import slurmSubmitWorker from CP3SlurmUtils.SubmitUtils. Please run 'module load slurm/slurm_utils'")
-        try:
             slurm_submit = slurmSubmitWorker(self.cfg, submit=False, debug=False, quiet=False)
         except Exception as ex:
-            logger.error("Problem constructing slurm submit worker from CP3SlurmUtils: {}".format(str(ex)))
+            logger.error("Problem constructing slurm submit worker: {}".format(str(ex)))
             raise ex
         else:
             from StringIO import StringIO ## python3: from io import StringIO
@@ -171,9 +168,14 @@ class CommandListSlurmJob(CommandListJob):
     def commandStatus(self, command):
         return self.subjobStatus(self.commandList.index(command)+1)
 
-def makeSlurmTasksMonitor(jobs=[], tasks=[], interval=120):
+def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
+    slurmJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)), workDir=workdir, configOpts=configOpts)
+    for task in taskList:
+        task.jobCluster = slurmJob
+    return [ slurmJob ]
+
+def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     """ make a TasksMonitor for slurm jobs """
-    from .batch import TasksMonitor
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval
             , allStatuses=SlurmJobStatus
             , activeStatuses=[SlurmJobStatus.index(stNm) for stNm in ("CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED")]

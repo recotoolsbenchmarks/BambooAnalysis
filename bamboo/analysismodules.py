@@ -20,20 +20,22 @@ class AnalysisModule(object):
         parser = argparse.ArgumentParser(description=self.__doc__, prog="bambooRun --module={0}:{1}".format(__name__, self.__class__.__name__), add_help=False)
         parser.add_argument("--module-help", action="store_true", help="show this help message and exit")
         parser.add_argument("--module", type=str, help="Module specification")
-        parser.add_argument("--distributed", type=str, help="Role in distributed mode (worker or driver; sequential if not specified)")
+        parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver"])
         parser.add_argument("input", nargs="*")
-        worker.add_argument("-o", "--output", type=str, default=".", help="Output file (worker) or directory (driver) name")
-        parser.add_argument("--tree", type=str, default="Events", help="Tree name")
+        parser.add_argument("-o", "--output", type=str, default=".", help="Output file (worker) or directory (driver) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         driver = parser.add_argument_group("Driver", "Arguments specific to driver tasks (non-distributed, or the main process for a distributed task)")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--batchConfig", type=str, help="Config file to read batch system configuration from")
         worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
+        worker.add_argument("--treeName", type=str, default="Events", help="Tree name")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
-        self.addArgs(parser)
+        specific = parser.add_argument_group("module", "Specific arguments for the module")
+        self.addArgs(module)
         self.args = parser.parse_args(args)
+        self.specificArgv = self.reproduceArgs(specific)
         if self.args.module_help:
             parser.print_help()
             import sys; sys.exit(0)
@@ -44,6 +46,37 @@ class AnalysisModule(object):
     def initialize(self):
         """ Do more initialization that depends on command-line arguments """
         pass
+    def reproduceArgs(self, group):
+        """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
+        assert isinstance(group, argparse._ArgumentGroup)
+        argv = []
+        for action in group._group_actions:
+            if isinstance(action, argparse._StoreTrueAction):
+                if getattr(self.args, action.dest):
+                    argv.append(action.option_strings[0])
+            elif isinstance(action, argparse._StoreAction):
+                argv.append(action.option_strings[0])
+                argv.append(getattr(self.args, action.dest))
+            else:
+                raise RuntimeError("Reconstruction of action {0} not supported".format(action))
+        return argv
+    def getATree(self):
+        if self.args.distributed == "worker":
+            import ROOT
+            tup = ROOT.TChain(self.args.treeName)
+            tup.Add(self.args.input[0])
+            return tup
+        elif ( not self.args.distributed ) or self.args.distributed == "driver":
+            if len(self.args.input) != 1:
+                raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
+            anaCfgName = self.args.input[0]
+            analysisCfg = self.parseAnalysisConfig(anaCfgName)
+            import ROOT
+            tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
+            tup.Add(next(analysisCfg["samples"].values())["files"][0])
+            return tup
+        else:
+            raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
     def run(self):
         """ Main method """
         if self.args.interactive:
@@ -52,14 +85,14 @@ class AnalysisModule(object):
             if self.args.distributed == "worker":
                 if ( not self.args.output.endswith(".root") ) or os.path.isdir(self.args.output):
                     raise RuntimeError("Output for worker processes needs to be a ROOT file")
-                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange))
-                self.processTrees(self.args.input, self.args.output, certifiedLumiFile=args.certifiedLumiFile, runRange=args.runRange)
+                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={tree}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange))
+                self.processTrees(self.args.input, self.args.output, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
-                    raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis descriptin YAML file)")
+                    raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 analysisCfg = self.parseAnalysisConfig(anaCfgName)
-                taskArgs = self.getTasks(analysisCfg)
+                taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, certifLumiFiles = self.downloadCertifiedLumiFiles(taskArgs)
                 workdir = self.args.output
                 resultsdir = os.path.join(workdir, "results")
@@ -74,7 +107,7 @@ class AnalysisModule(object):
                 else:
                     from .batch import readConfig, splitTask
                     backend, batchConfig = readConfig(self.args.batchconfig)
-                    tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+
+                    tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
                                         ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=batchConfig.get("splitting"))
                                 for inputs, output, kwargs in taskArgs ]
                     if backend == "slurm":
@@ -108,8 +141,10 @@ class AnalysisModule(object):
                     clusMon.collect() ## wait for batch jobs to finish and finalize
 
                 self.postProcess(taskArgs)
+            else:
+                raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
-    def processTrees(self, inputFiles, outputFile, certifiedLumiFile=None, runRange=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None):
         """ worker method """
         pass
     def parseAnalysisConfig(self, anaCfgName):
@@ -158,13 +193,16 @@ class AnalysisModule(object):
             samples[smpName] = smp
         analysisCfg["samples"] = samples
         return analysisCfg
-    def getTasks(self, analysisCfg):
+    def getTasks(self, analysisCfg, **extraOpts):
         """ Get tasks from args (for driver or sequential mode) """
         tasks = []
         for sName, sConfig in analysisCfg["samples"].items():
-            tasks.append((sConfig["files"], "{0}.root".format(sName), {
+            opts = {
                 "certifiedLumiFile" : sConfig.get("certified_lumi_file"),
-                "runRange"          : sConfig.get("run_range") }))
+                "runRange"          : sConfig.get("run_range")
+                }
+            opts.update(extraOpts)
+            tasks.append((sConfig["files"], "{0}.root".format(sName), opts))
         return tasks
     def downloadCertifiedLumiFiles(self, taskArgs):
         ## download certified lumi files (if needed) and replace in args
@@ -208,18 +246,15 @@ class HistogramsModule(AnalysisModule):
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):
-        if self.args.distributed == "worker":
-            import ROOT
-            tup = ROOT.TChain(self.args.tree)
-            tup.Add(self.args.input[0])
-            tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup)
+        tup = self.getATree()
+        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup)
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile, certifiedLumiFile=None, runRange=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None):
         """ Worker sequence: open inputs, define histograms, fill them and save to output file """
         import ROOT
-        tup = ROOT.TChain(self.args.tree)
+        tup = ROOT.TChain(tree)
         for fName in inputFiles:
             tup.Add(fName)
         tree, noSel, backend, runAndLS = self.prepareTree(tup)
@@ -228,6 +263,8 @@ class HistogramsModule(AnalysisModule):
 
         outF = ROOT.TFile.Open(outputFile, "RECREATE")
         plotList = self.definePlots(tree, noSel, systVar="nominal")
+        if not self.plotList:
+            self.plotList = plotList
         for systVar in self.systVars:
             plotList += self.definePlots(tree, noSel, systVar=systVar)
 

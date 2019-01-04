@@ -5,7 +5,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os.path
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, readEnvConfig
 
 def reproduceArgv(args, group):
     """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
@@ -39,7 +39,7 @@ class AnalysisModule(object):
         driver = parser.add_argument_group("Driver", "Arguments specific to driver tasks (non-distributed, or the main process for a distributed task)")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
-        driver.add_argument("--batchConfig", type=str, help="Config file to read batch system configuration from")
+        driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
         worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
@@ -68,7 +68,7 @@ class AnalysisModule(object):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            analysisCfg = parseAnalysisConfig(anaCfgName)
+            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=args.redodbqueries, overwritesamplefilelists=args.overwritesamplefilelists)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
             tup.Add(next(analysisCfg["samples"].values())["files"][0])
@@ -89,7 +89,8 @@ class AnalysisModule(object):
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
-                analysisCfg = parseAnalysisConfig(anaCfgName)
+                envConfig = readEnvConfig(self.args.envConfig)
+                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=args.redodbqueries, overwritesamplefilelists=args.overwritesamplefilelists, envConfig=envConfig)
                 taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs)
                 workdir = self.args.output
@@ -103,10 +104,10 @@ class AnalysisModule(object):
                         logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
                         self.processTrees(inputs, output, **kwargs)
                 else:
-                    from .batch import readConfig, splitTask
-                    backend, batchConfig = readConfig(self.args.batchconfig)
+                    from .batch import splitTask
+                    backend = envConfig["batch"]["backend"]
                     tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                        ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=batchConfig.get("splitting"))
+                                        ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
                                 for (inputs, output), kwargs in taskArgs ]
                     if backend == "slurm":
                         from . import batch_slurm as batchBackend
@@ -132,7 +133,7 @@ class AnalysisModule(object):
                     if os.path.exists(batchworkdir):
                         raise RuntimeError("Directory '{0}' already exists, previous results would be overwritten".format(resultsdir))
                     os.makedirs(wd)
-                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=batchworkdir, batchConfig=batchConfig.get(backend), configOpts=backendOpts)
+                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=batchworkdir, batchConfig=envConfig.get(backend), configOpts=backendOpts)
                     for j in clusJobs:
                         j.submit()
                     clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)

@@ -227,25 +227,3 @@ def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
     assert sum(len(ssa) for ssa in splitSplitArgs) == len(toSplitArgs)
     cmds = [ " ".join(commonArgs+splitArgs) for splitArgs in splitSplitArgs ]
     return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outDir))
-
-def readConfig(explName=None):
-    from configparser import ConfigParser
-    def readFromFile(name):
-        cfgp = ConfigParser()
-        cfgp.read(name)
-        cfg = dict((sName, dict(cfgp[sName])) for sName in cfgp.sections())
-        return cfgp["batch"]["backend"], cfg
-
-    xdgCfg = os.getenv("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
-    toTry = ["bamboo.ini", "batch.ini", os.path.join(xdgCfg, "bamboo")]
-    if explName:
-        toTry.insert(0, explName)
-    for iniName in toTry:
-        if os.path.exists(iniName):
-            try:
-                res = readFromFile(iniName)
-                logger.info("Read config from file {0}".format(iniName))
-                return res
-            except Exception as ex:
-                logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
-    raise RuntimeError("No valid config file found")

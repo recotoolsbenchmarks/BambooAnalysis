@@ -48,7 +48,7 @@ def downloadCertifiedLumiFiles(taskArgs):
 
     return taskArgs, set(clf_downloaded.keys())
 
-def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False)
+def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None)
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
     with open(anaCfgName) as anaCfgF:
         analysisCfg = yaml.load(anaCfgF)
@@ -70,10 +70,12 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
             protocol, dbLoc = smpCfg["db"].split(":")
             files = []
             if protocol == "das":
+                dasConfig = envConfig["das"]
                 dasQuery = "file dataset={0}".format(dbLoc)
-                files = [ fn for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).split() ] if len(fn) > 0 ]
+                files = [ os.path.join(dasConfig["storageroot"], fn) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).split() ] if len(fn) > 0 ]
                 if len(files) == 0:
                     raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
+                ## TODO improve: check that files are locally available, possibly fall back to xrootd otherwise; check for grid proxy before querying; maybe do queries in parallel
             elif protocol == "samadhi":
                 logger.warning("SAMADhi queries are not implemented yet")
             else:
@@ -93,3 +95,34 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
         samples[smpName] = smp
     analysisCfg["samples"] = samples
     return analysisCfg
+
+def readEnvConfig(explName=None):
+    """ Read computing environment config file (batch system, storage site etc.)
+
+    For using a batch cluster, the [batch] section should have a 'backend' key,
+    and there should be a section with the name of the backend (slurm, htcondor...),
+    see bamboo.batch_<backend> for details.
+    The storage site information needed to resolve the PFNs for datasets retrieved from DAS
+    should be specified under the [das] section (sitename and storageroot).
+    """
+    import os
+    from configparser import ConfigParser
+    def readFromFile(name):
+        cfgp = ConfigParser()
+        cfgp.read(name)
+        cfg = dict((sName, dict(cfgp[sName])) for sName in cfgp.sections())
+        return cfg
+
+    xdgCfg = os.getenv("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
+    toTry = ["bamboo.ini", "bamboorc", os.path.join(xdgCfg, "bamboorc")]
+    if explName:
+        toTry.insert(0, explName)
+    for iniName in toTry:
+        if os.path.exists(iniName):
+            try:
+                res = readFromFile(iniName)
+                logger.info("Read config from file {0}".format(iniName))
+                return res
+            except Exception as ex:
+                logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
+    raise RuntimeError("No valid config file found")

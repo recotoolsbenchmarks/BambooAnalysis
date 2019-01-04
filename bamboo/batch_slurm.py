@@ -21,15 +21,6 @@ except ImportError as ex:
 
 SlurmJobStatus = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "COMPLETING", "CONFIGURING", "CANCELLED", "BOOT_FAIL", "NODE_FAIL", "PREEMPTED", "RESIZING", "SUSPENDED", "TIMEOUT", "unknown"]
 
-# take from contextlib when moving to python3
-@contextmanager
-def redirect_stdout(whereto=None):
-    import sys
-    bk_out = sys.stdout
-    sys.stdout = whereto
-    yield
-    sys.stdout = bk_out
-
 class CommandListJob(CommandListJobBase):
     """
     Helper class to create a slurm job array from a list of commands (each becoming a task in the array)
@@ -74,7 +65,8 @@ class CommandListJob(CommandListJobBase):
             logger.error("Problem constructing slurm submit worker: {}".format(str(ex)))
             raise ex
         else:
-            from StringIO import StringIO ## python3: from io import StringIO
+            from contextlib import redirect_stdout
+            from io import StringIO
             workerout = StringIO()
             submitLoggerFun = logger.debug
             try:

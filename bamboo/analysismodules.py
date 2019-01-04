@@ -5,7 +5,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os.path
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, readEnvConfig
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
     """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
@@ -40,6 +40,7 @@ class AnalysisModule(object):
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
+        driver.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
         worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
@@ -133,14 +134,13 @@ class AnalysisModule(object):
                     batchworkdir = os.path.join(workdir, "batch")
                     if os.path.exists(batchworkdir):
                         raise RuntimeError("Directory '{0}' already exists, previous results would be overwritten".format(resultsdir))
-                    os.makedirs(wd)
+                    os.makedirs(batchworkdir)
                     clusJobs = batchBackend.jobsFromTasks(tasks, workdir=batchworkdir, batchConfig=envConfig.get(backend), configOpts=backendOpts)
                     for j in clusJobs:
                         j.submit()
                     clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
                     clusMon.collect() ## wait for batch jobs to finish and finalize
-
-                self.postProcess(taskArgs)
+                self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
@@ -159,7 +159,7 @@ class AnalysisModule(object):
             tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts))
         return tasks
 
-    def postProcess(self, taskList):
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         """ Do postprocessing on the results of the tasks, if needed """
         pass
     def interact(self):
@@ -211,5 +211,9 @@ class HistogramsModule(AnalysisModule):
         """ Main method: define plots on the trees """
         return None, [] ## backend, and plot list
 
-    def postprocess(self, taskList):
-        pass ## TODO write plotit and run it, and configure "postOnly"
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        if not self.plotList: ## get plots if not already done so
+            tup = self.getATree()
+            tree, noSel, backend, runAndLS = self.prepareTree(tup)
+            self.plotList = self.definePlots(tree, noSel, systVar="nominal")
+        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt)

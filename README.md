@@ -70,11 +70,28 @@ The package can be installed with pip, minimally either one of
 but in the current development stage it may be useful to install from
 a local clone, such that you can use it to test and propose changes, using
 ```bash
-% git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/clone
-% pip install /path/to/your/clone
+% git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/bambooclone
+% pip install /path/to/your/bambooclone
 ```
-(you will need to upgrade with `pip install --upgrade /path/to/your/clone` still
-because installing in editable mode does not work well with extensions etc.).
+(you will need to upgrade with `pip install --upgrade /path/to/your/bambooclone`
+still because installing in editable mode does not work well with extensions
+etc.).
+
+The [plotIt](https://github.com/cp3-llbb/plotIt) tool is used for the final step,
+combining the different histograms in stacks and producing pdf or png files.
+In the environment described above, it can be installed with
+```bash
+% git clone -o upstream https://github.com/cp3-llbb/plotIt.git /path/to/your/plotitclone
+% cd /path/to/your/plotitclone
+% cd external
+% ./build-external.sh
+% cd -
+% BOOST_ROOT=$CMAKE_PREFIX_PATH make -j4
+% cp plotIt bamboovenv/bin
+```
+where the last command copies the `plotIt` executable inside the virtualenv
+executable directory such that it is picked up automatically (alternatively,
+its path can be passed to `bambooRun` with the `--plotIt` command-line option).
 
 On ingrid-ui1 (or elsewhere, provided that you have a test NanoAOD with muons),
 you can run the following [test module](examples/nanozmumu.py) to check if the

@@ -126,3 +126,55 @@ def readEnvConfig(explName=None):
             except Exception as ex:
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     raise RuntimeError("No valid config file found")
+
+plotit_plotdefaults = {
+        "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
+        "y-axis"           : "Evt",
+        "y-axis-format"    : "%1% / %2$.0f",
+        "normalized"       : False,
+        "x-axis-format"    : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
+        "log-y"            : "both",
+        "y-axis-show-zero" : True,
+        "save-extensions"  : ["pdf"],
+        "show-ratio"       : True,
+        "sort-by-yields"   : False,
+        }
+def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None):
+    plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
+    plotitCfg["configuration"]["root"] = resultsdir
+    plotit_files = dict()
+    for smpN, smpCfg in config["samples"].items():
+        smpOpts = dict()
+        smpOpts["group"] = smpCfg["group"]
+        isMC = ( smpCfg["group"] != "data" )
+        smpOpts["type"] = ("mc" if isMC else "data")
+        if isMC:
+            smpOpts["cross-section"] = smpCfg["cross-section"]
+            ## TODO add/get "generated-events" from sum of weights (can also store in the file and read with plotIt?)
+        plotit_files["{0}.root".format(smpN)] = smpOpts
+    plotitCfg["files"] = plotit_files
+    plotit_plots = dict()
+    for plot in plotList:
+        plotOpts = dict(plotit_plotdefaults)
+        if plotDefaults:
+            plotOpts.update(plotDefaults)
+        plotOpts.update(plot.plotopts)
+        plotOpts = dict((k, (v(plot) if hasattr(v, "__call__") else v)) for k,v in plotOpts.items())
+        plotit_plots[plot.name] = plotOpts
+    plotitCfg["plots"] = plotit_plots
+    cfgName = os.path.join(workdir, "plots.yml")
+    with open(cfgName, "w") as plotitFile:
+        yaml.dump(plotitCfg, plotitFile)
+
+    plotsdir = os.path.join(workdir, "plots")
+    if os.path.exists(plotsdir):
+        logger.warning("Directory '{0}' already exists, previous plots will be overwritten".format(plotsdir))
+    else:
+        os.makedirs(plotsdir)
+
+    try:
+        with open(os.path.join(plotsdir, "out.log"), "w") as logFile:
+            subprocess.check_call([plotIt, "-i", workdir, "-o", plotsdir, cfgName], stdout=logFile)
+        logger.info("plotIt output is available in {0}".format(plotsdir))
+    except subprocess.CalledProcessError as ex:
+        logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))

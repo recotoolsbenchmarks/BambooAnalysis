@@ -1,3 +1,4 @@
+tree: Events
 samples:
   SingleMuon_2016B: ## names should be unique (also between this and the MC samples list)
     db: das:/SingleMuon.../...Run2016B.../NANOAOD ## optional, alternatively: list of files (or path of a text file that contains those)

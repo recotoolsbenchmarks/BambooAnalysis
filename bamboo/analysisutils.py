@@ -1,9 +1,16 @@
 """
-Analysis helper functions that don't fit elsewhere
+Analysis helper functions that don't fit in treefunctions
 """
-from . import treefunctions as op
+import copy
+import logging
+logger = logging.getLogger(__name__)
+import os.path
+import subprocess
+import urllib.parse
+import yaml
 
 def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
+    from . import treefunctions as op
     """ Refine selection with a luminosity block filter
 
     Typically applied directly to the root selection (for data).
@@ -16,3 +23,73 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
     lumiSel = op.define("LumiMask", 'const auto <<name>> = LumiMask::fromJSON("{0}"{1});'.format(
                 jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")))
     return sel.refine(name, cut=lumiSel.accept(*runAndLS))
+
+def downloadCertifiedLumiFiles(taskArgs):
+    """ download certified lumi files (if needed) and replace in args """
+    taskArgs = copy.deepcopy(taskArgs)
+    certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs)
+    ## download if needed
+    clf_downloaded = dict()
+    for clfu in certifLumiFiles:
+        purl = urllib.parse.urlparse(clfu)
+        if purl.scheme in ("http", "https"):
+            fname = purl.path.split("/")[-1]
+            if os.path.exists(fname):
+                logger.warning("File {0} exists, it will not be downloaded again from {1}".format(fname, clfu))
+            else:
+                subprocess.check_call(["wget", clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            clf_downloaded[clfu] = fname
+    ## update args
+    for args,kwargs in taskArgs:
+        if "certifiedLumiFile" in kwargs:
+            clf = kwargs["certifiedLumiFile"]
+            if clf in clf_downloaded:
+                kwargs["certifiedLumiFile"] = clf_downloaded[clf]
+
+    return taskArgs, set(clf_downloaded.keys())
+
+def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False)
+    cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
+    with open(anaCfgName) as anaCfgF:
+        analysisCfg = yaml.load(anaCfgF)
+    ## finish loading samples (file lists)
+    samples = dict()
+    for smpName, smpCfg in analysisCfg["samples"].items():
+        smp = copy.deepcopy(smpCfg)
+        ## read cache, if it's there
+        listfile, cachelist = None, []
+        if "files" in smpCfg and str(smpCfg["files"]) == smpCfg["files"]:
+            listfile = smpCfg["files"] if os.path.isabs(smpCfg["files"]) else os.path.join(cfgDir, smpCfg["files"])
+            if os.path.isfile(listfile):
+                with open(listfile) as smpF:
+                    cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
+
+        if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or redodbqueries ):
+            if ":" not in smpCfg["db"]:
+                raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
+            protocol, dbLoc = smpCfg["db"].split(":")
+            files = []
+            if protocol == "das":
+                dasQuery = "file dataset={0}".format(dbLoc)
+                files = [ fn for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).split() ] if len(fn) > 0 ]
+                if len(files) == 0:
+                    raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
+            elif protocol == "samadhi":
+                logger.warning("SAMADhi queries are not implemented yet")
+            else:
+                raise RuntimeError("Unsupported protocol in '{0}': {1}".format(smpCfg["db"], protocol))
+            smp["files"] = files
+            if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
+                with open(listfile, "w") as listF:
+                    listF.writelines(files)
+        elif "files" not in smpCfg:
+            raise RuntimeError("Cannot load files for {0}: neither 'db' nor 'files' specified".format(smpName))
+        elif listfile:
+            if len(cachelist) == 0:
+                raise RuntimeError("No file names read from {0}".format())
+            smp["files"] = cachelist
+        else: ## list in yml
+            smp["files"] = smpCfg["files"]
+        samples[smpName] = smp
+    analysisCfg["samples"] = samples
+    return analysisCfg

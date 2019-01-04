@@ -2,13 +2,25 @@
 Analysis module base classes
 """
 import argparse
-import copy
 import logging
 logger = logging.getLogger(__name__)
 import os.path
-import subprocess
-import urllib.parse
-from .analysisutils import addLumiMask
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig
+
+def reproduceArgv(args, group):
+    """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
+    assert isinstance(group, argparse._ArgumentGroup)
+    argv = []
+    for action in group._group_actions:
+        if isinstance(action, argparse._StoreTrueAction):
+            if getattr(args, action.dest):
+                argv.append(action.option_strings[0])
+        elif isinstance(action, argparse._StoreAction):
+            argv.append(action.option_strings[0])
+            argv.append(getattr(args, action.dest))
+        else:
+            raise RuntimeError("Reconstruction of action {0} not supported".format(action))
+    return argv
 
 class AnalysisModule(object):
     """
@@ -35,7 +47,7 @@ class AnalysisModule(object):
         specific = parser.add_argument_group("module", "Specific arguments for the module")
         self.addArgs(module)
         self.args = parser.parse_args(args)
-        self.specificArgv = self.reproduceArgs(specific)
+        self.specificArgv = reproduceArgv(self.args, specific)
         if self.args.module_help:
             parser.print_help()
             import sys; sys.exit(0)
@@ -46,20 +58,6 @@ class AnalysisModule(object):
     def initialize(self):
         """ Do more initialization that depends on command-line arguments """
         pass
-    def reproduceArgs(self, group):
-        """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
-        assert isinstance(group, argparse._ArgumentGroup)
-        argv = []
-        for action in group._group_actions:
-            if isinstance(action, argparse._StoreTrueAction):
-                if getattr(self.args, action.dest):
-                    argv.append(action.option_strings[0])
-            elif isinstance(action, argparse._StoreAction):
-                argv.append(action.option_strings[0])
-                argv.append(getattr(self.args, action.dest))
-            else:
-                raise RuntimeError("Reconstruction of action {0} not supported".format(action))
-        return argv
     def getATree(self):
         if self.args.distributed == "worker":
             import ROOT
@@ -70,7 +68,7 @@ class AnalysisModule(object):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            analysisCfg = self.parseAnalysisConfig(anaCfgName)
+            analysisCfg = parseAnalysisConfig(anaCfgName)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
             tup.Add(next(analysisCfg["samples"].values())["files"][0])
@@ -91,16 +89,16 @@ class AnalysisModule(object):
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
-                analysisCfg = self.parseAnalysisConfig(anaCfgName)
+                analysisCfg = parseAnalysisConfig(anaCfgName)
                 taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
-                taskArgs, certifLumiFiles = self.downloadCertifiedLumiFiles(taskArgs)
+                taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs)
                 workdir = self.args.output
                 resultsdir = os.path.join(workdir, "results")
                 if os.path.exists(resultsdir):
                     logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                 ##
                 if not self.args.distributed: ## sequential mode
-                    for inputs, output, kwargs in taskArgs:
+                    for (inputs, output), kwargs in taskArgs:
                         output = os.path.join(resultsdir, output)
                         logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
                         self.processTrees(inputs, output, **kwargs)
@@ -109,7 +107,7 @@ class AnalysisModule(object):
                     backend, batchConfig = readConfig(self.args.batchconfig)
                     tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
                                         ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=batchConfig.get("splitting"))
-                                for inputs, output, kwargs in taskArgs ]
+                                for (inputs, output), kwargs in taskArgs ]
                     if backend == "slurm":
                         from . import batch_slurm as batchBackend
                         backendOpts = {
@@ -147,52 +145,6 @@ class AnalysisModule(object):
     def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None):
         """ worker method """
         pass
-    def parseAnalysisConfig(self, anaCfgName):
-        cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
-        import yaml
-        with open(anaCfgName) as anaCfgF:
-            analysisCfg = yaml.load(anaCfgF)
-        ## finish loading samples (file lists)
-        samples = dict()
-        for smpName, smpCfg in analysisCfg["samples"].items():
-            smp = copy.deepcopy(smpCfg)
-            ## read cache, if it's there
-            listfile, cachelist = None, []
-            if "files" in smpCfg and str(smpCfg["files"]) == smpCfg["files"]:
-                listfile = smpCfg["files"] if os.path.isabs(smpCfg["files"]) else os.path.join(cfgDir, smpCfg["files"])
-                if os.path.isfile(listfile):
-                    with open(listfile) as smpF:
-                        cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
-
-            if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or self.args.redodbqueries ):
-                if ":" not in smpCfg["db"]:
-                    raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
-                protocol, dbLoc = smpCfg["db"].split(":")
-                files = []
-                if protocol == "das":
-                    dasQuery = "file dataset={0}".format(dbLoc)
-                    files = [ fn for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).split() ] if len(fn) > 0 ]
-                    if len(files) == 0:
-                        raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
-                elif protocol == "samadhi":
-                    logger.warning("SAMADhi queries are not implemented yet")
-                else:
-                    raise RuntimeError("Unsupported protocol in '{0}': {1}".format(smpCfg["db"], protocol))
-                smp["files"] = files
-                if listfile and ( len(cachelist) == 0 or self.args.overwritesamplefilelists ):
-                    with open(listfile, "w") as listF:
-                        listF.writelines(files)
-            elif "files" not in smpCfg:
-                raise RuntimeError("Cannot load files for {0}: neither 'db' nor 'files' specified".format(smpName))
-            elif listfile:
-                if len(cachelist) == 0:
-                    raise RuntimeError("No file names read from {0}".format())
-                smp["files"] = cachelist
-            else: ## list in yml
-                smp["files"] = smpCfg["files"]
-            samples[smpName] = smp
-        analysisCfg["samples"] = samples
-        return analysisCfg
     def getTasks(self, analysisCfg, **extraOpts):
         """ Get tasks from args (for driver or sequential mode) """
         tasks = []
@@ -202,31 +154,8 @@ class AnalysisModule(object):
                 "runRange"          : sConfig.get("run_range")
                 }
             opts.update(extraOpts)
-            tasks.append((sConfig["files"], "{0}.root".format(sName), opts))
+            tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts))
         return tasks
-    def downloadCertifiedLumiFiles(self, taskArgs):
-        ## download certified lumi files (if needed) and replace in args
-        taskArgs = copy.deepcopy(taskArgs)
-        certifLumiFiles = set(kwargs["certifiedLumiFile"] for ins,out,kwargs in taskArgs)
-        ## download if needed
-        clf_downloaded = dict()
-        for clfu in certifLumiFiles:
-            purl = urllib.parse.urlparse(clfu)
-            if purl.scheme in ("http", "https"):
-                fname = purl.path.split("/")[-1]
-                if os.path.exists(fname):
-                    logger.warning("File {0} exists, it will not be downloaded again from {1}".format(fname, clfu))
-                else:
-                    subprocess.check_call(["wget", clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                clf_downloaded[clfu] = fname
-        ## update args
-        for ins,outs,kwargs in taskArgs:
-            if "certifiedLumiFile" in kwargs:
-                clf = kwargs["certifiedLumiFile"]
-                if clf in clf_downloaded:
-                    kwargs["certifiedLumiFile"] = clf_downloaded[clf]
-
-        return taskArgs, set(clf_downloaded.keys())
 
     def postProcess(self, taskList):
         """ Do postprocessing on the results of the tasks, if needed """

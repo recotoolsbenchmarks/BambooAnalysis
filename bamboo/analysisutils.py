@@ -48,7 +48,7 @@ def downloadCertifiedLumiFiles(taskArgs):
 
     return taskArgs, set(clf_downloaded.keys())
 
-def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None)
+def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
     with open(anaCfgName) as anaCfgF:
         analysisCfg = yaml.load(anaCfgF)

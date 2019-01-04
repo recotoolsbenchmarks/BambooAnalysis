@@ -45,7 +45,7 @@ class AnalysisModule(object):
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         specific = parser.add_argument_group("module", "Specific arguments for the module")
-        self.addArgs(module)
+        self.addArgs(specific)
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
         if self.args.module_help:
@@ -68,7 +68,7 @@ class AnalysisModule(object):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=args.redodbqueries, overwritesamplefilelists=args.overwritesamplefilelists)
+            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
             tup.Add(next(analysisCfg["samples"].values())["files"][0])
@@ -90,13 +90,14 @@ class AnalysisModule(object):
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 envConfig = readEnvConfig(self.args.envConfig)
-                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=args.redodbqueries, overwritesamplefilelists=args.overwritesamplefilelists, envConfig=envConfig)
+                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
                 taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs)
                 workdir = self.args.output
                 resultsdir = os.path.join(workdir, "results")
                 if os.path.exists(resultsdir):
                     logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
+                os.makedirs(resultsdir)
                 ##
                 if not self.args.distributed: ## sequential mode
                     for (inputs, output), kwargs in taskArgs:
@@ -123,7 +124,7 @@ class AnalysisModule(object):
                         backendOpts = {
                                 "cmd" : [
                                     "universe     = vanilla",
-                                    "+MaxRuntime  = {0:d}".format(20*60) # 20 minutes
+                                    "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
                                     "getenv       = True"
                                     ]
                                 }
@@ -170,7 +171,7 @@ class HistogramsModule(AnalysisModule):
     def __init__(self, args):
         super(HistogramsModule, self).__init__(args)
         self.systVars = []
-
+        self.plotList = []
     def initialize(self):
         if self.args.distributed == "worker" and len(self.args.input) == 0:
             raise RuntimeError("Worker task needs at least one input file")
@@ -194,7 +195,7 @@ class HistogramsModule(AnalysisModule):
         outF = ROOT.TFile.Open(outputFile, "RECREATE")
         plotList = self.definePlots(tree, noSel, systVar="nominal")
         if not self.plotList:
-            self.plotList = plotList
+            self.plotList = list(plotList) ## shallow copy
         for systVar in self.systVars:
             plotList += self.definePlots(tree, noSel, systVar=systVar)
 

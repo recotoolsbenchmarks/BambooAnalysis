@@ -167,11 +167,6 @@ class CommandListJob(CommandListJobBase):
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     cmdLines = []
     envSetupLines = []
-    ## TODO add settings inferred from from batchConfig, e.g.:
-    cmdLines = [
-        "universe       = vanilla",
-        "requirements   = (CMSFARM =?= TRUE)&&(Memory > 200)",
-        ]
     if configOpts:
         cmdLines += configOpts.get("cmd", [])
         envSetupLines += configOpts.get("env", [])

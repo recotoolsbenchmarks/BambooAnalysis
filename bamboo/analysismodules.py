@@ -90,11 +90,11 @@ class AnalysisModule(object):
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
+                workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
                 analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
                 taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
-                taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs)
-                workdir = self.args.output
+                taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
                 if os.path.exists(resultsdir):
                     logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))

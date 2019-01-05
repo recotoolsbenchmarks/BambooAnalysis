@@ -24,7 +24,7 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
                 jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")))
     return sel.refine(name, cut=lumiSel.accept(*runAndLS))
 
-def downloadCertifiedLumiFiles(taskArgs):
+def downloadCertifiedLumiFiles(taskArgs, workdir="."):
     """ download certified lumi files (if needed) and replace in args """
     taskArgs = copy.deepcopy(taskArgs)
     certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs)
@@ -33,11 +33,11 @@ def downloadCertifiedLumiFiles(taskArgs):
     for clfu in certifLumiFiles:
         purl = urllib.parse.urlparse(clfu)
         if purl.scheme in ("http", "https"):
-            fname = purl.path.split("/")[-1]
+            fname = os.path.join(workdir, purl.path.split("/")[-1])
             if os.path.exists(fname):
                 logger.warning("File {0} exists, it will not be downloaded again from {1}".format(fname, clfu))
             else:
-                subprocess.check_call(["wget", clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.check_call(["wget", "--directory-prefix={0}".format(workdir), clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             clf_downloaded[clfu] = fname
     ## update args
     for args,kwargs in taskArgs:
@@ -91,7 +91,7 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
                 raise RuntimeError("No file names read from {0}".format())
             smp["files"] = cachelist
         else: ## list in yml
-            smp["files"] = smpCfg["files"]
+            smp["files"] = [ (fn if os.path.isabs(fn) else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
         samples[smpName] = smp
     analysisCfg["samples"] = samples
     return analysisCfg
@@ -141,7 +141,7 @@ plotit_plotdefaults = {
         }
 def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None):
     plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
-    plotitCfg["configuration"]["root"] = resultsdir
+    plotitCfg["configuration"]["root"] = os.path.relpath(resultsdir, workdir)
     plotit_files = dict()
     for smpN, smpCfg in config["samples"].items():
         smpOpts = dict()

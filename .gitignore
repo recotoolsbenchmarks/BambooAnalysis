@@ -1,3 +1,4 @@
-examples/*.root
 Pipfile*
 __pycache__/
+examples/*.root
+examples/dascache

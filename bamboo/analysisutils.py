@@ -72,7 +72,7 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
             if protocol == "das":
                 dasConfig = envConfig["das"]
                 dasQuery = "file dataset={0}".format(dbLoc)
-                files = [ os.path.join(dasConfig["storageroot"], fn) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).split() ] if len(fn) > 0 ]
+                files = [ os.path.join(dasConfig["storageroot"], fn.lstrip("/")) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(fn) > 0 ]
                 if len(files) == 0:
                     raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
                 ## TODO improve: check that files are locally available, possibly fall back to xrootd otherwise; check for grid proxy before querying; maybe do queries in parallel
@@ -83,7 +83,7 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
             smp["files"] = files
             if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
                 with open(listfile, "w") as listF:
-                    listF.writelines(files)
+                    listF.write("\n".join(files))
         elif "files" not in smpCfg:
             raise RuntimeError("Cannot load files for {0}: neither 'db' nor 'files' specified".format(smpName))
         elif listfile:

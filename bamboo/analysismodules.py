@@ -103,7 +103,7 @@ class AnalysisModule(object):
                 if not self.args.distributed: ## sequential mode
                     for (inputs, output), kwargs in taskArgs:
                         output = os.path.join(resultsdir, output)
-                        logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(inputs, output, mod=self.args.module, **kwargs))
+                        logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                         self.processTrees(inputs, output, **kwargs)
                 else:
                     from .batch import splitTask

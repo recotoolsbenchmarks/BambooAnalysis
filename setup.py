@@ -82,7 +82,7 @@ setup(
     packages=["bamboo"],
     scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
 
-    install_requires=[],
+    install_requires=["PyYAML"],
     extras_require={"Interactive mode": ["IPython"]},
 
     entry_points={},

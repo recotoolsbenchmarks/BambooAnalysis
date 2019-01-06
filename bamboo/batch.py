@@ -212,7 +212,7 @@ def splitInChunks(theList, n):
     import math
     N = len(theList)
     chunkLength = int(math.ceil(1.*N/n))
-    for iStart, iStop in zip(xrange(0, len(theList), chunkLength), xrange(chunkLength, len(theList)+chunkLength, chunkLength)):
+    for iStart, iStop in zip(range(0, len(theList), chunkLength), range(chunkLength, len(theList)+chunkLength, chunkLength)):
         yield islice(theList, iStart, min(iStop,N))
 
 def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
@@ -226,4 +226,4 @@ def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
     splitSplitArgs = list(list(chunk) for chunk in splitInChunks(toSplitArgs, nChunks))
     assert sum(len(ssa) for ssa in splitSplitArgs) == len(toSplitArgs)
     cmds = [ " ".join(commonArgs+splitArgs) for splitArgs in splitSplitArgs ]
-    return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outDir))
+    return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outdir))

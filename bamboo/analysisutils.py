@@ -38,7 +38,7 @@ def downloadCertifiedLumiFiles(taskArgs, workdir="."):
                 logger.warning("File {0} exists, it will not be downloaded again from {1}".format(fname, clfu))
             else:
                 subprocess.check_call(["wget", "--directory-prefix={0}".format(workdir), clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            clf_downloaded[clfu] = fname
+            clf_downloaded[clfu] = os.path.abspath(fname)
     ## update args
     for args,kwargs in taskArgs:
         if "certifiedLumiFile" in kwargs:

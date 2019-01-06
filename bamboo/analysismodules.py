@@ -22,6 +22,17 @@ def reproduceArgv(args, group):
             raise RuntimeError("Reconstruction of action {0} not supported".format(action))
     return argv
 
+def modAbsPath(modArg):
+    """ Put absolute path if module is specified by file """
+    mod_clName = None
+    if ":" in modArg:
+        modArg, mod_clName = modArg.split(":")
+    if os.path.isfile(modArg):
+        modArg = os.path.abspath(modArg)
+    if mod_clName:
+        modArg = ":".join((modArg, mod_clName))
+    return modArg
+
 class AnalysisModule(object):
     """
     Base analysis module
@@ -74,7 +85,7 @@ class AnalysisModule(object):
             analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
-            tup.Add(next(analysisCfg["samples"].values())["files"][0])
+            tup.Add(next(smp for smp in analysisCfg["samples"].values())["files"][0])
             return tup
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
@@ -86,8 +97,8 @@ class AnalysisModule(object):
             if self.args.distributed == "worker":
                 if ( not self.args.output.endswith(".root") ) or os.path.isdir(self.args.output):
                     raise RuntimeError("Output for worker processes needs to be a ROOT file")
-                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={tree}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange))
-                self.processTrees(self.args.input, self.args.output, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange)
+                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}".format(self.args.input, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange))
+                self.processTrees(self.args.input, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
@@ -110,8 +121,8 @@ class AnalysisModule(object):
                 else:
                     from .batch import splitTask
                     backend = envConfig["batch"]["backend"]
-                    tasks = [ splitTask(["bambooRun", "--module={0}".format(self.args.module), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                        ["--{0}={1}".format(key, value) for key, value in kwargs], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
+                    tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
+                                        ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
                                 for (inputs, output), kwargs in taskArgs ]
                     if backend == "slurm":
                         from . import batch_slurm as batchBackend
@@ -133,11 +144,7 @@ class AnalysisModule(object):
                                 }
                     else:
                         raise RuntimeError("Unknown backend: {0}".format(backend))
-                    batchworkdir = os.path.join(workdir, "batch")
-                    if os.path.exists(batchworkdir):
-                        raise RuntimeError("Directory '{0}' already exists, previous results would be overwritten".format(resultsdir))
-                    os.makedirs(batchworkdir)
-                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=batchworkdir, batchConfig=envConfig.get(backend), configOpts=backendOpts)
+                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
                     for j in clusJobs:
                         j.submit()
                     clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
@@ -155,7 +162,7 @@ class AnalysisModule(object):
         for sName, sConfig in analysisCfg["samples"].items():
             opts = {
                 "certifiedLumiFile" : sConfig.get("certified_lumi_file"),
-                "runRange"          : sConfig.get("run_range")
+                "runRange"          : ",".join(str(rn) for rn in sConfig.get("run_range"))
                 }
             opts.update(extraOpts)
             tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts))

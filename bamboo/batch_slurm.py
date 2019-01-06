@@ -50,7 +50,7 @@ class CommandListJob(CommandListJobBase):
         cfg_opts = dict(CommandListJob.default_cfg_opts)
         if configOpts:
             cfg_opts.update(configOpts)
-        for k, v in cfg_opts.iteritems():
+        for k, v in cfg_opts.items():
             setattr(self.cfg, k, v)
 
         self.slurmScript = os.path.join(self.cfg.batchScriptsDir, self.cfg.batchScriptsFilename)
@@ -99,7 +99,7 @@ class CommandListJob(CommandListJobBase):
             , "--partition={}".format(self.cfg.sbatch_partition)
             , "--qos={}".format(self.cfg.sbatch_qos)
             , "--wckey=cms"
-            , self.slurmScript])
+            , self.slurmScript]).decode()
 
         self.clusterId = next(tok for tok in reversed(result.split()) if tok.isdigit())
         
@@ -130,17 +130,17 @@ class CommandListJob(CommandListJobBase):
         return self._statuses[i-1]
 
     def updateStatuses(self):
-        for i in xrange(len(self.commandList)):
+        for i in range(len(self.commandList)):
             subjobId = "{0}_{1:d}".format(self.clusterId, i+1)
             status = "unknown"
             if subjobId in self._finishedTasks:
                 status = self._finishedTasks[subjobId]
             else:
                 sacctCmdArgs = ["sacct", "-n", "--format", "State", "-j", subjobId]
-                ret = subprocess.check_output(sacctCmdArgs).strip()
+                ret = subprocess.check_output(sacctCmdArgs).decode().strip()
                 if "\n" in ret: ## if finished
                     if len(ret.split("\n")) == 2:
-                        ret = subprocess.check_output(["sacct", "-n", "--format", "State", "-j", "{}.batch".format(subjobId)]).strip()
+                        ret = subprocess.check_output(["sacct", "-n", "--format", "State", "-j", "{}.batch".format(subjobId)]).decode().strip()
                         self._finishedTasks[subjobId] = ret
                         status = ret
                     else:
@@ -150,7 +150,7 @@ class CommandListJob(CommandListJobBase):
                         status = ret
                     else:
                         squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
-                        ret = subprocess.check_output(squeueCmdArgs).strip()
+                        ret = subprocess.check_output(squeueCmdArgs).decode().strip()
                         if len(ret) != 0:
                             status = ret
                         else: # fall back to previous status (probably PENDING or RUNNING)

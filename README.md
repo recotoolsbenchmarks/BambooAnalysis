@@ -61,6 +61,8 @@ source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.
 python -m venv bamboovenv
 source bamboovenv/bin/activate
 ```
+(to use the package afterwards it is sufficient to source the LCG setup and
+virtualenv activate scripts).
 
 The package can be installed with pip, minimally either one of
 ```bash

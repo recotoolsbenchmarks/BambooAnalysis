@@ -10,15 +10,17 @@ import importlib.util
 import os.path
 import logging
 
-parser = argparse.ArgumentParser(description="Run an analysis module")
-parser.add_argument("-m", "--module", type=str, help="Module to run (format: modulenameOrPath[:classname])")
-parser.add_argument("--module-help", action="store_true", help="Print the module's help message and exit")
+parser = argparse.ArgumentParser(description="Run an analysis module", add_help=False)
+parser.add_argument("-m", "--module", type=str, default="bamboo.analysismodules:AnalysisModule", help="Module to run (format: modulenameOrPath[:classname])")
+parser.add_argument("--help", "-h", action="store_true", help="Print this help message and exit")
 parser.add_argument("-v", "--verbose", action="store_true", help="Run in verbose mode")
 args, remArgs = parser.parse_known_args()
-## pass necessary arguments on
+## pass arguments on
 remArgs.append("--module={0}".format(args.module))
-if args.module_help:
-    remArgs.append("--module-help")
+if args.help:
+    remArgs.append("--help")
+if args.verbose:
+    remArgs.append("--verbose")
 
 if args.verbose:
     logging.basicConfig(level=logging.DEBUG)

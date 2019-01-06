@@ -29,29 +29,31 @@ class AnalysisModule(object):
     construct from an arguments list and provide a run method (called by bambooRun)
     """
     def __init__(self, args):
-        parser = argparse.ArgumentParser(description=self.__doc__, prog="bambooRun --module={0}:{1}".format(__name__, self.__class__.__name__), add_help=False)
-        parser.add_argument("--module-help", action="store_true", help="show this help message and exit")
-        parser.add_argument("--module", type=str, help="Module specification")
+        parser = argparse.ArgumentParser(description=(
+            "Run an analysis, i.e. process the samples in an analysis description file with a module (subclass of bamboo.analysismodules.AnalysisModule). "
+            "There are three modes, specified by the --distributed option: if unspecified, one program processes all samples and collects the results; "
+            "--distributed=driver does the same, but launches worker tasks "
+            "(the same program with --distributed=worker, therefore some of the options only apply to 'driver' or 'worker' mode, or have a different interpretation) "
+            "to process the samples, for instance on a batch system (depending on the settings in the --envConfig file)."))
+        parser.add_argument("-m", "--module", type=str, default="bamboo.analysismodules:AnalysisModule", help="Module to run (format: modulenameOrPath[:classname])")
+        parser.add_argument("-v", "--verbose", action="store_true", help="Run in verbose mode")
         parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver"])
-        parser.add_argument("input", nargs="*")
-        parser.add_argument("-o", "--output", type=str, default=".", help="Output file (worker) or directory (driver) name")
+        parser.add_argument("input", nargs="*", help="Input: analysis description yml file (driver mode) or files to process (worker mode)")
+        parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
-        driver = parser.add_argument_group("Driver", "Arguments specific to driver tasks (non-distributed, or the main process for a distributed task)")
+        driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
         driver.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
-        worker = parser.add_argument_group("Worker", "Arguments specific to distributed worker tasks")
-        worker.add_argument("--treeName", type=str, default="Events", help="Tree name")
+        worker = parser.add_argument_group("worker mode only (--distributed=worker) arguments")
+        worker.add_argument("--treeName", type=str, default="Events", help="Tree name (default: Events)")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
-        specific = parser.add_argument_group("module", "Specific arguments for the module")
+        specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
-        if self.args.module_help:
-            parser.print_help()
-            import sys; sys.exit(0)
         self.initialize()
     def addArgs(self, parser):
         """ Customize the ArgumentParser (set description and add arguments, if needed) """

@@ -48,7 +48,7 @@ with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
 setup(
     name="bamboo",
 
-    version="0.1.0a1",
+    version="0.1.0a2",
 
     description="A high-level HEP analysis library for ROOT::RDataFrame",
     long_description=long_description,

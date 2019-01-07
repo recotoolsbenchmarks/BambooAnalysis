@@ -65,21 +65,23 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
                     cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
 
         if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or redodbqueries ):
-            if ":" not in smpCfg["db"]:
-                raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
-            protocol, dbLoc = smpCfg["db"].split(":")
             files = []
-            if protocol == "das":
-                dasConfig = envConfig["das"]
-                dasQuery = "file dataset={0}".format(dbLoc)
-                files = [ os.path.join(dasConfig["storageroot"], fn.lstrip("/")) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(fn) > 0 ]
-                if len(files) == 0:
-                    raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
-                ## TODO improve: check that files are locally available, possibly fall back to xrootd otherwise; check for grid proxy before querying; maybe do queries in parallel
-            elif protocol == "samadhi":
-                logger.warning("SAMADhi queries are not implemented yet")
-            else:
-                raise RuntimeError("Unsupported protocol in '{0}': {1}".format(smpCfg["db"], protocol))
+            for dbEntry in (smpCfg["db"] if str(smpCfg["db"]) != smpCfg["db"] else [smpCfg["db"]]): ## convert to list if string
+                if ":" not in dbEntry:
+                    raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
+                protocol, dbLoc = dbEntry.split(":")
+                if protocol == "das":
+                    dasConfig = envConfig["das"]
+                    dasQuery = "file dataset={0}".format(dbLoc)
+                    entryFiles = [ os.path.join(dasConfig["storageroot"], fn.lstrip("/")) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(fn) > 0 ]
+                    files += entryFiles
+                    if len(entryFiles) == 0:
+                        raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
+                    ## TODO improve: check that files are locally available, possibly fall back to xrootd otherwise; check for grid proxy before querying; maybe do queries in parallel
+                elif protocol == "samadhi":
+                    logger.warning("SAMADhi queries are not implemented yet")
+                else:
+                    raise RuntimeError("Unsupported protocol in '{0}': {1}".format(dbEntry, protocol))
             smp["files"] = files
             if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
                 with open(listfile, "w") as listF:

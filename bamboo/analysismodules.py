@@ -288,6 +288,7 @@ class NanoAODHistoModule(HistogramsModule):
                 else:
                     sums[lvn] = lv.GetValue()
         for entry in range(1, runs.GetEntries()):
+            runs.GetEntry(entry)
             for cn, vals in sums.items():
                 if hasattr(vals, "__iter__"):
                     entryvals = getattr(runs, cn)
@@ -295,5 +296,4 @@ class NanoAODHistoModule(HistogramsModule):
                         vals[i] += entryvals[i]
                 else:
                     sums[cn] += getattr(runs, cn)
-        print("Results for {0}".format(resultsFile.GetName()), sums)
         return sums

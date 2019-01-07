@@ -27,7 +27,7 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
 def downloadCertifiedLumiFiles(taskArgs, workdir="."):
     """ download certified lumi files (if needed) and replace in args """
     taskArgs = copy.deepcopy(taskArgs)
-    certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs)
+    certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs if "certifiedLumiFile" in kwargs)
     ## download if needed
     clf_downloaded = dict()
     for clfu in certifLumiFiles:
@@ -91,7 +91,7 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
                 raise RuntimeError("No file names read from {0}".format())
             smp["files"] = cachelist
         else: ## list in yml
-            smp["files"] = [ (fn if os.path.isabs(fn) else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
+            smp["files"] = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
         samples[smpName] = smp
     analysisCfg["samples"] = samples
     return analysisCfg
@@ -139,19 +139,23 @@ plotit_plotdefaults = {
         "show-ratio"       : True,
         "sort-by-yields"   : False,
         }
-def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None):
+def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1.):
     plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
     plotitCfg["configuration"]["root"] = os.path.relpath(resultsdir, workdir)
     plotit_files = dict()
     for smpN, smpCfg in config["samples"].items():
+        resultsName = "{0}.root".format(smpN)
         smpOpts = dict()
         smpOpts["group"] = smpCfg["group"]
         isMC = ( smpCfg["group"] != "data" )
         smpOpts["type"] = ("mc" if isMC else "data")
         if isMC:
             smpOpts["cross-section"] = smpCfg["cross-section"]
-            ## TODO add/get "generated-events" from sum of weights (can also store in the file and read with plotIt?)
-        plotit_files["{0}.root".format(smpN)] = smpOpts
+            import ROOT
+            resultsFile = ROOT.TFile.Open(os.path.join(resultsdir, resultsName))
+            counters = readCounters(resultsFile)
+            smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
+        plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotit_plots = dict()
     for plot in plotList:

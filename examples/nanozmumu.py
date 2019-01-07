@@ -1,19 +1,12 @@
 """
 Example analysis module: make a dimuon mass plot from a NanoAOD
 """
-from bamboo.analysismodules import HistogramsModule
+from bamboo.analysismodules import NanoAODHistoModule
 
-class NanoZMuMu(HistogramsModule):
+class NanoZMuMu(NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def __init__(self, args):
         super(NanoZMuMu, self).__init__(args)
-
-    def prepareTree(self, tree):
-        from bamboo.treedecorators import decorateNanoAOD
-        from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree)
-        be, noSel = DataframeBackend.create(t)
-        return t, noSel, be, (t.run, t.luminosityBlock)
 
     def definePlots(self, t, noSel, systVar="nominal"):
         from bamboo.plots import Plot, EquidistantBinning

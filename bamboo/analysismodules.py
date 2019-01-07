@@ -57,6 +57,7 @@ class AnalysisModule(object):
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
         driver.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
+        driver.add_argument("--onlypost", action="store_true", help="Only run postprocessing step on previous results")
         worker = parser.add_argument_group("worker mode only (--distributed=worker) arguments")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name (default: Events)")
         worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
@@ -109,46 +110,51 @@ class AnalysisModule(object):
                 taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
-                if os.path.exists(resultsdir):
-                    logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
-                os.makedirs(resultsdir)
-                ##
-                if not self.args.distributed: ## sequential mode
-                    for (inputs, output), kwargs in taskArgs:
-                        output = os.path.join(resultsdir, output)
-                        logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
-                        self.processTrees(inputs, output, **kwargs)
+                if self.args.onlypost:
+                    if not os.path.exists(resultsdir):
+                        raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
+                    ## TODO check for all output files?
                 else:
-                    from .batch import splitTask
-                    backend = envConfig["batch"]["backend"]
-                    tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                        ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
-                                for (inputs, output), kwargs in taskArgs ]
-                    if backend == "slurm":
-                        from . import batch_slurm as batchBackend
-                        backendOpts = {
-                                "sbatch_time"     : "0-00:20",
-                                "sbatch_mem"      : "2048",
-                                "stageoutFiles"   : ["*.root"],
-                                "sbatch_workdir"  : os.getcwd(),
-                                "sbatch_additionalOptions" : [ "--export=ALL" ],
-                                }
-                    elif backend == "htcondor":
-                        from . import batch_htcondor as batchBackend
-                        backendOpts = {
-                                "cmd" : [
-                                    "universe     = vanilla",
-                                    "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
-                                    "getenv       = True"
-                                    ]
-                                }
+                    if os.path.exists(resultsdir):
+                        logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
+                    os.makedirs(resultsdir)
+                    ##
+                    if not self.args.distributed: ## sequential mode
+                        for (inputs, output), kwargs in taskArgs:
+                            output = os.path.join(resultsdir, output)
+                            logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
+                            self.processTrees(inputs, output, **kwargs)
                     else:
-                        raise RuntimeError("Unknown backend: {0}".format(backend))
-                    clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
-                    for j in clusJobs:
-                        j.submit()
-                    clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
-                    clusMon.collect() ## wait for batch jobs to finish and finalize
+                        from .batch import splitTask
+                        backend = envConfig["batch"]["backend"]
+                        tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
+                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
+                                    for (inputs, output), kwargs in taskArgs ]
+                        if backend == "slurm":
+                            from . import batch_slurm as batchBackend
+                            backendOpts = {
+                                    "sbatch_time"     : "0-00:20",
+                                    "sbatch_mem"      : "2048",
+                                    "stageoutFiles"   : ["*.root"],
+                                    "sbatch_workdir"  : os.getcwd(),
+                                    "sbatch_additionalOptions" : [ "--export=ALL" ],
+                                    }
+                        elif backend == "htcondor":
+                            from . import batch_htcondor as batchBackend
+                            backendOpts = {
+                                    "cmd" : [
+                                        "universe     = vanilla",
+                                        "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
+                                        "getenv       = True"
+                                        ]
+                                    }
+                        else:
+                            raise RuntimeError("Unknown backend: {0}".format(backend))
+                        clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
+                        for j in clusJobs:
+                            j.submit()
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
+                        clusMon.collect() ## wait for batch jobs to finish and finalize
                 self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
@@ -160,11 +166,11 @@ class AnalysisModule(object):
         """ Get tasks from args (for driver or sequential mode) """
         tasks = []
         for sName, sConfig in analysisCfg["samples"].items():
-            opts = {
-                "certifiedLumiFile" : sConfig.get("certified_lumi_file"),
-                "runRange"          : ",".join(str(rn) for rn in sConfig.get("run_range"))
-                }
-            opts.update(extraOpts)
+            opts = dict(extraOpts)
+            if "certified_lumi_file" in sConfig:
+                opts["certifiedLumiFile"] = sConfig.get("certified_lumi_file")
+            if "run_range" in sConfig:
+                opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts))
         return tasks
 
@@ -211,6 +217,7 @@ class HistogramsModule(AnalysisModule):
         outF.cd()
         for p in plotList:
             backend.getPlotResult(p).Write()
+        self.mergeCounters(outF, inputFiles)
         outF.Close()
     # processTrees customisation points
     def prepareTree(self, tree):
@@ -219,10 +226,69 @@ class HistogramsModule(AnalysisModule):
     def definePlots(self, tree, systVar="nominal"):
         """ Main method: define plots on the trees """
         return None, [] ## backend, and plot list
+    def mergeCounters(self, outF, infileNames):
+        """ Merge counters from input files (by name) to output file (TFile pointer) """
+        pass
+    def readCounters(self, resultsFile):
+        """ Read counters from results file (TFile pointer) """
+        return dict()
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         if not self.plotList: ## get plots if not already done so
             tup = self.getATree()
             tree, noSel, backend, runAndLS = self.prepareTree(tup)
             self.plotList = self.definePlots(tree, noSel, systVar="nominal")
-        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt)
+        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters)
+
+class NanoAODHistoModule(HistogramsModule):
+    def __init__(self, args):
+        super(NanoAODHistoModule, self).__init__(args)
+    def prepareTree(self, tree):
+        from bamboo.treedecorators import decorateNanoAOD
+        from bamboo.dataframebackend import DataframeBackend
+        t = decorateNanoAOD(tree)
+        be, noSel = DataframeBackend.create(t)
+        return t, noSel, be, (t.run, t.luminosityBlock)
+    def mergeCounters(self, outF, infileNames):
+        """ Merge counters from input files (by name) to output file (TFile pointer)
+
+        For NanoAOD simply merge the Runs trees
+        """
+        import ROOT
+        cruns = ROOT.TChain("Runs")
+        for fn in infileNames:
+            cruns.Add(fn)
+        outF.cd()
+        runs = cruns.CloneTree()
+        runs.Write("Runs")
+    def readCounters(self, resultsFile):
+        """ Read counters from results file (TFile pointer)
+
+        For NanoAOD sum over each leaf of the (merged) Runs tree (except 'run')
+        """
+        runs = resultsFile.Get("Runs")
+        import ROOT
+        if ( not runs ) or ( not isinstance(runs, ROOT.TTree) ):
+            raise RuntimeError("No tree with name 'Runs' found in {0}".format(resultsFile.GetName()))
+        sums = dict()
+        runs.GetEntry(0)
+        for lv in runs.GetListOfLeaves():
+            lvn = lv.GetName()
+            if lvn != "run":
+                if lv.GetLeafCount():
+                    lvcn = lv.GetLeafCount().GetName()
+                    if lvcn in sums:
+                        del sums[lvcn]
+                    sums[lvn] = [ lv.GetValue(i) for i in range(lv.GetLeafCount().GetValueLong64()) ]
+                else:
+                    sums[lvn] = lv.GetValue()
+        for entry in range(1, runs.GetEntries()):
+            for cn, vals in sums.items():
+                if hasattr(vals, "__iter__"):
+                    entryvals = getattr(runs, cn)
+                    for i in range(len(vals)):
+                        vals[i] += entryvals[i]
+                else:
+                    sums[cn] += getattr(runs, cn)
+        print("Results for {0}".format(resultsFile.GetName()), sums)
+        return sums

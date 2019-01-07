@@ -33,6 +33,9 @@ def modAbsPath(modArg):
         modArg = ":".join((modArg, mod_clName))
     return modArg
 
+def parseRunRange(rrStr):
+    return tuple(int(t.strip()) for t in rrStr.split(","))
+
 class AnalysisModule(object):
     """
     Base analysis module
@@ -60,7 +63,7 @@ class AnalysisModule(object):
         driver.add_argument("--onlypost", action="store_true", help="Only run postprocessing step on previous results")
         worker = parser.add_argument_group("worker mode only (--distributed=worker) arguments")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name (default: Events)")
-        worker.add_argument("--runRange", type=(lambda x : tuple(int(t.strip()) for t in x.split(","))), help="Run range (format: 'firstRun,lastRun')")
+        worker.add_argument("--runRange", type=parseRunRange, help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
@@ -123,6 +126,8 @@ class AnalysisModule(object):
                         for (inputs, output), kwargs in taskArgs:
                             output = os.path.join(resultsdir, output)
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
+                            if "runRange" in kwargs:
+                                kwargs["runRange"] = parseRunRange(kwargs["runRange"])
                             self.processTrees(inputs, output, **kwargs)
                     else:
                         from .batch import splitTask

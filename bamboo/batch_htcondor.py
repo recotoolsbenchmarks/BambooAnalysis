@@ -123,7 +123,7 @@ class CommandListJob(CommandListJobBase):
     def submit(self):
         """ Submit the jobs to condor """
         logger.info("Submitting {0:d} condor jobs.".format(len(self.commandList)))
-        result = subprocess.check_output(["condor_submit", self.masterCmd])
+        result = subprocess.check_output(["condor_submit", self.masterCmd]).decode()
 
         import re
         pat = re.compile("\d+ job\(s\) submitted to cluster (\d+)\.")
@@ -140,8 +140,8 @@ class CommandListJob(CommandListJobBase):
         """ list of subjob statuses (numeric, using indices in CondorJobStatus) """
         if self.clusterId is None:
             raise Exception("Cannot get status before submitting the jobs to condor")
-        return map(int, list(subprocess.check_output(["condor_q"      , self.clusterId, "-format", '%d ', "JobStatus"]).strip().split())
-                      + list(subprocess.check_output(["condor_history", self.clusterId, "-format", '%d ', "JobStatus"]).strip().split()) )
+        return map(int, list(subprocess.check_output(["condor_q"      , self.clusterId, "-format", '%d ', "JobStatus"]).decode().strip().split())
+                      + list(subprocess.check_output(["condor_history", self.clusterId, "-format", '%d ', "JobStatus"]).decode().strip().split()) )
 
     @property
     def status(self):
@@ -157,9 +157,9 @@ class CommandListJob(CommandListJobBase):
 
     def subjobStatus(self, i):
         subjobId = "{0}.{1:d}".format(self.clusterId, i)
-        ret = subprocess.check_output(["condor_q", subjobId, "-format", '%d', "JobStatus"])
+        ret = subprocess.check_output(["condor_q", subjobId, "-format", '%d', "JobStatus"]).decode()
         if len(ret) == 0: # search in the completed ones
-            ret = subprocess.check_output(["condor_history", subjobId, "-format", '%d', "JobStatus"])
+            ret = subprocess.check_output(["condor_history", subjobId, "-format", '%d', "JobStatus"]).decode()
         return CondorJobStatus[int(ret)]
     def commandStatus(self, command):
         return self.subjobStatus(self.commandList.index(command))
@@ -170,6 +170,9 @@ def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if configOpts:
         cmdLines += configOpts.get("cmd", [])
         envSetupLines += configOpts.get("env", [])
+    if batchConfig:
+        if "requirements" in batchConfig:
+            cmdLines.append("requirements = {}".format(batchConfig["requirements"]))
     condorJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)),
             workDir=workdir, cmdLines=cmdLines, envSetupLines=envSetupLines)
     for task in taskList:
@@ -180,7 +183,7 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     """ make a TasksMonitor for condor jobs """
     from .batch import TasksMonitor
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval
-            , allStasuses=CondorJobStatus
+            , allStatuses=CondorJobStatus
             , activeStatuses=(1,2)
             , completedStatus=4
             )

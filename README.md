@@ -61,6 +61,8 @@ source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.
 python -m venv bamboovenv
 source bamboovenv/bin/activate
 ```
+(to use the package afterwards it is sufficient to source the LCG setup and
+virtualenv activate scripts).
 
 The package can be installed with pip, minimally either one of
 ```bash
@@ -70,11 +72,28 @@ The package can be installed with pip, minimally either one of
 but in the current development stage it may be useful to install from
 a local clone, such that you can use it to test and propose changes, using
 ```bash
-% git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/clone
-% pip install /path/to/your/clone
+% git clone -o upstream git+ssh://git@cp3-git.irmp.ucl.ac.be/pdavid/bamboo.git /path/to/your/bambooclone
+% pip install /path/to/your/bambooclone ## e.g. ./bamboo
 ```
-(you will need to upgrade with `pip install --upgrade /path/to/your/clone` still
-because installing in editable mode does not work well with extensions etc.).
+(you will need to upgrade with `pip install --upgrade /path/to/your/bambooclone`
+still because installing in editable mode does not work well with extensions
+etc.).
+
+The [plotIt](https://github.com/cp3-llbb/plotIt) tool is used for the final step,
+combining the different histograms in stacks and producing pdf or png files.
+In the environment described above, it can be installed with
+```bash
+% git clone -o upstream https://github.com/cp3-llbb/plotIt.git /path/to/your/plotitclone
+% cd /path/to/your/plotitclone
+% cd external
+% ./build-external.sh
+% cd -
+% BOOST_ROOT=$CMAKE_PREFIX_PATH make -j4
+% cp plotIt bamboovenv/bin
+```
+where the last command copies the `plotIt` executable inside the virtualenv
+executable directory such that it is picked up automatically (alternatively,
+its path can be passed to `bambooRun` with the `--plotIt` command-line option).
 
 On ingrid-ui1 (or elsewhere, provided that you have a test NanoAOD with muons),
 you can run the following [test module](examples/nanozmumu.py) to check if the
@@ -84,9 +103,9 @@ installation works correctly:
 ```
 (`--distributed=worker` is needed to interpret the positional arguments as
 input file names, in sequential mode (no `--distributed` option) and for
-the driver task the positional argument is reserved for a json/yaml file
-that contains more information, such as input file locations.
-for several samples, normalisation etc.)
+the driver task (`--distributed=driver`) the positional argument is reserved
+for a json/yaml file that contains more information, such as input file
+locations for several samples, normalisation etc. - there are a few examples).
 
 The same test module can also be used to play around with the decorated tree,
 by passing the `-i` (or `--interactive`) option in addition. This will start
@@ -95,3 +114,11 @@ with one input file, to get the correct structure), e.g.
 ```bash
 % bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --distributed=worker -i /home/ucl/cp3/pdavid/bambootest/NanoAOD_SingleMu_test.root
 ```
+
+When actually using the distributed mode, a bit more information is needed,
+e.g. how to access the file storage, which batch submission system to use
+(currently slurm and HTCondor are supported). This is done through an
+environment configuration file, which can be passed with the `--envConfig`
+option, or put in one of the default locations (`bamboo.ini` or `bamboorc`
+in the current directory, or `$XDG_CONFIG_HOME/bamboorc`, which typically
+resolves to `~/.config/bamboorc`).

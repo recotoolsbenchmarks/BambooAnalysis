@@ -14,6 +14,8 @@ message(STATUS "Found Boost with include dir ${Boost_INCLUDE_DIR} (change by pas
 
 include_directories(${ROOT_INCLUDE_DIR} ${Boost_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/interface)
 
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc)
 target_compile_features(BinnedValues PRIVATE cxx_std_17)
 target_include_directories(BinnedValues PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
@@ -21,4 +23,11 @@ target_link_libraries(BinnedValues ${Boost_LIBRARIES} ${ROOT_LIBRARIES})
 install(TARGETS BinnedValues
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+add_library(BambooLumiMask SHARED src/LumiMask.cc)
+target_compile_features(BambooLumiMask PRIVATE cxx_std_17)
+target_include_directories(BambooLumiMask PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(BambooLumiMask ${Boost_LIBRARIES})
+install(TARGETS BambooLumiMask
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )

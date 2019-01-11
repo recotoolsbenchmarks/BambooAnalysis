@@ -48,7 +48,7 @@ with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
 setup(
     name="bamboo",
 
-    version="0.1.0a1",
+    version="0.1.0a2",
 
     description="A high-level HEP analysis library for ROOT::RDataFrame",
     long_description=long_description,
@@ -82,7 +82,7 @@ setup(
     packages=["bamboo"],
     scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
 
-    install_requires=[],
+    install_requires=["PyYAML"],
     extras_require={"Interactive mode": ["IPython"]},
 
     entry_points={},

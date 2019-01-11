@@ -59,6 +59,11 @@ class SelWithDefines(top.CppStrRedir):
                 self._definedColumns[arg] = nm
             return nm
 
+## NOTE these are global (for the current process&interpreter)
+## otherwise they would be overwritten in sequential mode (this even allows reuse)
+_gSymbols = dict()
+_giFun = 0
+
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
         import ROOT
@@ -68,11 +73,10 @@ class DataframeBackend(FactoryBackend):
         self.plotResults = dict() ## plot name -> result pointer
         super(DataframeBackend, self).__init__()
         self._iCol = 0
-        self._iFun = 0
-        self._symbols = dict()
     def _getUSymbName(self):
-        self._iFun += 1
-        return "myFun{0:d}".format(self._iFun)
+        global _giFun
+        _giFun += 1
+        return "myFun{0:d}".format(_giFun)
     def getUColName(self):
         self._iCol += 1
         return "myCol{0:d}".format(self._iCol)
@@ -81,11 +85,12 @@ class DataframeBackend(FactoryBackend):
         return any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce))
 
     def symbol(self, decl):
-        if decl in self._symbols:
-            return self._symbols[decl]
+        global _gSymbols
+        if decl in _gSymbols:
+            return _gSymbols[decl]
         else:
             name = self._getUSymbName()
-            self._symbols[decl] = name
+            _gSymbols[decl] = name
             fullDecl = decl.replace("<<name>>", name)
             logger.debug("Defining new symbol with interpreter: {0}".format(fullDecl))
             import ROOT

@@ -122,3 +122,9 @@ environment configuration file, which can be passed with the `--envConfig`
 option, or put in one of the default locations (`bamboo.ini` or `bamboorc`
 in the current directory, or `$XDG_CONFIG_HOME/bamboorc`, which typically
 resolves to `~/.config/bamboorc`).
+
+A more meaningful example, plotting the dimuon Z peak from a single muon NanoAOD (you may need to copy a test file) can then be run locally (first command) or on slurm (second command) with
+```bash
+% bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/analysis_zmm.yml --envConfig=bamboo/examples/ingrid.ini -o test1
+% bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/analysis_zmm.yml --envConfig=bamboo/examples/ingrid.ini --driver=distributed -o test2
+```

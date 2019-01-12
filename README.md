@@ -20,8 +20,8 @@ This library attempt to solve this problem by automatically constructing
 lightweight python wrappers based on the structure of the `TTree`,
 which allow to construct such expression with high-level code, similar to the
 language that is commonly used to discuss and describe them.
-The idea is to remove as much as possible the technical code needed for
-processing the dataset, saving the results etc. in common modules and classes,
+In addition, as much as possible of the technical code needed for processing the
+dataset, saving the results etc. is kept in common modules and classes,
 such that only high-level declarative-style code remains in the
 analysis module, making it easier to read, and compact enough that all relevant
 choices and definitions fit in one manageable file.

@@ -6,8 +6,17 @@ class provides an efficient and flexible way to process per-event information
 With the typical pattern of storing object arrays as a structure of arrays
 (variable-sized branches with a common prefix in the names and length),
 the expressions that are typically needed for a complete analysis quickly become
-cumbersome to write, (with indices to match, repeated sub-expressions etc.).
-This library attempt to alleviate this problem by automatically constructing
+cumbersome to write, (with indices to match, repeated sub-expressions etc.) -
+as an example, imagine the expression needed to calculate the invariant mass of
+the two leading muons from a NanoAOD (which stores momenta with pt, eta and phi
+branches - one way is to construct LorentzVector objects, sum and evaluate the
+invariant mass.
+Next imagine doing the same thing with the two highest-PT jets that have a b-tag
+and are not within some cone of the two leptons you already selected in another
+way (while keeping the code maintainable enough to allow for passing jet momenta
+with a systematic variation applied).
+
+This library attempt to solve this problem by automatically constructing
 lightweight python wrappers based on the structure of the `TTree`,
 which allow to construct such expression with high-level code, similar to the
 language that is commonly used to discuss and describe them.

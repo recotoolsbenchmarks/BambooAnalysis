@@ -199,6 +199,7 @@ class HistogramsModule(AnalysisModule):
     def interact(self):
         tup = self.getATree()
         tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup)
+        import bamboo.treefunctions as op
         import IPython
         IPython.embed()
 

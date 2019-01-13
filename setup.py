@@ -82,9 +82,10 @@ setup(
     packages=["bamboo"],
     scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
 
+    setup_requires=["pytest-runner"],
     install_requires=["PyYAML"],
-    extras_require={"Interactive mode" : ["IPython"],
-                    "Tests"            : ["pytest"]},
+    extras_require={"Interactive mode" : ["IPython"]},
+    tests_require=["pytest"],
 
     entry_points={},
 

@@ -264,7 +264,7 @@ For the code inside the module, the example is also very instructive:
 ```python
     def definePlots(self, t, noSel, systVar="nominal"):
         from bamboo.plots import Plot, EquidistantBinning
-        import bamboo.treefunctions as op
+        from bamboo import treefunctions as op
 
         plots = []
 
@@ -301,7 +301,7 @@ specific functions are needed. These are as much as possible defined in the
 [`bamboo.treefunctions`](python/treefunctions.py) module, so it is recommended
 to
 ```python
-import bamboo.treefunctions as op
+from bamboo import treefunctions as op
 ```
 (or any other name, as you prefer) in your analysis module.
 

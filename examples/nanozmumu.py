@@ -10,7 +10,7 @@ class NanoZMuMu(NanoAODHistoModule):
 
     def definePlots(self, t, noSel, systVar="nominal"):
         from bamboo.plots import Plot, EquidistantBinning
-        import bamboo.treefunctions as op
+        from bamboo import treefunctions as op
 
         plots = []
 

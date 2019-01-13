@@ -8,10 +8,10 @@ if not os.path.exists(jsonName):
     print("Downloading JSON file from {0}".format(jsonPath))
     subprocess.check_call(["wget", jsonPath])
 import bamboo.treefunctions ## loads and includes
-import ROOT
+from cppyy import gbl
 #ROOT.gSystem.Load("libBambooLumiMask.so")
 #ROOT.gROOT.ProcessLine('#include "../ext/include/LumiMask.h"')
-lm = ROOT.LumiMask.fromJSON(jsonName, *runRange)
+lm = gbl.LumiMask.fromJSON(jsonName, *runRange)
 
 def test_lumimask():
     assert not lm.accept(283681, 10 ) ## excluded run

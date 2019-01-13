@@ -2,3 +2,6 @@ Pipfile*
 __pycache__/
 examples/*.root
 examples/dascache
+build
+.eggs
+bamboo.egg-info

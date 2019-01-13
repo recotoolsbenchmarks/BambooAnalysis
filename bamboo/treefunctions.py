@@ -4,18 +4,30 @@ math/builtins-like module for tree operations
 ## used as a namespace, so avoid filling it with lower-level objects
 from . import treeoperations as _to
 from . import treeproxies as _tp
-import sys
-import os.path
-pkgRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-import ROOT
-ROOT.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
-pkgPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
-ROOT.gInterpreter.AddIncludePath(os.path.join(pkgPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo"))
-ROOT.gSystem.Load(os.path.join(pkgRoot, "libBinnedValues"))
-ROOT.gSystem.Load(os.path.join(pkgRoot, "libBambooLumiMask"))
-for fname in ("range.h", "jmesystematics.h", "scalefactors.h", "LumiMask.h"):
-    ROOT.gROOT.ProcessLine('#include "{}"'.format(fname))
-del ROOT,os,sys
+
+def _load_extensions():
+    """Add extension libraries and necessary header files to the ROOT interpreter"""
+    import sys
+    import os.path
+    pkgRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    from cppyy import gbl
+    gbl.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
+    instPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
+    instInclude = os.path.join(instPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo")
+    if os.path.isdir(instInclude): ## installed mode
+        gbl.gInterpreter.AddIncludePath(instInclude)
+        libDir = pkgRoot
+    else: ## non-installed mode
+        libDir = os.path.join(pkgRoot, "build", "lib")
+        if not os.path.isdir(libDir):
+            raise RuntimeError("No directory {0} so running in local mode, but then build/lib need to be present. Did you run 'python setup.py build'?")
+        gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "build", "include"))
+        gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
+    gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))
+    gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
+    for fname in ("range.h", "jmesystematics.h", "scalefactors.h", "LumiMask.h"):
+        gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
+_load_extensions()
 
 ## simple type support
 def c_bool(arg):

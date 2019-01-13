@@ -12,10 +12,11 @@ import ROOT
 #ROOT.gSystem.Load("libBambooLumiMask.so")
 #ROOT.gROOT.ProcessLine('#include "../ext/include/LumiMask.h"')
 lm = ROOT.LumiMask.fromJSON(jsonName, *runRange)
-assert not lm.accept(283681, 10 ) ## excluded run
-assert     lm.accept(276948, 10 ) ## included run
-assert     lm.accept(276948, 1  ) ## first for a run
-assert     lm.accept(276834, 720) ## last for that run
-assert not lm.accept(277070, 310) ## excluded part
-assert     lm.accept(277070, 311) ## later block
-print("Tests pass!")
+
+def test_lumimask():
+    assert not lm.accept(283681, 10 ) ## excluded run
+    assert     lm.accept(276948, 10 ) ## included run
+    assert     lm.accept(276948, 1  ) ## first for a run
+    assert     lm.accept(276834, 720) ## last for that run
+    assert not lm.accept(277070, 310) ## excluded part
+    assert     lm.accept(277070, 311) ## later block

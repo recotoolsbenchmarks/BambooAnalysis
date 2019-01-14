@@ -40,15 +40,22 @@ class build_clib(setuptools.command.build_clib.build_clib):
             if not self.dry_run:
                 self.spawn(["cmake", "--build", ".", "--target", "install", "--config", buildType])
 
+try:
+    from sphinx.setup_command import BuildDoc
+except ImportError as ex:
+    BuildDoc = None
+    print("Warning: exception when importing sphinx {0}".format(ex))
+
 # Get the long description from the relevant file
 from io import open
 with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
+projName = "bamboo"
+projVersion = "0.1.0a2"
 setup(
-    name="bamboo",
-
-    version="0.1.0a2",
+    name=projName,
+    version=projVersion,
 
     description="A high-level HEP analysis library for ROOT::RDataFrame",
     long_description=long_description,
@@ -90,7 +97,19 @@ setup(
     entry_points={},
 
     libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
-    cmdclass={"build_clib":build_clib},
+    cmdclass={
+        "build_clib" : build_clib,
+        "build_sphinx" : BuildDoc
+        },
+    command_options={
+        "build_sphinx" : {
+            "project": ("setup.py", projName),
+            "version": ("setup.py", ".".join(projVersion.split(".")[:2])),
+            "release": ("setup.py", projVersion),
+            "source_dir": ("setup.py", "doc"),
+            "build_dir" : ("setup.py", "doc/build")
+            }
+        },
     headers=[ os.path.join(root, item) for incPath in ("cpp", os.path.join("ext", "include"))
                 for root, subFolder, files in os.walk(incPath) for item in files ],
 )

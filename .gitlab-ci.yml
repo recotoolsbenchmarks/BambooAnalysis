@@ -1,0 +1,12 @@
+image: gitlab-registry.cern.ch/ci-tools/ci-worker:cc7
+
+before_script:
+  - yum install -y libgfortran make
+
+test:
+  tags:
+    - cvmfs
+  script:
+    - source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
+    - python setup.py install --user
+    - python setup.py test

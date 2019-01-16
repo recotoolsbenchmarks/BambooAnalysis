@@ -23,3 +23,12 @@ Therefore a common implementation of these is provided, such that the analyst
 only needs to provide a subclass with their selection and plot definitions,
 and a configuration file with a list of samples, and instructions how to
 display them.
+
+To view the documentation, for now (i.e. until automatic deployment to a website
+is enabled) run
+```sh
+python setup.py build ## only needed if you haven't installed bamboo yet
+python setup.py build_sphinx
+```
+inside your bamboo clone. This will generate the documentation in
+`doc/build/html`.

@@ -16,7 +16,7 @@ from .treeoperations import *
 boolType = "bool"
 NumberTypes = set(("Float_t", "Double_t", "Int_t", "UInt_t", "Bool_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "float", "double", "Short_t", "size_t", "std::size_t", "unsigned short", "bool", "unsigned long")) ## there are many more (at least unsigned)
 import re
-vecPat = re.compile("(?:vector|ROOT\:\:VecOps\:\:RVec)\<(?P<item>[a-zA-Z_0-9\<\>,\: ]+)\>")
+vecPat = re.compile(r"(?:vector|ROOT\:\:VecOps\:\:RVec)\<(?P<item>[a-zA-Z_0-9\<\>,\: ]+)\>")
 
 def makeProxy(typeName, parent, length=None):
     if length is not None:

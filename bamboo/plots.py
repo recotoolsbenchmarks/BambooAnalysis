@@ -149,7 +149,7 @@ class Selection(object):
     def weight(self):
         return Selection._makeExprProduct(self.weights)
     def __repr__(self): ## TODO maybe change to refer to parent
-        return "Selection({0!r}, {1!r}, {2!r})".format(self.cut, self.weight)
+        return "Selection({0!r}, {1!r}, {2!r})".format(self.name, self.cut, self.weight)
     def __eq__(self, other):
         ## FIXME do we even still need this?
         return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in izip(self.cuts, other.cuts) )

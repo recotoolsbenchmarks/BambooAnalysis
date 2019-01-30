@@ -1,6 +1,3 @@
-"""
-math/builtins-like module for tree operations
-"""
 ## used as a namespace, so avoid filling it with lower-level objects
 from . import treeoperations as _to
 from . import treeproxies as _tp
@@ -44,9 +41,15 @@ def c_float(num):
 def NOT(sth):
     return _to.MathOp("not", sth, outType=_tp.boolType).result
 def AND(*args):
-    return _to.MathOp("and", *args, outType=_tp.boolType).result
+    if len(args) == 1:
+        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0]))
+    else:
+        return _to.MathOp("and", *args, outType=_tp.boolType).result
 def OR(*args):
-    return _to.MathOp("or", *args, outType=_tp.boolType).result
+    if len(args) == 1:
+        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0]))
+    else:
+        return _to.MathOp("or", *args, outType=_tp.boolType).result
 
 def switch(test, trueBranch, falseBranch):
     assert trueBranch._typeName == falseBranch._typeName
@@ -146,12 +149,42 @@ def select(rng, pred=lambda elm : True):
 
 
 def addKinematicVariation(vrng, key, modif=( lambda elm : elm.p4 ), pred=( lambda mp4,elm : True )):
+    """ Add a container with modified kinematics (for jet systematics)
+
+    :param vrng: base object range (kinematic variation-enabled, see :py:class:`bamboo.treeproxies.Variations`)
+    :param key: registered name of the variation
+    :param modif: transformation to apply, object->modified-p4
+    :param pred: selection to apply after performing the transformation
+    """
     modif = _to.KinematicVariation(vrng.nominal, modif, pred).result
     modif.itemType = vrng._varItemType
     vrng.register(key, modif)
 
-def combine(rng, N=None, pred=lambda combo : True):
-    ## TODO figure out if 'rng' is one range, or N
-    ## - if one -> make combinations of similar particles (e.g. Z->l+l-, W->jj)
-    ## - if N   -> make combinations of different particles (e.g. t->lj)
-    return NotImplemented ## store tuples of (smart) refs if they pass the cut
+def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1 < i2):
+    """ Create N-particle combination from one or several ranges
+
+    :param rng: range (or iterable of ranges) with basic objects to combine
+    :param N: number of objects to combine (at least 2), should match ``len(rng)`` if there are multiple ranges
+    :param pred: selection to apply to candidates
+    :param sameIdxPred: additional selection for objects from the same base container (by index).
+        The default avoids duplicates by keeping the indices sorted
+        (so the first object in the container will also be the first of the combination),
+        but in some cases one may want to simply test inequality.
+
+    :Example:
+
+    >>> osdimu = op.combine(t.Muon, N=2, pred=lambda mu1,mu2 : mu1.charge != mu2.charge)
+
+    .. note::
+
+        currently only N=2 is supported
+    """
+    if not hasattr(rng, "__iter__"):
+        rng = (rng,)
+    elif N is None:
+        N = len(rng)
+    elif N <= 1:
+        raise RuntimeError("Can only make combinations of more than one")
+    if len(rng) != N and len(rng) != 1:
+        raise RuntimeError("If N(={0:d}) input ranges are given, only N-combinations can be made, not {1:d}".format(len(rng), N))
+    return _to.Combine(N, rng, pred, sameIdxPred=sameIdxPred).result ## only implemented for 2 (same or different container)

@@ -89,6 +89,12 @@ newMPlot = Plot.make1D("dimuSF_M", op.invariant_mass(t.Muon[0].p4, t.Muon[1].p4)
 op.addKinematicVariation(t.Jet, "no-op", modif=( lambda j : j.p4 ), pred=( lambda mp4, j : mp4.Pt() > 10. ))
 nJets = Plot.make1D("nJets", op.rng_len(t.Jet["no-op"]), noSel, EquidistantBinning(10, 0., 10.), title="Unmodified jet multiplicity")
 
+# Making two-particle combinations (higher N to be added) is also easy:
+osdimu = op.combine(t.Muon, N=2, pred=lambda m1, m2 : m1.charge != m2.charge)
+nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), twoMuSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign dimuon pairs")
+## TODO stress-test: use selected muons, select afterwards, combine electrons and muons
+
+
 # That's a nice start - but we haven't plotted any histograms yet!
 # The `ROOT::RDataFrame` will do that as soon as we ask for one of them:
 cv = ROOT.TCanvas("c1", "A few dimuon plots", 1500, 350)
@@ -129,6 +135,12 @@ be.getPlotResult(newMPlot).Draw()
 cv4.cd(2)
 be.getPlotResult(nJets).Draw()
 cv4.Update()
+
+cv5 = ROOT.TCanvas("c5")
+cv5.Divide(2)
+cv5.cd(1)
+be.getPlotResult(nOSDimu).Draw()
+cv5.Update()
 
 # There are a few more things to figure out:
 #   - integrate with slurm. The easiest is probably to have a common module

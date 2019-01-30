@@ -37,6 +37,41 @@ RESULT reduce(const RANGE& range, RESULT init, REDUCE&& reduce)
   return std::accumulate(range.begin(), range.end(), init, reduce);
 }
 
+/**
+ * N-particle combination
+ *
+ * TODO extend (could also carry common vertex and momentum)
+ */
+template<std::size_t NUM>
+class Combination {
+public:
+  Combination(const typename std::array<std::size_t,NUM> idx)
+    : m_idx(idx) {}
+
+  std::size_t get(std::size_t i) { return m_idx.at(i); }
+private:
+  typename std::array<std::size_t,NUM> m_idx;
+};
+
+/**
+ * 2-particle combinatorics from different base containers
+ *
+ * no duplicate or overlap checks are performed, these should be included in the predicate
+ */
+template<typename PREDICATE,typename RANGE1,typename RANGE2>
+ROOT::VecOps::RVec<Combination<2>> combine2(PREDICATE&& pred, const RANGE1& range1, const RANGE2& range2)
+{
+  ROOT::VecOps::RVec<Combination<2>> sel;
+  for ( const typename RANGE1::value_type i1 : range1 ) {
+    for ( const typename RANGE2::value_type i2 : range2 ) {
+      if ( pred(i1, i2) ) {
+        sel.push_back(Combination<2>{std::array<std::size_t,2>{i1, i2}});
+      }
+    }
+  }
+  return sel;
+}
+
 /*
  * Provide an iterator interface over an index that runs from 0 to N
  */

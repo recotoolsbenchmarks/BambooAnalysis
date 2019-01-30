@@ -6,7 +6,7 @@ for the development of efficient histogram-filling programs
 through the use of python wrappers (see e.g. treeproxies).
 """
 
-from itertools import chain
+from itertools import chain, repeat, combinations
 
 class TupleOp(object):
     """ Interface & base class for operations on leafs and resulting objects / values """
@@ -187,25 +187,29 @@ class GetItem(TupleOp):
     def __init__(self, arg, valueType, index, indexType=SizeType):
         self.arg = adaptArg(arg)
         self.typeName = valueType
-        self.index = adaptArg(index, typeHint=SizeType)
+        self._index = adaptArg(index, typeHint=SizeType)
         super(GetItem, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        for arg in (self.arg, self.index):
+        for arg in (self.arg, self._index):
             if select(arg):
                 yield arg
             yield from arg.deps(defCache=defCache, select=select)
+    @property
+    def index(self):
+        from .treeproxies import makeProxy
+        return makeProxy(SizeType, self._index)
     @property
     def result(self):
         from .treeproxies import makeProxy
         return makeProxy(self.typeName, self)
     def __eq__(self, other):
-        return isinstance(other, GetItem) and ( self.arg == other.arg ) and ( self.typeName == other.typeName ) and ( self.index == other.index )
+        return isinstance(other, GetItem) and ( self.arg == other.arg ) and ( self.typeName == other.typeName ) and ( self._index == other._index )
     def __repr__(self):
-        return "GetItem({0!r}, {1!r})".format(self.arg, self.index)
+        return "GetItem({0!r}, {1!r})".format(self.arg, self._index)
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        return "{0}[{1}]".format(defCache(self.arg), defCache(self.index))
+        return "{0}[{1}]".format(defCache(self.arg), defCache(self._index))
 
 class Construct(TupleOp):
     def __init__(self, typeName, args):
@@ -621,3 +625,74 @@ class KinematicVariation(TupleOp):
                 predExpr=defCache(self.predExpr).replace("<changeme>", "i").replace("<modp4>", "p4Mod")
             ))
         return "{0}({1})".format(funName, ", ".join(ld.name for ld in depList_merged))
+
+class Combine(TupleOp):
+    def __init__(self, num, ranges, candPredFun, sameIdxPred=lambda i1,i2: i1 < i2):
+        self.n = num
+        self.ranges = ranges if len(ranges) > 1 else tuple(repeat(ranges[0], self.n))
+        self.candPredFun = candPredFun
+        self._i = tuple(LocalVariablePlaceholder(SizeType, name="<changeme_p{0:d}>".format(i)).result for i in range(num))
+        from . import treefunctions as op
+        areDiff = op.AND(*(sameIdxPred(ia, ib)
+                for ((ia, ra), (ib, rb)) in combinations(zip(self._i, self.ranges), 2)
+                if ra._base == rb._base))
+        candPred = self.candPredFun(*( rng._base[idx] for rng,idx in zip(self.ranges, self._i)))
+        if len(areDiff.op.args) > 0:
+            self.predExpr = adaptArg(op.AND(areDiff, candPred))
+        else:
+            self.predExpr = adaptArg(candPred)
+    @property
+    def resultType(self):
+        return "ROOT::VecOps::RVec<rdfhelpers::Combination<{0:d}>>".format(self.n)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+        for arg in chain(self.ranges, [self.candPredicate]):
+            if select(arg):
+                yield
+            yield from arg.deps(defCache=defCache, select=select)
+    @property
+    def result(self):
+        from .treeproxies import CombinationListProxy, makeProxy
+        return CombinationListProxy(self, makeProxy(self.resultType, self))
+    def __eq__(self, other):
+        return isinstance(other, Combine) and ( self.n == other.n ) and all( ra == rb for ra,rb in zip(self.ranges, other.ranges) ) and ( self.predExpr == other.predExpr )
+    def __repr__(self):
+        return "Combine({0:d}, {1!r}, {2!r})".format(self.n, self.ranges, self.predExpr)
+    def __hash__(self):
+        return hash(self.__repr__())
+    def get_cppStr(self, defCache=cppNoRedir):
+        depList = set(chain.from_iterable(
+            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn))) ## FIXME define as "isLeaf" or so
+            for expr in chain(self.ranges, [self.predExpr])))
+        from .treeproxies import ListBase
+        for expr in chain(self.ranges, [self.predExpr]):
+            for dep in expr.deps(defCache=defCache, select=(lambda op : defCache.backend.shouldDefine(op) and defCache._getColName(op))):
+                depResult = dep.result
+                if isinstance(depResult, ListBase):
+                    depList.add(GetArrayColumn(depResult.valueType, defCache._getColName(dep), adaptArg(depResult.__len__())))
+                else:
+                    depList.add(GetColumn(depResult._typeName, defCache._getColName(dep)))
+        predexpr = defCache(self.predExpr)
+        for i in range(self.n):
+            predexpr = predexpr.replace("<changeme_p{0:d}>".format(i), "i{0:d}".format(i))
+        funName = defCache.symbol((
+            "using namespace ROOT::VecOps;\n"
+            "{resType} <<name>>({fargs})\n"
+            "{{\n"
+            "  return rdfhelpers::combine{num:d}(\n"
+            "     [{captures}] ( {predIdxArgs} ) {{ return {predexpr}; }},\n"
+            "     {ranges}\n"
+            "     );\n"
+            "}};\n"
+            ).format(
+                resType=self.resultType,
+                fargs=", ".join( ## TODO this could be improved/factored out (grouped with captures)
+                    ("const RVec<{0}>& {1}".format(ld.typeName, ld.name) if isinstance(ld, GetArrayColumn)
+                    else "const {0}& {1}".format(ld.typeName, ld.name) if isinstance(ld, GetColumn)
+                    else "(problem with {0!r})".format(ld)) for ld in depList),
+                num=self.n,
+                captures=",".join("&{0}".format(ld.name) for ld in depList),
+                predIdxArgs=", ".join("std::size_t i{0:d}".format(i) for i in range(self.n)),
+                predexpr=predexpr,
+                ranges=", ".join(defCache(rng._idxs.op) for rng in self.ranges)
+            ))
+        return "{0}({1})".format(funName, ", ".join(ld.name for ld in depList))

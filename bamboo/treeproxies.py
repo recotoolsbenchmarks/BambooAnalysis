@@ -93,7 +93,13 @@ class TreeBaseProxy(LeafGroupProxy):
         yield from []
 
 class ListBase(object):
-    """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering) """
+    """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering)
+
+    Important for users: _base always contains a basic container (e.g. ContainerGroupProxy), and _idxs
+    the indices out of _base this list contains (so _base[_idxs[i]] for i in range(len) are always valid).
+
+    TODO verify / stress-tests (selection of selection, next of selection of selection etc.)
+    """
     def __init__(self):
         self.valueType = None
         self._base = self ## TODO get rid of _
@@ -328,3 +334,38 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
             yield from arg.deps(defCache=defCache, select=select)
     def __eq__(self, other):
         return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self._base == other._base ) and ( self.itemType == other.itemType )
+
+class CombinationProxy(TupleBaseProxy):
+    ## NOTE decorated rdfhelpers::Combination
+    def __init__(self, cont, parent):
+        self.cont = cont
+        super(CombinationProxy, self).__init__(parent=parent) ## parent=GetItem(self.cont.parent, SizeType, self.idx).result
+    def __getitem__(self, i):
+        return self.cont.range(i)[self._parent.get(i)]
+    ## TODO add more (maybe simply defer to rdfhelpers::Combination object
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+        yield from self._parent.deps(defCache=defCache, select=select)
+    def __eq__(self):
+        return isinstance(other, self.__class__) and self._parent == other._parent
+
+class CombinationListProxy(TupleBaseProxy,ListBase):
+    ## NOTE list of decorated rdfhelpers::Combination
+    ## TODO check if this works with selection (it should...)
+    def __init__(self, parent, combs):
+        self.combs = combs ## straightforward proxy for parent
+        ListBase.__init__(self) ## FIXME check above how to do this correctly...
+        super(CombinationListProxy, self).__init__("struct", parent=parent)
+    def __getitem__(self, idx):
+        return CombinationProxy(self, GetItem(self._parent, SizeType, idx).result)
+    def range(self, i):
+        return self._parent.ranges[i]
+    def __len__(self):
+        return self.combs.size()
+    def __repr__(self):
+        return "{0}({1!r})".format(self.__class__.__name__, self._parent)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+        yield from self._parent.deps(defCache=defCache, select=select)
+    def __eq__(self):
+        return isinstance(other, self.__class__) and self._parent == other._parent

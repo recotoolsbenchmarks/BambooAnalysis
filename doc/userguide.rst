@@ -167,13 +167,8 @@ correspond to (you can get an item from a list, an attribute from an object,
 you can also work with numerical values, e.g.
 ``t.Muon[0].p4.Px()+t.Muon[1].p4.Px()``) but for some more complex operations,
 specific functions are needed. These are as much as possible defined in the
-:py:mod:`bamboo.treefunctions` module, so it is recommended to
-
-.. code-block:: python
-
-   from bamboo import treefunctions as op
-
-(or any other name, as you prefer) in your analysis module.
+:py:mod:`bamboo.treefunctions` module, see :doc:`Building expressions<treefunctions>`
+for an overview of all the available methods.
 
 Ideally, the decorated tree and the :py:mod:`bamboo.treefunctions` module
 are all you ever need to import and know about the decorations.

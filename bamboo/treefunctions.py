@@ -164,7 +164,8 @@ def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1
     """ Create N-particle combination from one or several ranges
 
     :param rng: range (or iterable of ranges) with basic objects to combine
-    :param N: number of objects to combine (at least 2), should match ``len(rng)`` if there are multiple ranges
+    :param N: number of objects to combine (at least 2), in case of multiple ranges it does not need to be given
+    (``len(rng)`` will be taken; if specified they should match)
     :param pred: selection to apply to candidates
     :param sameIdxPred: additional selection for objects from the same base container (by index).
         The default avoids duplicates by keeping the indices sorted
@@ -174,6 +175,7 @@ def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1
     :Example:
 
     >>> osdimu = op.combine(t.Muon, N=2, pred=lambda mu1,mu2 : mu1.charge != mu2.charge)
+    >>> oselmu = op.combine((t.Electron, t.Muon), pred=lambda el,mu : el.charge != mu.charge)
 
     .. note::
 

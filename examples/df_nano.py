@@ -91,7 +91,9 @@ nJets = Plot.make1D("nJets", op.rng_len(t.Jet["no-op"]), noSel, EquidistantBinni
 
 # Making two-particle combinations (higher N to be added) is also easy:
 osdimu = op.combine(t.Muon, N=2, pred=lambda m1, m2 : m1.charge != m2.charge)
-nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), twoMuSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign dimuon pairs")
+oselmu = op.combine((t.Electron, t.Muon), pred=lambda el, mu : el.charge != mu.charge)
+nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), noSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign dimuon pairs")
+nOSelmu = Plot.make1D("nOselmu", op.rng_len(oselmu), noSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign electron-muon pairs")
 ## TODO stress-test: use selected muons, select afterwards, combine electrons and muons
 
 
@@ -140,6 +142,8 @@ cv5 = ROOT.TCanvas("c5")
 cv5.Divide(2)
 cv5.cd(1)
 be.getPlotResult(nOSDimu).Draw()
+cv5.cd(2)
+be.getPlotResult(nOSelmu).Draw()
 cv5.Update()
 
 # There are a few more things to figure out:

@@ -67,23 +67,33 @@ def define(typeName, definition):
 
 ## math
 def abs(sth):
-    return _to.MathOp("abs", sth, outType="Float_t").result
+    return _to.MathOp("abs", sth, outType=sth._typeName).result
 def sign(sth):
     return switch(sth!=0., sth/abs(sth), 0.)
 def sum(*args, **kwargs):
-    return _to.MathOp("add", *args, outType=kwargs.pop("outType", "Float_t")).result
+    return _to.MathOp("add", *args, outType=kwargs.pop("outType",
+        _tp.floatType if _tp._hasFloat(*args) else _tp.intType)).result
 def product(*args):
-    return _to.MathOp("multiply", *args, outType="Float_t").result
+    return _to.MathOp("multiply", *args,
+            outType=(_tp.floatType if _tp._hasFloat(*args) else _tp.intType)).result
+def sqrt(sth):
+    return _to.MathOp("sqrt", sth, outType=sth._typeName).result
+def pow(a1,a2):
+    return _to.MathOp("pow", a1, a2, outType=a1._typeName).result
+def exp(sth):
+    return _to.MathOp("exp", sth).result
 def log(sth):
-    return _to.MathOp("log", sth, outType="Float_t").result
+    return _to.MathOp("log", sth).result
 def log10(sth):
-    return _to.MathOp("log10", sth, outType="Float_t").result
+    return _to.MathOp("log10", sth).result
 def max(a1,a2):
-    return _to.MathOp("max", a1, a2, outType="Float_t").result
+    return _to.MathOp("max", a1, a2,
+            outType=(_tp.floatType if _tp._hasFloat(a1, a2) else _tp.intType)).result
 def min(a1,a2):
-    return _to.MathOp("min", a1, a2, outType="Float_t").result
+    return _to.MathOp("min", a1, a2,
+            outType=(_tp.floatType if _tp._hasFloat(a1, a2) else _tp.intType)).result
 def in_range(low, arg, up):
-    return _to.AND(arg > low, arg < up)
+    return AND(arg > low, arg < up)
 
 ## Kinematics and helpers
 def invariant_mass(*args):

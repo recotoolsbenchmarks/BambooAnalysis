@@ -12,17 +12,27 @@ with as 'op' attribute a 'GetColumn(tree, "event_id")' operation.
 """
 
 from .treeoperations import *
+import functools
 
 boolType = "bool"
-NumberTypes = set(("Float_t", "Double_t", "Int_t", "UInt_t", "Bool_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "float", "double", "Short_t", "size_t", "std::size_t", "unsigned short", "bool", "unsigned long")) ## there are many more (at least unsigned)
+_boolTypes = set(("bool", "Bool_t"))
+intType = "Int_t"
+_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
+floatType = "Double_t"
+_floatTypes = set(("Float_t", "Double_t", "float", "double"))
+## TODO lists are probably not complete
 import re
 vecPat = re.compile(r"(?:vector|ROOT\:\:VecOps\:\:RVec)\<(?P<item>[a-zA-Z_0-9\<\>,\: ]+)\>")
 
 def makeProxy(typeName, parent, length=None):
     if length is not None:
         return ArrayProxy(parent, typeName, length)
-    if typeName in NumberTypes:
-        return NumberProxy(parent, typeName)
+    if typeName in _boolTypes:
+        return BoolProxy(parent, typeName)
+    elif typeName in _integerTypes:
+        return IntProxy(parent, typeName)
+    elif typeName in _floatTypes:
+        return FloatProxy(parent, typeName)
     else:
         m = vecPat.match(typeName)
         if m:
@@ -33,25 +43,68 @@ def makeConst(value, typeHint):
     return makeProxy(typeHint, adaptArg(value, typeHint))
 
 class NumberProxy(TupleBaseProxy):
-    """ Proxy for a number (integer or floating-point) """
     def __init__(self, parent, typeName):
         super(NumberProxy, self).__init__(typeName, parent=parent)
     def __repr__(self):
-        return "NumberProxy({0!r}, {1!r})".format(self._parent, self._typeName)
-    def _binaryOp(self, opName, other, outType="Double_t"):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._typeName)
+    def _binaryOp(self, opName, other, outType=None):
+        if outType is None:
+            outType = self._typeName ## default: math will give same type
         return MathOp(opName, self, other, outType=outType).result
-## operator overloads
 for nm,opNm in {
-          "__add__" : "add"
-        , "__sub__" : "subtract"
-        , "__mul__" : "multiply"
-        , "__truediv__" : " divide"
-        , "__div__" : "divide"
-        , "__nonzero__" : "nonzero"
+          "__add__": "add"
+        , "__sub__": "subtract"
+        , "__mul__": "multiply"
+        , "__pow__": "pow"
         }.items():
-    setattr(NumberProxy, nm, (lambda oN : (lambda self, other : self._binaryOp(oN, other)))(opNm))
+    setattr(NumberProxy, nm, functools.partialmethod(
+        (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
 for nm in ("__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"):
     setattr(NumberProxy, nm, (lambda oN, oT : (lambda self, other : self._binaryOp(oN, other, outType=oT)))(nm.strip("_"), boolType))
+
+class IntProxy(NumberProxy):
+    def __init__(self, parent, typeName):
+        super(IntProxy, self).__init__(parent, typeName)
+for nm,(opNm,outType) in {
+          "__truediv__" : ("floatdiv", floatType)
+        , "__floordiv__": ("divide"  , None)
+        , "__and__"     : ("band"    , None)
+        , "__or__"      : ("bor"     , None)
+        , "__invert__"  : ("bxor"    , None)
+        , "__xor__"     : ("bnot"    , None)
+        }.items():
+    setattr(IntProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+
+class BoolProxy(IntProxy):
+    """ Proxy for a boolean type """
+    def __init__(self, parent, typeName):
+        super(BoolProxy, self).__init__(parent, typeName)
+    def __repr__(self):
+        return "BoolProxy({0!r}, {1!r})".format(self._parent, self._typeName)
+for nm,opNm in {
+          "__and__"   : "and"
+        , "__or__"    : "or"
+        , "__invert__": "not"
+        , "__xor__"   : "ne"
+        }.items():
+    setattr(BoolProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, boolType))
+
+class FloatProxy(NumberProxy):
+    def __init__(self, parent, typeName):
+        super(FloatProxy, self).__init__(parent, typeName)
+for nm,(opNm,outType) in {
+          "__truediv__": ("div" , None)
+        }.items():
+    setattr(FloatProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+
+def _hasFloat(*args):
+    return any(isinstance(a, FloatType) for a in args)
 
 class ArrayProxy(TupleBaseProxy):
     """ (possibly var-sized) array of anything """

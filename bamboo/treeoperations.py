@@ -136,6 +136,7 @@ mathOpFuns_cppStr = {
     , "multiply" : lambda cppStr,*args : "( {0} )".format(" * ".join(cppStr(arg) for arg in args))
     , "subtract" : lambda cppStr,a1,a2 : "( {0} - {1} )".format(cppStr(a1), cppStr(a2))
     , "divide"   : lambda cppStr,a1,a2 : "( {0} / {1} )".format(cppStr(a1), cppStr(a2))
+    , "floatdiv"  : lambda cppStr,a1,a2 : "( 1.*{0} / {1} )".format(cppStr(a1), cppStr(a2))
     #
     , "lt" : lambda cppStr,a1,a2 : "( {0} <  {1} )".format(cppStr(a1), cppStr(a2))
     , "le" : lambda cppStr,a1,a2 : "( {0} <= {1} )".format(cppStr(a1), cppStr(a2))
@@ -146,8 +147,15 @@ mathOpFuns_cppStr = {
     , "and" : lambda cppStr,*args : "( {0} )".format(" && ".join(cppStr(a) for a in args))
     , "or"  : lambda cppStr,*args : "( {0} )".format(" || ".join(cppStr(a) for a in args))
     , "not" : lambda cppStr,a : "( ! {0} )".format(cppStr(a))
+    , "band" : lambda cppStr,*args : "( {0} )".format(" & ".join(cppStr(a) for a in args))
+    , "bor"  : lambda cppStr,*args : "( {0} )".format(" | ".join(cppStr(a) for a in args))
+    , "bxor"  : lambda cppStr,*args : "( {0} )".format(" ^ ".join(cppStr(a) for a in args))
+    , "bnot" : lambda cppStr,a : "( ~ {0} )".format(cppStr(a))
     #
     , "abs"   : lambda cppStr,arg : "std::abs( {0} )".format(cppStr(arg))
+    , "sqrt"  : lambda cppStr,arg : "std::sqrt( {0} )".format(cppStr(arg))
+    , "pow"   : lambda cppStr,a1,a2 : "std::pow( {0}, {1} )".format(cppStr(a1), cppStr(a2))
+    , "exp"   : lambda cppStr,arg : "std::exp( {0} )".format(cppStr(arg))
     , "log"   : lambda cppStr,arg : "std::log( {0} )".format(cppStr(arg))
     , "log10" : lambda cppStr,arg : "std::log10( {0} )".format(cppStr(arg))
     , "max"   : lambda cppStr,a1,a2 : "std::max( {0}, {1} )".format(cppStr(a1), cppStr(a2))

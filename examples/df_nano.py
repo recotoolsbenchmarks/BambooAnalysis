@@ -96,7 +96,7 @@ nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), noSel, EquidistantBinning(1
 nOSelmu = Plot.make1D("nOselmu", op.rng_len(oselmu), noSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign electron-muon pairs")
 ## TODO stress-test: use selected muons, select afterwards, combine electrons and muons
 
-tagEle = op.select(t.Electron, lambda el : op.rng_any(t.TrigObj, lambda to : op.AND(to.id == 11, op.sqrt((to.eta-el.eta)**2+(to.phi-el.phi)**2) < .4)))
+tagEle = op.select(t.Electron, lambda el : op.rng_any(t.TrigObj, lambda to : op.AND(to.id == 11, to.filterBits & 2, op.sqrt((to.eta-el.eta)**2+(to.phi-el.phi)**2) < .4)))
 nTagEle = Plot.make1D("nTagEle", op.rng_len(tagEle), noSel, EquidistantBinning(10, 0., 10.), title="Number of tag electrons (partial selection)")
 
 

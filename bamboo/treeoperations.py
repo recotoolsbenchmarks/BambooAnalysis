@@ -436,6 +436,14 @@ class LocalVariablePlaceholder(TupleOp):
             raise RuntimeError("Using LocalVariablePlaceholder before giving it a name")
         return self.name
 
+def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
+    return set(chain.from_iterable(
+            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
+                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
+                or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
+                ))
+            for expr in exprs))
+
 def _collectLocalVars(exprs, ownLocal, defCache=cppNoRedir):
     localVarsToName = set(chain.from_iterable(
         expr.deps(defCache=defCache, select=(lambda op : isinstance(op, LocalVariablePlaceholder) and not op.name), includeLocal=True)
@@ -498,8 +506,8 @@ class Select(TupleOp):
                     yield dp
     @property
     def result(self):
-        from .treeproxies import VectorProxy ## FIXME not sure
-        return VectorProxy(self, "std::vector<{0}>".format(SizeType))
+        from .treeproxies import VectorProxy
+        return VectorProxy(self, "ROOT::VecOps::RVec<{0}>".format(SizeType))
     def __eq__(self, other):
         return isinstance(other, Select) and ( self.rng == other.rng ) and ( self.predExpr == other.predExpr )
     def __repr__(self):
@@ -507,12 +515,7 @@ class Select(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        depList = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
-                or ( isinstance(op, LocalVariablePlaceholder) and op != self._i )
-                ))
-            for expr in (self.rng, self.predExpr)))
+        depList = _collectDeps((self.rng, self.predExpr), (self._i,), defCache=defCache)
         ## should only be a non-empty list for the topmost op in case of nested expressions
         localVarsToName = _collectLocalVars((self.rng, self.predExpr), (self._i,), defCache=defCache)
         with _nameLocalVars(localVarsToName):
@@ -553,11 +556,7 @@ class Next(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        depList = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
-                or ( isinstance(op, LocalVariablePlaceholder) and op != self._i )
-                )) for expr in (self.rng, self.predExpr)))
+        depList = _collectDeps((self.rng, self.predExpr), (self._i,), defCache=defCache)
         ## should only be a non-empty list for the topmost op in case of nested expressions
         localVarsToName = _collectLocalVars((self.rng, self.predExpr), (self._i,), defCache=defCache)
         with _nameLocalVars(localVarsToName):
@@ -601,18 +600,7 @@ class Reduce(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        depList = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( isinstance(op, LocalVariablePlaceholder) and op not in (self._i, self._prevRes) )
-                )) for expr in (self.rng, self.start, self.accuExpr)))
-        from .treeproxies import ListBase
-        for expr in (self.rng, self.start, self.accuExpr):
-            for dep in expr.deps(defCache=defCache, select=(lambda op : ( defCache.backend.shouldDefine(op) and defCache._getColName(op) ))):
-                depResult = dep.result
-                if isinstance(depResult, ListBase):
-                    depList.add(GetArrayColumn(depResult.valueType, defCache._getColName(dep), adaptArg(depResult.__len__())))
-                else:
-                    depList.add(GetColumn(depResult._typeName, defCache._getColName(dep)))
+        depList = _collectDeps((self.rng, self.start, self.accuExpr), (self._i, self._prevRes), defCache=defCache)
         localVarsToName = _collectLocalVars((self.rng, self.start, self.accuExpr), (self._i, self._prevRes), defCache=defCache)
         with _nameLocalVars(localVarsToName):
             captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
@@ -657,16 +645,8 @@ class KinematicVariation(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        depList_modif = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
-                or ( isinstance(op, LocalVariablePlaceholder) and op != self._im )
-                )) for expr in (self.rng, self.modifExpr)))
-        depList_pred = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
-                or ( isinstance(op, LocalVariablePlaceholder) and op not in (self._mp4, self._ip) )
-                )) for expr in (self.rng, self.predExpr)))
+        depList_modif = _collectDeps((self.rng, self.modifExpr), (self._im,), defCache=defCache)
+        depList_pred  = _collectDeps((self.rng, self.predExpr ), (self._mp4, self._ip), defCache=defCache)
         depList_merged = set(depList_modif)
         depList_merged.update(depList_pred)
         ## should only be a non-empty list for the topmost op in case of nested expressions
@@ -729,18 +709,7 @@ class Combine(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        depList = set(chain.from_iterable(
-            expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( isinstance(op, LocalVariablePlaceholder) and op not in self._i )
-                )) for expr in chain(self.ranges, [self.predExpr])))
-        from .treeproxies import ListBase
-        for expr in chain(self.ranges, [self.predExpr]): ## TODO do we still need this, or is it taken care of automatically by _convertFunArgs now?
-            for dep in expr.deps(defCache=defCache, select=(lambda op : defCache.backend.shouldDefine(op) and defCache._getColName(op))):
-                depResult = dep.result
-                if isinstance(depResult, ListBase):
-                    depList.add(GetArrayColumn(depResult.valueType, defCache._getColName(dep), adaptArg(depResult.__len__())))
-                else:
-                    depList.add(GetColumn(depResult._typeName, defCache._getColName(dep)))
+        depList = _collectDeps(chain(self.ranges, [self.predExpr]), self._i, defCache=defCache)
         ## should only be a non-empty list for the topmost op in case of nested expressions
         localVarsToName = _collectLocalVars(chain(self.ranges, [self.predExpr]), self._i, defCache=defCache)
         with _nameLocalVars(localVarsToName):

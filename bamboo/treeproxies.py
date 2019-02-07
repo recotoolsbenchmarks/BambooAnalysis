@@ -142,7 +142,7 @@ class TreeBaseProxy(LeafGroupProxy):
         return None
     def __repr__(self):
         return "{0}({1!r})".format(self.__class__.__name__, self._tree)
-    def deps(self, defCache=None, select=(lambda x : True)):
+    def deps(self, defCache=None, select=(lambda x : True), includeLocal=False):
         yield from []
 
 class ListBase(object):
@@ -164,7 +164,7 @@ class ListBase(object):
     @property
     def _idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         yield from []
 
 class ContainerGroupItemProxy(TupleBaseProxy):
@@ -189,8 +189,8 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
     ##
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self._size.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._size.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, ContainerGroupProxy) and ( self._size == other._size ) and ( self.valuetype == other.valuetype ) and ( self._parent == other._parent ) and ( self._prefix == other._prefix )
 
@@ -267,8 +267,8 @@ class VectorProxy(ObjectProxy,ListBase):
     def __repr__(self):
         return "VectorProxy({0!r}, {1!r})".format(self._parent, self._typeName)
     #
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self.parent.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self.parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, VectorProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype )
 
@@ -290,11 +290,11 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._parent, self._base)
     #
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         for arg in (self._parent, self._base):
             if select(arg):
                 yield arg
-            yield from arg.deps(defCache=defCache, select=select)
+            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype ) and ( self._base == other._base )
 
@@ -380,11 +380,11 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self._base, self.itemType)
     ##
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         for arg in (self._parent, self._base):
             if select(arg):
                 yield arg
-            yield from arg.deps(defCache=defCache, select=select)
+            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self._base == other._base ) and ( self.itemType == other.itemType )
 
@@ -398,8 +398,8 @@ class CombinationProxy(TupleBaseProxy):
     ## TODO add more (maybe simply defer to rdfhelpers::Combination object
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self._parent.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self):
         return isinstance(other, self.__class__) and self._parent == other._parent
 
@@ -418,7 +418,7 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
         return self.combs.size()
     def __repr__(self):
         return "{0}({1!r})".format(self.__class__.__name__, self._parent)
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self._parent.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self):
         return isinstance(other, self.__class__) and self._parent == other._parent

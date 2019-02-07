@@ -157,6 +157,8 @@ def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
 def select(rng, pred=lambda elm : True):
     return _tp.SelectionProxy(_to.Select(rng, pred), rng)
 
+def rng_pickRandom(rng, seed=0):
+    return rng[_to.PseudoRandom(0, rng_len(rng), seed, isIntegral=True)]
 
 def addKinematicVariation(vrng, key, modif=( lambda elm : elm.p4 ), pred=( lambda mp4,elm : True )):
     """ Add a container with modified kinematics (for jet systematics)

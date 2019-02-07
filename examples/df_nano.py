@@ -96,6 +96,9 @@ nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), noSel, EquidistantBinning(1
 nOSelmu = Plot.make1D("nOselmu", op.rng_len(oselmu), noSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign electron-muon pairs")
 ## TODO stress-test: use selected muons, select afterwards, combine electrons and muons
 
+tagEle = op.select(t.Electron, lambda el : op.rng_any(t.TrigObj, lambda to : op.AND(to.id == 11, op.sqrt((to.eta-el.eta)**2+(to.phi-el.phi)**2) < .4)))
+nTagEle = Plot.make1D("nTagEle", op.rng_len(tagEle), noSel, EquidistantBinning(10, 0., 10.), title="Number of tag electrons (partial selection)")
+
 
 # That's a nice start - but we haven't plotted any histograms yet!
 # The `ROOT::RDataFrame` will do that as soon as we ask for one of them:
@@ -145,6 +148,12 @@ be.getPlotResult(nOSDimu).Draw()
 cv5.cd(2)
 be.getPlotResult(nOSelmu).Draw()
 cv5.Update()
+
+cv6 = ROOT.TCanvas("c6")
+cv6.Divide(2)
+cv6.cd(1)
+be.getPlotResult(nTagEle).Draw()
+cv6.Update()
 
 # There are a few more things to figure out:
 #   - integrate with slurm. The easiest is probably to have a common module

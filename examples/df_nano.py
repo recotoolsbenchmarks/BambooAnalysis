@@ -96,9 +96,14 @@ nOSDimu = Plot.make1D("nOsDimu", op.rng_len(osdimu), noSel, EquidistantBinning(1
 nOSelmu = Plot.make1D("nOselmu", op.rng_len(oselmu), noSel, EquidistantBinning(10, 0., 10.), title="Number of opposite-sign electron-muon pairs")
 ## TODO stress-test: use selected muons, select afterwards, combine electrons and muons
 
-tagEle = op.select(t.Electron, lambda el : op.rng_any(t.TrigObj, lambda to : op.AND(to.id == 11, to.filterBits & 2, op.sqrt((to.eta-el.eta)**2+(to.phi-el.phi)**2) < .4)))
+tagEle   = op.select(t.Electron, lambda el : op.AND(el.pt >= 30., op.abs(el.eta+el.deltaEtaSC) < 2.1, op.NOT(op.in_range(1.4442, op.abs(el.eta+el.deltaEtaSC), 1.566)),
+    op.rng_any(t.TrigObj, lambda to : op.AND(to.id == 11, to.filterBits & 2, op.sqrt((to.eta-el.eta)**2+(to.phi-el.phi)**2) < .4)))) ## TODO review 'filterBits'
 nTagEle = Plot.make1D("nTagEle", op.rng_len(tagEle), noSel, EquidistantBinning(10, 0., 10.), title="Number of tag electrons (partial selection)")
-
+probeEle = op.select(t.Electron, lambda el : op.abs(el.eta+el.deltaEtaSC) < 2.5)
+eleTagAndProbe = op.combine((tagEle, probeEle), pred=lambda elt, elp : op.in_range(50., op.invariant_mass(elt.p4, elp.p4), 130.), sameIdxPred=lambda i1,i2: i1 != i2)
+hasTagAndProbeEle = noSel.refine("hasTagAndProbe", cut=(op.rng_len(eleTagAndProbe) > 0)) ## TODO add trigger event selection
+theTnPpair = eleTagAndProbe[0] ## TODO add more strategies
+tnpelemass = Plot.make1D("eleTnPmassInteg", op.invariant_mass(theTnPpair[0].p4, theTnPpair[1].p4), hasTagAndProbeEle, EquidistantBinning(80, 50., 130.), title="Tag&Probe electron pair invariant mass")
 
 # That's a nice start - but we haven't plotted any histograms yet!
 # The `ROOT::RDataFrame` will do that as soon as we ask for one of them:
@@ -153,6 +158,8 @@ cv6 = ROOT.TCanvas("c6")
 cv6.Divide(2)
 cv6.cd(1)
 be.getPlotResult(nTagEle).Draw()
+cv6.cd(1)
+be.getPlotResult(tnpelemass).Draw()
 cv6.Update()
 
 # There are a few more things to figure out:

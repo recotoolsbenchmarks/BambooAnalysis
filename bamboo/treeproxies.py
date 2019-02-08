@@ -12,17 +12,27 @@ with as 'op' attribute a 'GetColumn(tree, "event_id")' operation.
 """
 
 from .treeoperations import *
+import functools
 
 boolType = "bool"
-NumberTypes = set(("Float_t", "Double_t", "Int_t", "UInt_t", "Bool_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "float", "double", "Short_t", "size_t", "std::size_t", "unsigned short", "bool", "unsigned long")) ## there are many more (at least unsigned)
+_boolTypes = set(("bool", "Bool_t"))
+intType = "Int_t"
+_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
+floatType = "Double_t"
+_floatTypes = set(("Float_t", "Double_t", "float", "double"))
+## TODO lists are probably not complete
 import re
 vecPat = re.compile(r"(?:vector|ROOT\:\:VecOps\:\:RVec)\<(?P<item>[a-zA-Z_0-9\<\>,\: ]+)\>")
 
 def makeProxy(typeName, parent, length=None):
     if length is not None:
         return ArrayProxy(parent, typeName, length)
-    if typeName in NumberTypes:
-        return NumberProxy(parent, typeName)
+    if typeName in _boolTypes:
+        return BoolProxy(parent, typeName)
+    elif typeName in _integerTypes:
+        return IntProxy(parent, typeName)
+    elif typeName in _floatTypes:
+        return FloatProxy(parent, typeName)
     else:
         m = vecPat.match(typeName)
         if m:
@@ -33,25 +43,68 @@ def makeConst(value, typeHint):
     return makeProxy(typeHint, adaptArg(value, typeHint))
 
 class NumberProxy(TupleBaseProxy):
-    """ Proxy for a number (integer or floating-point) """
     def __init__(self, parent, typeName):
         super(NumberProxy, self).__init__(typeName, parent=parent)
     def __repr__(self):
-        return "NumberProxy({0!r}, {1!r})".format(self._parent, self._typeName)
-    def _binaryOp(self, opName, other, outType="Double_t"):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._typeName)
+    def _binaryOp(self, opName, other, outType=None):
+        if outType is None:
+            outType = self._typeName ## default: math will give same type
         return MathOp(opName, self, other, outType=outType).result
-## operator overloads
 for nm,opNm in {
-          "__add__" : "add"
-        , "__sub__" : "subtract"
-        , "__mul__" : "multiply"
-        , "__truediv__" : " divide"
-        , "__div__" : "divide"
-        , "__nonzero__" : "nonzero"
+          "__add__": "add"
+        , "__sub__": "subtract"
+        , "__mul__": "multiply"
+        , "__pow__": "pow"
         }.items():
-    setattr(NumberProxy, nm, (lambda oN : (lambda self, other : self._binaryOp(oN, other)))(opNm))
+    setattr(NumberProxy, nm, functools.partialmethod(
+        (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
 for nm in ("__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"):
     setattr(NumberProxy, nm, (lambda oN, oT : (lambda self, other : self._binaryOp(oN, other, outType=oT)))(nm.strip("_"), boolType))
+
+class IntProxy(NumberProxy):
+    def __init__(self, parent, typeName):
+        super(IntProxy, self).__init__(parent, typeName)
+for nm,(opNm,outType) in {
+          "__truediv__" : ("floatdiv", floatType)
+        , "__floordiv__": ("divide"  , None)
+        , "__and__"     : ("band"    , None)
+        , "__or__"      : ("bor"     , None)
+        , "__invert__"  : ("bxor"    , None)
+        , "__xor__"     : ("bnot"    , None)
+        }.items():
+    setattr(IntProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+
+class BoolProxy(IntProxy):
+    """ Proxy for a boolean type """
+    def __init__(self, parent, typeName):
+        super(BoolProxy, self).__init__(parent, typeName)
+    def __repr__(self):
+        return "BoolProxy({0!r}, {1!r})".format(self._parent, self._typeName)
+for nm,opNm in {
+          "__and__"   : "and"
+        , "__or__"    : "or"
+        , "__invert__": "not"
+        , "__xor__"   : "ne"
+        }.items():
+    setattr(BoolProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, boolType))
+
+class FloatProxy(NumberProxy):
+    def __init__(self, parent, typeName):
+        super(FloatProxy, self).__init__(parent, typeName)
+for nm,(opNm,outType) in {
+          "__truediv__": ("div" , None)
+        }.items():
+    setattr(FloatProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+
+def _hasFloat(*args):
+    return any(isinstance(a, FloatType) for a in args)
 
 class ArrayProxy(TupleBaseProxy):
     """ (possibly var-sized) array of anything """
@@ -89,11 +142,17 @@ class TreeBaseProxy(LeafGroupProxy):
         return None
     def __repr__(self):
         return "{0}({1!r})".format(self.__class__.__name__, self._tree)
-    def deps(self, defCache=None, select=(lambda x : True)):
+    def deps(self, defCache=None, select=(lambda x : True), includeLocal=False):
         yield from []
 
 class ListBase(object):
-    """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering) """
+    """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering)
+
+    Important for users: _base always contains a basic container (e.g. ContainerGroupProxy), and _idxs
+    the indices out of _base this list contains (so _base[_idxs[i]] for i in range(len) are always valid).
+
+    TODO verify / stress-tests (selection of selection, next of selection of selection etc.)
+    """
     def __init__(self):
         self.valueType = None
         self._base = self ## TODO get rid of _
@@ -105,7 +164,7 @@ class ListBase(object):
     @property
     def _idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         yield from []
 
 class ContainerGroupItemProxy(TupleBaseProxy):
@@ -130,8 +189,8 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
     ##
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self._size.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._size.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, ContainerGroupProxy) and ( self._size == other._size ) and ( self.valuetype == other.valuetype ) and ( self._parent == other._parent ) and ( self._prefix == other._prefix )
 
@@ -208,8 +267,8 @@ class VectorProxy(ObjectProxy,ListBase):
     def __repr__(self):
         return "VectorProxy({0!r}, {1!r})".format(self._parent, self._typeName)
     #
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
-        yield from self.parent.deps(defCache=defCache, select=select)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self.parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, VectorProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype )
 
@@ -231,11 +290,11 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._parent, self._base)
     #
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         for arg in (self._parent, self._base):
             if select(arg):
                 yield arg
-            yield from arg.deps(defCache=defCache, select=select)
+            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype ) and ( self._base == other._base )
 
@@ -321,10 +380,46 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self._base, self.itemType)
     ##
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True)):
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         for arg in (self._parent, self._base):
             if select(arg):
                 yield arg
-            yield from arg.deps(defCache=defCache, select=select)
+            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self._base == other._base ) and ( self.itemType == other.itemType )
+
+class CombinationProxy(TupleBaseProxy):
+    ## NOTE decorated rdfhelpers::Combination
+    def __init__(self, cont, parent):
+        self.cont = cont
+        super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
+    def __getitem__(self, i):
+        idx = makeConst(i, SizeType)
+        return self.cont.range(i)[self._parent.get(idx)]
+    ## TODO add more (maybe simply defer to rdfhelpers::Combination object
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    def __eq__(self):
+        return isinstance(other, self.__class__) and self._parent == other._parent
+
+class CombinationListProxy(TupleBaseProxy,ListBase):
+    ## NOTE list of decorated rdfhelpers::Combination
+    ## TODO check if this works with selection (it should...)
+    def __init__(self, parent, combs):
+        self.combs = combs ## straightforward proxy for parent
+        ListBase.__init__(self) ## FIXME check above how to do this correctly...
+        super(CombinationListProxy, self).__init__("struct", parent=parent)
+    def __getitem__(self, idx):
+        return CombinationProxy(self, GetItem(self.combs, self.combs.valueType, adaptArg(idx, SizeType)).result)
+    def range(self, i):
+        return self._parent.ranges[i]
+    def __len__(self):
+        return self.combs.size()
+    def __repr__(self):
+        return "{0}({1!r})".format(self.__class__.__name__, self._parent)
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    def __eq__(self):
+        return isinstance(other, self.__class__) and self._parent == other._parent

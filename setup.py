@@ -44,7 +44,7 @@ try:
     from sphinx.setup_command import BuildDoc
 except ImportError as ex:
     BuildDoc = None
-    print("Warning: exception when importing sphinx {0}".format(ex))
+    print("Could not import sphinx, so documentation will not be built")
 
 # Get the long description from the relevant file
 from io import open

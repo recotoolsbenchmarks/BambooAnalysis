@@ -4,7 +4,6 @@ Slurm tools (based on previous condorhelpers and cp3-llbb/CommonTools condorSubm
 __all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
 
 from itertools import chain
-from contextlib import contextmanager
 import logging
 logger = logging.getLogger(__name__)
 import os.path

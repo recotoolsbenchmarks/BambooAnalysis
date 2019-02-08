@@ -43,13 +43,16 @@ class SelWithDefines(top.CppStrRedir):
             if res:
                 return res
 
-    def symbol(self, decl):
-        return self.backend.symbol(decl)
+    def symbol(self, decl, **kwargs):
+        return self.backend.symbol(decl, **kwargs)
     
     def __call__(self, arg):
         """ Get the C++ string corresponding to an op """
-        if not self.backend.shouldDefine(arg): ## the easy case
-            return arg.get_cppStr(defCache=self)
+        if not self.backend.shouldDefine(arg, defCache=self): ## the easy case
+            try:
+                return arg.get_cppStr(defCache=self)
+            except Exception as ex:
+                raise RuntimeError("Could not get cpp string for {0!r}: {1!r}".format(arg, ex))
         else:
             nm = self._getColName(arg)
             if not nm: ## define it then
@@ -81,17 +84,23 @@ class DataframeBackend(FactoryBackend):
         self._iCol += 1
         return "myCol{0:d}".format(self._iCol)
 
-    def shouldDefine(self, op):
-        return any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce))
+    def shouldDefine(self, op, defCache=None):
+        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.KinematicVariation, top.Combine))
+                and not any(op.deps(defCache=defCache, select=lambda dp : isinstance(dp, top.LocalVariablePlaceholder))) )
 
-    def symbol(self, decl):
+    def symbol(self, decl, resultType=None, args=None):
         global _gSymbols
         if decl in _gSymbols:
             return _gSymbols[decl]
         else:
             name = self._getUSymbName()
             _gSymbols[decl] = name
-            fullDecl = decl.replace("<<name>>", name)
+            if resultType and args: ## then it needs to be wrapped in a function
+                fullDecl = "{result} {name}({args})\n{{\n  return {0};\n}};\n".format(
+                            decl, result=resultType, name=name, args=args)
+            else:
+                fullDecl = decl.replace("<<name>>", name)
+
             logger.debug("Defining new symbol with interpreter: {0}".format(fullDecl))
             import ROOT
             ROOT.gInterpreter.Declare(fullDecl)

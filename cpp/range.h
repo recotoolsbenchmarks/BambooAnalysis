@@ -45,6 +45,7 @@ RESULT reduce(const RANGE& range, RESULT init, REDUCE&& reduce)
 template<std::size_t NUM>
 class Combination {
 public:
+  Combination() = default;
   Combination(const typename std::array<std::size_t,NUM> idx)
     : m_idx(idx) {}
 

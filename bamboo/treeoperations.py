@@ -6,7 +6,7 @@ for the development of efficient histogram-filling programs
 through the use of python wrappers (see e.g. treeproxies).
 """
 
-from itertools import chain, repeat, combinations, count
+from itertools import chain, repeat, combinations, count, tee
 from contextlib import contextmanager
 
 class TupleOp(object):
@@ -437,12 +437,17 @@ class LocalVariablePlaceholder(TupleOp):
         return self.name
 
 def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
+    ## first pass (will trigger definitions, if necessary)
+    exprs1, exprs2 = tee(exprs, 2)
+    for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.backend.shouldDefine(op, defCache=defCache)) for expr in exprs1):
+        cn = defCache(dep)
+        if not cn:
+            print("WARNING: Probably a problem in triggering definition for {0}".format(dep))
     return set(chain.from_iterable(
             expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or ( defCache.backend.shouldDefine(op) and defCache._getColName(op) )
-                or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
+                or defCache.backend.shouldDefine(op, defCache=defCache) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
                 ))
-            for expr in exprs))
+            for expr in exprs2))
 
 def _collectLocalVars(exprs, ownLocal, defCache=cppNoRedir):
     localVarsToName = set(chain.from_iterable(
@@ -475,11 +480,15 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
             paramDecl.append("const {0}& {1}".format(ld.typeName, ld.name))
             paramCall.append(ld.name)
         elif isinstance(ld, LocalVariablePlaceholder):
+            if not ld.name:
+                print("ERROR: no name for local {0}".format(ld))
             captures.append(ld.name)
             paramDecl.append("{0} {1}".format(ld.typeHint, ld.name))
             paramCall.append(ld.name)
-        elif defCache.backend.shouldDefine(ld):
+        elif defCache.backend.shouldDefine(ld, defCache=defCache):
             nm = defCache._getColName(ld)
+            if not nm:
+                print("ERROR: no column name for {0}".format(ld))
             if "&{0}".format(nm) not in captures:
                 captures.append("&{0}".format(nm))
                 paramDecl.append("const {0}& {1}".format(ld.result._typeName, nm))
@@ -498,12 +507,13 @@ class Select(TupleOp):
         self.predExpr = adaptArg(pred(self.rng._base[self._i.result]))
         super(Select, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (adaptArg(self.rng), self.predExpr):
-            if select(arg):
-                yield
-            for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                if includeLocal or dp != self._i:
-                    yield dp
+        if not defCache._getColName(self):
+            for arg in (adaptArg(self.rng), self.predExpr):
+                if select(arg):
+                    yield
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp != self._i:
+                        yield dp
     @property
     def result(self):
         from .treeproxies import VectorProxy
@@ -526,7 +536,7 @@ class Select(TupleOp):
                     i="{0} {1}".format(self._i.typeHint, self._i.name),
                     predExpr=defCache(self.predExpr)
                     )
-            if len(localVarsToName) == 0: ## nested (see above)
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=paramDecl)
@@ -540,12 +550,13 @@ class Next(TupleOp):
         self.predExpr = adaptArg(pred(self.rng._base[self._i.result]))
         super(Next, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (self.rng, self.predExpr):
-            if select(arg):
-                yield
-            for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                if includeLocal or dp != self._i:
-                    yield dp
+        if not defCache._getColName(self):
+            for arg in (self.rng, self.predExpr):
+                if select(arg):
+                    yield
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp != self._i:
+                        yield dp
     @property
     def result(self):
         return self.rng._base[self]
@@ -567,7 +578,7 @@ class Next(TupleOp):
                     i="{0} {1}".format(self._i.typeHint, self._i.name),
                     predexpr=defCache(self.predExpr),
                     )
-            if len(localVarsToName) == 0: ## nested (see above)
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType=SizeType, args=paramDecl)
@@ -583,12 +594,13 @@ class Reduce(TupleOp):
         self._prevRes = LocalVariablePlaceholder(self.resultType)
         self.accuExpr = adaptArg(accuFun(self._prevRes.result, self.rng._base[self._i.result]))
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (self.rng, self.start, self.accuExpr):
-            if select(arg):
-                yield
-            for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                if includeLocal or dp not in (self._i, self._prevRes):
-                    yield dp
+        if not defCache._getColName(self):
+            for arg in (self.rng, self.start, self.accuExpr):
+                if select(arg):
+                    yield
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp not in (self._i, self._prevRes):
+                        yield dp
     @property
     def result(self):
         from .treeproxies import makeProxy
@@ -612,7 +624,7 @@ class Reduce(TupleOp):
                     i="{0} {1}".format(self._i.typeHint, self._i.name),
                     accuexpr=defCache(self.accuExpr)
                     )
-            if len(localVarsToName) == 0:
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType=self.resultType, args=paramDecl)
@@ -628,12 +640,13 @@ class KinematicVariation(TupleOp):
         self.predExpr = adaptArg(pred(self._mp4.result, self.rng._base[self._ip.result]))
         super(KinematicVariation, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (adaptArg(self.rng), self.modifExpr, self.predExpr):
-            if select(arg):
-                yield
-            for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                if includeLocal or dp not in (self._im, self._mp4, self._ip):
-                    yield dp
+        if not defCache._getColName(self):
+            for arg in (adaptArg(self.rng), self.modifExpr, self.predExpr):
+                if select(arg):
+                    yield
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp not in (self._im, self._mp4, self._ip):
+                        yield dp
     @property
     def result(self):
         from .treeproxies import makeProxy, ModifiedCollectionProxy
@@ -667,7 +680,7 @@ class KinematicVariation(TupleOp):
                     mp4="const {0}& {1}".format(self._mp4.typeHint, self._mp4.name),
                     predExpr=defCache(self.predExpr)
                     )
-            if len(localVarsToName) == 0: ## nested (see above)
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList_merged):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType="rdfhelpers::ModifiedKinCollection", args=paramDecl_merged)
@@ -692,12 +705,13 @@ class Combine(TupleOp):
     def resultType(self):
         return "ROOT::VecOps::RVec<rdfhelpers::Combination<{0:d}>>".format(self.n)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in chain(self.ranges, [self.candPredicate]):
-            if select(arg):
-                yield
-            for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                if includeLocal or dp not in self._i:
-                    yield dp
+        if not defCache._getColName(self):
+            for arg in chain(self.ranges, [self.predExpr]):
+                if select(arg):
+                    yield
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp not in self._i:
+                        yield dp
     @property
     def result(self):
         from .treeproxies import CombinationListProxy, makeProxy
@@ -723,7 +737,7 @@ class Combine(TupleOp):
                     predExpr = defCache(self.predExpr),
                     ranges=", ".join(defCache(rng._idxs.op) for rng in self.ranges)
                     )
-            if len(localVarsToName) == 0:
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType=self.resultType, args=paramDecl)

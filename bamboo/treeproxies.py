@@ -392,9 +392,10 @@ class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination
     def __init__(self, cont, parent):
         self.cont = cont
-        super(CombinationProxy, self).__init__(parent=parent) ## parent=GetItem(self.cont.parent, SizeType, self.idx).result
+        super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
     def __getitem__(self, i):
-        return self.cont.range(i)[self._parent.get(i)]
+        idx = makeConst(i, SizeType)
+        return self.cont.range(i)[self._parent.get(idx)]
     ## TODO add more (maybe simply defer to rdfhelpers::Combination object
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
@@ -411,7 +412,7 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
         super(CombinationListProxy, self).__init__("struct", parent=parent)
     def __getitem__(self, idx):
-        return CombinationProxy(self, GetItem(self._parent, SizeType, idx).result)
+        return CombinationProxy(self, GetItem(self.combs, self.combs.valueType, adaptArg(idx, SizeType)).result)
     def range(self, i):
         return self._parent.ranges[i]
     def __len__(self):

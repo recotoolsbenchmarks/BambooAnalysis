@@ -11,6 +11,7 @@ public:
   using Indices = ROOT::VecOps::RVec<std::size_t>;
   using Momenta  = ROOT::VecOps::RVec<LorentzVector>;
 
+  ModifiedKinCollection() = default;
   ModifiedKinCollection( const Indices& indices, const Momenta& momenta )
     : m_indices(indices), m_momenta(momenta) {}
   ModifiedKinCollection( Indices&& indices, Momenta&& momenta )

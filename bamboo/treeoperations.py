@@ -8,6 +8,8 @@ through the use of python wrappers (see e.g. treeproxies).
 
 from itertools import chain, repeat, combinations, count, tee
 from contextlib import contextmanager
+import logging
+logger = logging.getLogger(__name__)
 
 class TupleOp(object):
     """ Interface & base class for operations on leafs and resulting objects / values """
@@ -270,9 +272,19 @@ class CallMethod(TupleOp):
     """
     def __init__(self, name, args):
         self.name = name ## NOTE can only be a hardcoded string this way
+        self._mp = None
         try:
-            self._mp  = getattr(ROOT, name)
-        except:
+            from cppyy import gbl
+            if "::" in name:
+                res = gbl
+                for tok in name.split("::"):
+                    res = getattr(res, tok)
+                if res != gbl:
+                    self._mp = res
+            else:
+                self._mp  = getattr(gbl, name)
+        except Exception as ex:
+            logger.error("Exception in getting method pointer: {0}".format(ex))
             self._mp = None
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMethod, self).__init__()
@@ -283,7 +295,19 @@ class CallMethod(TupleOp):
             yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
-        retTypeN = next( tok.strip("*&") for tok in self._mp.func_doc.split() if tok != "const" ) if self._mp else "Float_t"
+        retTypeN = "Float_t"
+        if self._mp and hasattr(self._mp, "func_doc") and hasattr(self._mp, "func_name"):
+            fdoc = self._mp.func_doc
+            fnam = self._mp.func_name
+            toks = fdoc.split()
+            if toks[0] == "const":
+                del toks[0]
+            out = ""
+            for tok in toks:
+                if fnam in tok:
+                    break
+                out += " {0}".format(tok)
+            retTypeN = out.strip().strip("*&")
         from .treeproxies import makeProxy
         return makeProxy(retTypeN, self)
     def __eq__(self, other):
@@ -294,7 +318,14 @@ class CallMethod(TupleOp):
         return hash(self.__repr__())
     # backends
     def get_cppStr(self, defCache=cppNoRedir):
-        return "{0}({1})".format(self.name, ", ".join(defCache(arg) for arg in self.args))
+        if not defCache.backend.shouldDefine(self, defCache=defCache):
+            return "{0}({1})".format(self.name, ", ".join(defCache(arg) for arg in self.args))
+        else: ## go through a symbol
+            depList = _collectDeps(self.args, [], defCache=defCache)
+            captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
+            expr = "{name}({args})\n".format(name=self.name, args=", ".join(defCache(arg) for arg in self.args))
+            funName = defCache.symbol(expr, resultType=self.result._typeName, args=paramDecl)
+            return "{0}({1})".format(funName, paramCall)
 
 class CallMemberMethod(TupleOp):
     """ Call a member method """

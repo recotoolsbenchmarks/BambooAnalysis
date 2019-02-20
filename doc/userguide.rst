@@ -106,16 +106,17 @@ provides :py:meth:`~bamboo.analysismodules.AnalysisModule.addArgs`,
 :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`,
 :py:meth:`~bamboo.analysismodules.AnalysisModule.postProcess`, and
 :py:meth:`~bamboo.analysismodules.AnalysisModule.interact`, interface member
-methods that should be further specified by subclasses.
+methods that should be further specified by subclasses (see the
+:doc:`reference documentation<apiref>` for more details).
 
-:py:class:`~bamboo.analsysimodules.HistogramsModule` does this for the
+:py:class:`~bamboo.analysismodules.HistogramsModule` does this for the
 stacked histogram plots, composing
-:py:meth:`~bamboo.analsysimodules.HistogramsModule.processTrees` from
-:py:meth:`~bamboo.analsysimodules.HistogramsModule.prepareTree` and
-:py:meth:`~bamboo.analsysimodules.HistogramsModule.definePlots`, while taking
+:py:meth:`~bamboo.analysismodules.HistogramsModule.processTrees` from
+:py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree` and
+:py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`, while taking
 the JSON lumi block mask and counter merging into account.
 It also calls the `plotIt` executable from 
-:py:meth:`~bamboo.analsysimodules.HistogramsModule.postProcess` (with the plots
+:py:meth:`~bamboo.analysismodules.HistogramsModule.postProcess` (with the plots
 list and analysis configuration file, it has all required information for that).
 :py:class:`~bamboo.analysismodules.NanoAODHistoModule` supplements this with
 the decorations and counter merging and reading for NanoAOD,
@@ -141,7 +142,8 @@ For the code inside the module, the example is also very instructive:
            return plots
 
 The key classes are defined in :py:mod:`bamboo.plots`:
-:py:class:`~bamboo.plots.Plot` and :py:class:`~bamboo.plots.Selection`.
+:py:class:`~bamboo.plots.Plot` and :py:class:`~bamboo.plots.Selection`
+(see the :doc:`reference documentation<apiref>` for details).
 The latter represents a consistent set of selection requirements (cuts) and
 weight factors (e.g. to apply corrections). Selections are defined by refining
 a "root selection" with additional cuts and weights, and each should have a
@@ -156,7 +158,7 @@ Specifying cuts, weight, and variables: expressions
 ---------------------------------------------------
 
 The first argument to the
-:py:meth:`~bamboo.analsysimodules.HistogramsModule.definePlots`
+:py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`
 method is the "decorated" tree |---| a proxy object from which expressions
 can be derived. Sticking with the NanoAOD example, ``t.Muon`` is another
 proxy object for the muon collection (similarly for the other objects),
@@ -186,8 +188,7 @@ by passing the ``--interactive`` flag, with either one of
 The decorated tree is in the ``tree`` variable (the original ``TChain`` is in
 ``tup``) and the :py:mod:`bamboo.treefunctions` module is there as `op`
 (the ``c_...`` methods construct a constant, whereas the ``rng_...`` methods
-work on a collection and return a single value
-(note: all these methods should be documented),
+work on a collection and return a single value,
 whereas the :py:func:`~bamboo.treefunctions.select` method returns
 a reduced collection (internally, only a list of indices to the passing objects
 is created, and the result is a proxy that uses this list).

@@ -1,5 +1,14 @@
 """
-Analysis module base classes
+Minimally, ``bambooRun`` needs a class with a constructor that takes a single argument
+(the list of command-line arguments that it does not recognize as its own), and a
+``run`` method  that takes no arguments.
+:py:mod:`bamboo.analysismodules` provides more interesting base classes, starting from
+:py:class:`~bamboo.analysismodules.AnalysisModule`, which implements a large part of
+the common functionality for loading samples and distributing worker tasks.
+:py:class:`~bamboo.analysismodules.HistogramsModule` specializes this further
+for modules that output stack histograms, and
+:py:class:`~bamboo.analysismodules.NanoAODHistoModule` supplements this
+with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
 import logging
@@ -8,7 +17,7 @@ import os.path
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
-    """ Reconstruct the module-specific arguments (to pass them to the worker processes later on) """
+    # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
     assert isinstance(group, argparse._ArgumentGroup)
     argv = []
     for action in group._group_actions:
@@ -23,7 +32,7 @@ def reproduceArgv(args, group):
     return argv
 
 def modAbsPath(modArg):
-    """ Put absolute path if module is specified by file """
+    # Put absolute path if module is specified by file
     mod_clName = None
     if ":" in modArg:
         modArg, mod_clName = modArg.split(":")
@@ -37,12 +46,22 @@ def parseRunRange(rrStr):
     return tuple(int(t.strip()) for t in rrStr.split(","))
 
 class AnalysisModule(object):
-    """
-    Base analysis module
+    """ Base analysis module
     
-    construct from an arguments list and provide a run method (called by bambooRun)
+    Adds common infrastructure for parsing analysis config files
+    and running on a batch system, with customization points for
+    concrete classes to implement (most importantly
+    :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`
+    and :py:meth:`~bamboo.analysismodules.AnalysisModule.postProcess`)
     """
     def __init__(self, args):
+        """ Constructor
+
+        set up argument parsing, calling :py:meth:`~bamboo.analysismodules.AnalysisModule.addArgs`
+        and :py:meth:`~bamboo.analysismodules.AnalysisModule.initialize`
+
+        :param args: list of command-line arguments that are not parsed by ``bambooRun``
+        """
         parser = argparse.ArgumentParser(description=(
             "Run an analysis, i.e. process the samples in an analysis description file with a module (subclass of bamboo.analysismodules.AnalysisModule). "
             "There are three modes, specified by the --distributed option: if unspecified, one program processes all samples and collects the results; "
@@ -71,12 +90,13 @@ class AnalysisModule(object):
         self.specificArgv = reproduceArgv(self.args, specific)
         self.initialize()
     def addArgs(self, parser):
-        """ Customize the ArgumentParser (set description and add arguments, if needed) """
+        """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
         pass
     def initialize(self):
-        """ Do more initialization that depends on command-line arguments """
+        """ Hook for module-specific initialization (called from the constructor after parsing arguments) """
         pass
     def getATree(self):
+        """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection """
         if self.args.distributed == "worker":
             import ROOT
             tup = ROOT.TChain(self.args.treeName)
@@ -94,7 +114,19 @@ class AnalysisModule(object):
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
     def run(self):
-        """ Main method """
+        """ Main method
+
+        Depending on the arguments passed, this will:
+
+        * if ``-i`` or ``--interactive``, call :py:meth:`~bamboo.analysismodules.AnalysisModule.interact`
+          (which could do some initialization and start an IPython shell)
+        * if ``--distributed=worker`` call :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`
+          with the appropriate input, output, treename, lumi mask and run range
+        * if ``--distributed=driver`` or not given (sequential mode): parse the analysis configuration file,
+          construct the tasks with :py:meth:`~bamboo.analysismodules.AnalysisModule.getTasks`, run them
+          (on a batch cluster or in the same process with :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`),
+          and finally call :py:meth:`~bamboo.analysismodules.AnalysisModule.postProcess` with the results.
+        """
         if self.args.interactive:
             self.interact()
         else:
@@ -165,10 +197,22 @@ class AnalysisModule(object):
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
     def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None):
-        """ worker method """
+        """ worker method: produce results (e.g. histograms or trees) from the input files
+
+        should be implemented by concrete modules
+
+        :param inputFiles: input file names
+        :param outputFile: output file name
+        :param tree: key name of the tree inside the files
+        :param certifiedLumiFile: lumi mask json file name
+        :param runRange: run range to consider (for efficiency of the lumi mask)
+        """
         pass
     def getTasks(self, analysisCfg, **extraOpts):
-        """ Get tasks from args (for driver or sequential mode) """
+        """ Get tasks from analysis configs (and args), called in for driver or sequential mode
+
+        Should return a list of ``(inputs, output), kwargs``
+        """
         tasks = []
         for sName, sConfig in analysisCfg["samples"].items():
             opts = dict(extraOpts)
@@ -180,23 +224,48 @@ class AnalysisModule(object):
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
-        """ Do postprocessing on the results of the tasks, if needed """
+        """ Do postprocessing on the results of the tasks, if needed
+
+        should be implemented by concrete modules
+
+        :param taskList: ``(inputs, output), kwargs`` for the tasks (list, string, and dictionary)
+        :param config: parsed analysis configuration file
+        :param workdir: working directory for the current run
+        :param resultsdir: path with the results files
+        """
         pass
     def interact(self):
-        """ Interactive mode (load some things and embed IPython) """
+        """ Interactive mode (load some things and embed IPython)
+
+        should be implemented by concrete modules
+        """
         pass ## define things and embed IPython
 
 class HistogramsModule(AnalysisModule):
     """ Base histogram analysis module """
     def __init__(self, args):
+        """ Constructor
+
+        Defines ``plotList`` and ``systVars`` member variables. The former will store a list of plots
+        (only nominal), the second can be used by concrete classes to pass a list of systematic variations
+        (:py:meth:`~bamboo.analysismodules.HistogramsModule.processTrees` will call
+        :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` with each of them to produce all histograms)
+        """
         super(HistogramsModule, self).__init__(args)
         self.systVars = []
         self.plotList = []
     def initialize(self):
+        """ initialize """
         if self.args.distributed == "worker" and len(self.args.input) == 0:
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):
+        """ Interactively inspect a decorated input tree
+
+        Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
+        ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
+        (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
+        """
         tup = self.getATree()
         tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup)
         import bamboo.treefunctions as op
@@ -204,7 +273,13 @@ class HistogramsModule(AnalysisModule):
         IPython.embed()
 
     def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None):
-        """ Worker sequence: open inputs, define histograms, fill them and save to output file """
+        """ Worker sequence: produce histograms from the input files
+
+        More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`,
+        add a lumi mask if requested, call :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`
+        (with ``systVar="nominal"`` and each of the variations defined in ``self.systVars``),
+        run over all files, and write the produced histograms to the output file.
+        """
         import ROOT
         tup = ROOT.TChain(tree)
         for fName in inputFiles:
@@ -227,19 +302,47 @@ class HistogramsModule(AnalysisModule):
         outF.Close()
     # processTrees customisation points
     def prepareTree(self, tree):
-        """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions """
+        """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
+
+        should be implemented by concrete modules
+        """
         return tree, None, None, None
     def definePlots(self, tree, systVar="nominal"):
-        """ Main method: define plots on the trees """
+        """ Main method: define plots on the trees (for a give systematic variation)
+
+        should be implemented by concrete modules, and return the backend and
+        a list of :py:class:`bamboo.plots.Plot` objects.
+
+        :param tree: decorated tree
+        :param systVar: ``"nominal"``, or the name of a systematic variation
+        """
         return None, [] ## backend, and plot list
     def mergeCounters(self, outF, infileNames):
-        """ Merge counters from input files (by name) to output file (TFile pointer) """
+        """ Merge counters
+
+        should be implemented by concrete modules
+
+        :param outF: output file (TFile pointer)
+        :param infileNames: input file names
+        """
         pass
     def readCounters(self, resultsFile):
-        """ Read counters from results file (TFile pointer) """
+        """ Read counters from results file
+
+        should be implemented by concrete modules, and return a dictionary with
+        counter names and the corresponding sums
+
+        :param resultsFile: TFile pointer to the results file
+        """
         return dict()
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        """ Postprocess: run plotIt
+
+        The list of plots is created if needed (from a representative file,
+        this enables rerunning the postprocessing step on the results files),
+        and then plotIt is executed
+        """
         if not self.plotList: ## get plots if not already done so
             tup = self.getATree()
             tree, noSel, backend, runAndLS = self.prepareTree(tup)
@@ -247,19 +350,18 @@ class HistogramsModule(AnalysisModule):
         runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters)
 
 class NanoAODHistoModule(HistogramsModule):
+    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODHistoModule, self).__init__(args)
     def prepareTree(self, tree):
+        """ Add NanoAOD decorations, and create an RDataFrame backend """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
         t = decorateNanoAOD(tree)
         be, noSel = DataframeBackend.create(t)
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
-        """ Merge counters from input files (by name) to output file (TFile pointer)
-
-        For NanoAOD simply merge the Runs trees
-        """
+        """ Merge the ``Runs`` trees """
         import ROOT
         cruns = ROOT.TChain("Runs")
         for fn in infileNames:
@@ -268,10 +370,7 @@ class NanoAODHistoModule(HistogramsModule):
         runs = cruns.CloneTree()
         runs.Write("Runs")
     def readCounters(self, resultsFile):
-        """ Read counters from results file (TFile pointer)
-
-        For NanoAOD sum over each leaf of the (merged) Runs tree (except 'run')
-        """
+        """ Sum over each leaf of the (merged) ``Runs`` tree (except ``run``) """
         runs = resultsFile.Get("Runs")
         import ROOT
         if ( not runs ) or ( not isinstance(runs, ROOT.TTree) ):

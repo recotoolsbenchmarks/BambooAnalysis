@@ -296,7 +296,7 @@ class SelectionProxy(TupleBaseProxy,ListBase):
                 yield arg
             yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
-        return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype ) and ( self._base == other._base )
+        return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valueType == other.valueType ) and ( self._base == other._base )
 
 ## Attribute classes (like property) to customize the above base classes
 
@@ -395,7 +395,7 @@ class CombinationProxy(TupleBaseProxy):
         super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
     def __getitem__(self, i):
         idx = makeConst(i, SizeType)
-        return self.cont.range(i)[self._parent.get(idx)]
+        return self.cont.base(i)[self._parent.get(idx)]
     ## TODO add more (maybe simply defer to rdfhelpers::Combination object
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
@@ -410,11 +410,11 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
     def __init__(self, parent, combs):
         self.combs = combs ## straightforward proxy for parent
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
-        super(CombinationListProxy, self).__init__("struct", parent=parent)
+        super(CombinationListProxy, self).__init__(parent.resultType, parent=parent)
     def __getitem__(self, idx):
         return CombinationProxy(self, GetItem(self.combs, self.combs.valueType, adaptArg(idx, SizeType)).result)
-    def range(self, i):
-        return self._parent.ranges[i]
+    def base(self, i):
+        return self._parent.ranges[i]._base
     def __len__(self):
         return self.combs.size()
     def __repr__(self):

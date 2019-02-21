@@ -137,18 +137,17 @@ class DataframeBackend(FactoryBackend):
         ## NOTE pre/postfixes should already be inside the plot name
         hModel = DataframeBackend.makePlotModel(plot)
         selND = self.selDFs[plot.selection.name]
-        plotDF = selND.df
-        varNames = []
-        for i,var in zip(count(), plot.variables):
-            vName = "v{0:d}_{1}".format(i, plot.name)
-            logger.debug("Defining {0} as {1}".format(vName, selND(var)))
-            plotDF = plotDF.Define(vName, selND(var))
-            varNames.append(vName)
+        varExprs = dict(("v{0:d}_{1}".format(i, plot.name), selND(var)) for i,var in zip(count(), plot.variables))
+        plotDF = selND.df ## after getting the expressions, to pick up columns that were defined on-demand
+        for vName, vExpr in varExprs.items():
+            #logger.debug("Defining {0} as {1} (defined for {2}: {3})".format(vName, vExpr, plotDF, ", ".join(plotDF.GetDefinedColumnNames()))) ## needs 6.16
+            logger.debug("Defining {0} as {1}".format(vName, vExpr))
+            plotDF = plotDF.Define(vName, vExpr)
         plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
         if selND.wName:
-            plotDF = plotFun(hModel, *(varNames+[selND.wName]))
+            plotDF = plotFun(hModel, *(varExprs.keys()+[selND.wName]))
         else:
-            plotDF = plotFun(hModel, *varNames)
+            plotDF = plotFun(hModel, *varExprs.keys())
         self.plotResults[plot.name] = plotDF
 
     @staticmethod

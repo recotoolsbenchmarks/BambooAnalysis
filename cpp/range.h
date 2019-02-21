@@ -49,7 +49,7 @@ public:
   Combination(const typename std::array<std::size_t,NUM> idx)
     : m_idx(idx) {}
 
-  std::size_t get(std::size_t i) { return m_idx.at(i); }
+  std::size_t get(std::size_t i) const { return m_idx.at(i); }
 private:
   typename std::array<std::size_t,NUM> m_idx;
 };

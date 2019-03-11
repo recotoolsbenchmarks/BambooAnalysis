@@ -141,23 +141,31 @@ plotit_plotdefaults = {
         "show-ratio"       : True,
         "sort-by-yields"   : False,
         }
-def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1.):
+def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., era=None):
+    ## TODO also pass the correct luminosity numbers
+    eras = []
+    if era is not None:
+        if str(era) == era:
+            eras.append(era)
+        else:
+            eras = eras["eras"]
     plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
     plotitCfg["configuration"]["root"] = os.path.relpath(resultsdir, workdir)
     plotit_files = dict()
     for smpN, smpCfg in config["samples"].items():
-        resultsName = "{0}.root".format(smpN)
-        smpOpts = dict()
-        smpOpts["group"] = smpCfg["group"]
-        isMC = ( smpCfg["group"] != "data" )
-        smpOpts["type"] = ("mc" if isMC else "data")
-        if isMC:
-            smpOpts["cross-section"] = smpCfg["cross-section"]
-            import ROOT
-            resultsFile = ROOT.TFile.Open(os.path.join(resultsdir, resultsName))
-            counters = readCounters(resultsFile)
-            smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
-        plotit_files[resultsName] = smpOpts
+        if smpCfg.get("era") in eras:
+            resultsName = "{0}.root".format(smpN)
+            smpOpts = dict()
+            smpOpts["group"] = smpCfg["group"]
+            isMC = ( smpCfg["group"] != "data" )
+            smpOpts["type"] = ("mc" if isMC else "data")
+            if isMC:
+                smpOpts["cross-section"] = smpCfg["cross-section"]
+                import ROOT
+                resultsFile = ROOT.TFile.Open(os.path.join(resultsdir, resultsName))
+                counters = readCounters(resultsFile)
+                smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
+            plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotit_plots = dict()
     for plot in plotList:

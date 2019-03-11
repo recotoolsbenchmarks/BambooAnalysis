@@ -129,7 +129,7 @@ For the code inside the module, the example is also very instructive:
 
 .. code-block:: python
 
-       def definePlots(self, t, noSel, systVar="nominal"):
+       def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
            from bamboo.plots import Plot, EquidistantBinning
            from bamboo import treefunctions as op
 

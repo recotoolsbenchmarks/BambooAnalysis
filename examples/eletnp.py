@@ -14,7 +14,7 @@ class TagAndProbe1(NanoAODHistoModule):
         nm = "{0}_{1}".format(name, selection.name)
         return Plot.make1D(nm, variable, selection, binning, **kwargs)
 
-    def definePlots(self, t, noSel, systVar="nominal"):
+    def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
         from itertools import count

@@ -48,7 +48,7 @@ set(SRC_CMSJET
   src/formulaVariableEvaluator.cc
   src/FormulaEvaluator.cc
   )
-add_library(JMEObjects SHARED ${SRC_CMSJET})
+add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc)
 target_compile_features(JMEObjects PRIVATE cxx_std_17)
 target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(JMEObjects ${ROOT_LIBRARIES})

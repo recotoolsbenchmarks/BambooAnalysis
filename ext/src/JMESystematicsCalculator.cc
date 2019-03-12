@@ -1,41 +1,49 @@
 #include "JMESystematicsCalculator.h"
 
+#include "Math/VectorUtil.h"
 #include "FactorizedJetCorrector.h"
 
-JMESystematicsCalculator::setJEC(const std::vector<JetCorrectorParameters>& jecParams)
+JMESystematicsCalculator::~JMESystematicsCalculator()
+{}
+
+void JMESystematicsCalculator::setJEC(const std::vector<JetCorrectorParameters>& jecParams)
 {
   if ( ! jecParams.empty() ) {
-    m_jetCorrector = std::make_unique<FactorizedJetCorrector>(jecParams);
+    m_jetCorrector = std::unique_ptr<FactorizedJetCorrector,jetcorrdeleter>{new FactorizedJetCorrector(jecParams)};
   }
 }
 
-JMESystematicsCalculator::jetcorrdeleter::operator() (FactorizedJetCorrector* ptr) const { delete ptr; }
+void JMESystematicsCalculator::jetcorrdeleter::operator() (FactorizedJetCorrector* ptr) const
+{ delete ptr; }
 
-JMESystematicsCalculator::~JMESystematicsCalculator() {}
-
-JMESystematicsCalculator::result_t JMESystematicsCalculator::operator() const (
+JMESystematicsCalculator::result_t JMESystematicsCalculator::operator() (
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
-    const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const rho_t rho,
-    const p4comp_t met_phi, const p4comp_t met_pt, const p4comp_t sumEt,
+    const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
+    const float met_phi, const float met_pt, const float sumEt,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {
-  ROOT::RVec<LorentzVector> jetP4;
-  jets.reserve(jet_pt.size());
+  ROOT::VecOps::RVec<LorentzVector> jetP4;
+  jetP4.reserve(jet_pt.size());
   for ( std::size_t i{0}; i < jet_pt.size(); ++i ) {
-    jets.emplace_back(jet_pt[i], jet_eta[i], jet_phi[i], jet_mass[i]);
+    jetP4.emplace_back(jet_pt[i], jet_eta[i], jet_phi[i], jet_mass[i]);
   }
-  ROOT::RVec<LorentzVector> genP4;
+  ROOT::VecOps::RVec<LorentzVector> genP4;
   genP4.reserve(genjet_pt.size());
   for ( std::size_t i{0}; i < genjet_pt.size(); ++i ) {
     genP4.emplace_back(genjet_pt[i], genjet_eta[i], genjet_phi[i], genjet_mass[i]);
   }
-  return produceModifiedCollections(jets, rho, genP4);
+  ROOT::VecOps::RVec<double> jet_rawfactor{};
+  jet_rawfactor.reserve(jet_rawcorr.size());
+  for ( const auto rawcorr : jet_rawcorr ) {
+    jet_rawfactor.push_back(1.-rawcorr);
+  }
+  return produceModifiedCollections(jetP4, jet_rawfactor, jet_area, rho, genP4);
 }
 
 namespace {
-  Float jetSmearFactor( Float_t pt, Float eOrig, Float_t genPt, Float_t ptRes, Float_t sfUncert, std::mt19937& randgen )
+  float jetSmearFactor( float pt, float eOrig, float genPt, float ptRes, float sfUncert, std::mt19937& randgen )
   {
-    Float_t smear = 1.
+    float smear = 1.;
     if ( genPt > 0. ) {
       smear = 1. + (sfUncert-1.)*(pt - genPt)/pt;
     } else if ( sfUncert > 1. ) {
@@ -47,56 +55,58 @@ namespace {
     }
     return smear;
   }
-
-  void sort( std::vector<Jet>& jets )
-  {
-    std::sort(std::begin(jets), std::end(jets), [] ( const Jet& j1, const Jet& j2 ) { return j1.Pt() > j2.Pt(); });
-  }
-
-  // TODO with orig MET and jets (sumpx,sumpy): calc modif MET(sig), produce bigger results type
-  // TODO non-const ref and include sort then
-  rdfhelpers::ModifiedKinCollection convertToModifKin( const std::vector<Jet>& jets )
-  {
-    ModifiedKinCollection::Indices idx;
-    ModifiedKinCollection::Momenta mom;
-    idx.reserve(jets.size());
-    mom.reserve(jets.size());
-    for ( const auto& j : jets ) {
-      idx.push_back(j.i);
-      mom.push_back(j.p4);
-    }
-    return ModifiedKinCollection(std::move(idx), std::move(mom));
-  }
 }
 
-std::size_t JMESystematicsCalculator::findGenMatch( const JMESystematicsCalculator::LorentzVector& p4, const ROOT::RVec<JMESystematicsCalculator::LorentzVector>& gen_p4, Float_t resolution )
+// TODO with orig MET and jets (sumpx,sumpy): calc modif MET(sig), produce bigger results type
+// TODO non-const ref and include sort then
+JMESystematicsCalculator::result_entry_t JMESystematicsCalculator::convertToModifKin( const std::vector<JMESystematicsCalculator::Jet>& jets ) const
 {
-  auto drMin = std::numeric_limits<p4comp_t>::max();
-  std::size_t igBest{gen_p4.size()};
+  result_entry_t::Indices idx;
+  result_entry_t::Momenta mom;
+  idx.reserve(jets.size());
+  mom.reserve(jets.size());
+  for ( const auto& j : jets ) {
+    // TODO copies can be made implicit when push_back(const&) is there
+    idx.push_back(std::size_t{j.i});
+    mom.push_back(LorentzVector{j.p4});
+  }
+  return JMESystematicsCalculator::result_entry_t(std::move(idx), std::move(mom));
+}
+
+void JMESystematicsCalculator::sort( std::vector<Jet>& jets ) const
+{
+  std::sort(std::begin(jets), std::end(jets), [] ( const Jet& j1, const Jet& j2 ) { return j1.p4.Pt() > j2.p4.Pt(); });
+}
+
+std::size_t JMESystematicsCalculator::findGenMatch( const JMESystematicsCalculator::LorentzVector& p4, const ROOT::VecOps::RVec<JMESystematicsCalculator::LorentzVector>& genp4, const float resolution ) const
+{
+  auto drMin = std::numeric_limits<float>::max();
+  std::size_t igBest{genp4.size()};
   for ( std::size_t ig{0}; ig != genp4.size(); ++ig ) {
-    const auto dr = p4.DeltaR(genp4[ig]);
+    const auto dr = ROOT::Math::VectorUtil::DeltaR(p4, genp4[ig]);
     if ( ( dr < drMin ) && ( dr < m_genMatch_dRmax ) ) {
       if ( std::abs(genp4[ig].Pt()-p4.Pt()) < m_genMatch_dPtmax*resolution ) {
         drMin = dr;
         igBest = ig;
-      a
+      }
     }
   }
+  return igBest;
 }
 
 JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedCollections (
-    const ROOT::RVec<JMESystematicsCalculator::LorentzVector>& jet_p4,
-    const ROOT::RVec<Float_t>& jet_rawfactor, const ROOT::RVec<Float_t>& jet_area, const rho_t rho,
-    const ROOT::RVec<JMESystematicsCalculator::LorentzVector>& genjet_p4 ) const
+    const ROOT::VecOps::RVec<JMESystematicsCalculator::LorentzVector>& jet_p4,
+    const ROOT::VecOps::RVec<double>& jet_rawfactor, const JMESystematicsCalculator::p4compv_t& jet_area, float rho,
+    const ROOT::VecOps::RVec<JMESystematicsCalculator::LorentzVector>& genjet_p4 )
 {
   result_t out;
   // sum of px, py and et for MET corrections
-  const Float_t orig_sumpx = std::accumulate(std::begin(jet_p4), std::end(jet_p4),
-      [] ( const LorentzVector& jP4 ) { return jP4.Px() ; } )
-  const Float_t orig_sumpy = std::accumulate(std::begin(jet_p4), std::end(jet_p4),
-      [] ( const LorentzVector& jP4 ) { return jP4.Py() ; } )
-  const Float_t orig_sumet = std::accumulate(std::begin(jet_p4), std::end(jet_p4),
-      [] ( const LorentzVector& jP4 ) { return jP4.Et() ; } )
+  const float orig_sumpx = std::accumulate(std::begin(jet_p4), std::end(jet_p4), 0.,
+      [] ( float res, const LorentzVector& jP4 ) { return res+jP4.Px() ; } );
+  const float orig_sumpy = std::accumulate(std::begin(jet_p4), std::end(jet_p4), 0.,
+      [] ( float res, const LorentzVector& jP4 ) { return res+jP4.Py() ; } );
+  const float orig_sumet = std::accumulate(std::begin(jet_p4), std::end(jet_p4), 0.,
+      [] ( float res, const LorentzVector& jP4 ) { return res+jP4.Et() ; } );
   // container for 'nominal' jets (possibly smeared and with a new JEC)
   std::vector<Jet> jNom;
   jNom.reserve(jet_p4.size());
@@ -110,16 +120,16 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
     jJerDown.reserve(jet_p4.size());
     jJerUp.reserve(jet_p4.size());
     for ( std::size_t ij{0}; ij != jet_p4.size(); ++ij ) {
-      const Float_t ptOrig = jet_p4[ij].Pt();
-      const Float_t eOrig = jet_p4[ij].E();
+      const float ptOrig = jet_p4[ij].Pt();
+      const float eOrig = jet_p4[ij].E();
       LorentzVector pNom{jet_p4[ij]}, pDown{jet_p4[ij]}, pUp{jet_p4[ij]};
       if ( ptOrig > 0. ) {
         JME::JetParameters jPar{};
         jPar.setJetPt(ptOrig);
-        jPar.setJetEta(jet_p4[i].Eta());
+        jPar.setJetEta(jet_p4[ij].Eta());
         jPar.setRho(rho);
         const auto ptRes  = m_jetPtRes.getResolution(jPar);
-        Float_t genPt = -1;
+        float genPt = -1;
         if ( m_smearDoGenMatch ) {
           const auto iGen = findGenMatch(jet_p4[ij], genjet_p4, ptRes);
           if ( iGen != genjet_p4.size() ) {
@@ -146,14 +156,14 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   // FIXME see http://cmsdoxygen.web.cern.ch/cmsdoxygen/CMSSW_10_5_0_pre1/doc/html/d6/d7a/classreco_1_1Jet.html#a7789f71255232d4da4469fe4e7a64e8b, scale the whole P4 (makes much more sense)
 
   if ( m_jetCorrector ) {
-    for ( auto& Jet j : jNom ) {
+    for ( auto& j : jNom ) {
       m_jetCorrector->setJetEta(j.p4.Eta());
-      m_jetCorrector->setJetPt(j.p4.Pt()*(1.-jet_rawfactor[j.i]));
+      m_jetCorrector->setJetPt(j.p4.Pt()*jet_rawfactor[j.i]);
       m_jetCorrector->setJetA(jet_area[j.i]);
       m_jetCorrector->setRho(rho);
       const auto corr = m_jetCorrector->getCorrection();
       if ( corr <= 0. ) {
-        j.p4 *= (1.-jet_rawfactor[j.i])*corr;
+        j.p4 *= jet_rawfactor[j.i]*corr;
       }
       // TODO convert rawcorr into (double) 1- in operator() ? convention is only used in NanoAOD
     }
@@ -162,13 +172,13 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   out["nomimal"] = convertToModifKin(jNom);
 
   // JES uncertainties
-  for ( const auto& jesUnc : m_jesUncSources ) {
+  for ( auto& jesUnc : m_jesUncSources ) {
     std::vector<Jet> jJesDown, jJesUp;
     jJesDown.reserve(jNom.size());
     jJesUp.reserve(jNom.size());
     for ( const Jet& jN : jNom ) {
-      jesUnc.second.SetJetPt(jN.Pt());
-      jesUnc.second.SetJetEta(jN.Eta());
+      jesUnc.second.setJetPt(jN.p4.Pt());
+      jesUnc.second.setJetEta(jN.p4.Eta());
       const auto delta = jesUnc.second.getUncertainty(true);
       jJesUp  .emplace_back(jN.i, jN.p4*(1.+delta));
       jJesDown.emplace_back(jN.i, jN.p4*(1.-delta));

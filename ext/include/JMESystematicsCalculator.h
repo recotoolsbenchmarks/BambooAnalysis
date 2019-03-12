@@ -1,7 +1,8 @@
 #pragma once
 
 #include <ROOT/RVec.hxx>
-#include <Math/LorentzVector.h>
+#include <Math/GenVector/LorentzVector.h>
+#include <Math/GenVector/PtEtaPhiM4D.h>
 
 namespace rdfhelpers {
 
@@ -26,6 +27,7 @@ private:
 };
 
 #include <random>
+#include <map>
 #include <boost/container/flat_map.hpp>
 #include "JetResolution.h"
 #include "JetCorrectorParameters.h"
@@ -34,15 +36,12 @@ class FactorizedJetCorrector;
 
 class JMESystematicsCalculator {
 public:
-  using p4comp_t = Float_t;
-  using p4compv_t = ROOT::VecOps::RVec<p4comp_t>;
-  using rho_t = Float_t;
-  using LorentzVector = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<p4comp_t>>;
-  // TODO may need to make this struct with MET and MET significance
   using result_entry_t = rdfhelpers::ModifiedKinCollection;
-  using result_t = boost::container::flat_map<std::string,rdfhelpers::ModifiedKinCollection>;
+  using result_t = boost::container::flat_map<std::string,result_entry_t>;
+  using p4compv_t = ROOT::VecOps::RVec<float>;
+  using LorentzVector = result_entry_t::LorentzVector;
 
-  explicit JMESystematicsCalculator() {}
+  JMESystematicsCalculator() {}
 
   ~JMESystematicsCalculator();
 
@@ -76,22 +75,27 @@ public:
   // interface for NanoAOD
   result_t operator() (
       const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
-      const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const rho_t rho,
-      const p4comp_t met_phi, const p4comp_t met_pt, const p4comp_t sumEt,
+      const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
+      const float met_phi, const float met_pt, const float sumEt,
       // TODO unclustered?
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
-      ) const; // TODO add MET
-  // interface for Framework+TTWAnalysis
-  // result_t operator() ( const std::vector<JMESystematicsCalculator::LorentzVector>& jet_p4, const std::vector<Float_t>& jet_rawfactor, const std::vector<Float_t>& jet_area, const rho_t rho, const std::vector<JMESystematicsCalculator::LorentzVector>& genjet_p4 ) const;
+      );
+  // TODO interface for Framework+TTWAnalysis
+  // result_t operator() ( const std::vector<JMESystematicsCalculator::LorentzVector>& jet_p4, const std::vector<float>& jet_rawfactor, const std::vector<float>& jet_area, const float rho, const std::vector<JMESystematicsCalculator::LorentzVector>& genjet_p4 ) const;
 
 private:
   struct Jet {
     std::size_t i;
     LorentzVector p4;
     Jet(std::size_t i_, const LorentzVector& p4_) : i(i_), p4(p4_) {}
-    Jet(std::size_t i_, Float_t pt, Float_t eta, Float_t phi, Float_t m) : i(i_), p4(pt, eta, phi, m) {}
+    Jet(std::size_t i_, float pt, float eta, float phi, float m) : i(i_), p4(pt, eta, phi, m) {}
   };
-  result_t produceModifiedCollections( const std::vector<Jet>& jets, const rho_t rho, const std::vector<LorentzVector> genp4 ) const;
+  void sort(std::vector<Jet>&) const;
+  result_entry_t convertToModifKin( const std::vector<Jet>& jets ) const;
+  std::size_t findGenMatch( const LorentzVector& p4, const ROOT::VecOps::RVec<LorentzVector>& genp4, const float resolution ) const;
+
+  result_t produceModifiedCollections( const ROOT::VecOps::RVec<LorentzVector>& jetp4, const ROOT::VecOps::RVec<double>& jet_rawfactor, const p4compv_t& jet_area, const float rho, const ROOT::VecOps::RVec<LorentzVector>& genp4 );
+
   // config options
   bool m_doSmearing{false}, m_smearDoGenMatch; // TODO default: yes, yes
   float m_genMatch_dRmax, m_genMatch_dPtmax;   // TODO default: R/2 (0.2) and 3
@@ -100,6 +104,7 @@ private:
   JME::JetResolutionScaleFactor m_jetEResSF;
   mutable std::mt19937 m_random; // for resolution
   struct jetcorrdeleter { void operator()(FactorizedJetCorrector*) const; };
+  // TODO if these would have pure interface functions operator() and produceModifiedCollections could be const (and largely thread-safe)
   std::unique_ptr<FactorizedJetCorrector,jetcorrdeleter> m_jetCorrector;
   std::map<std::string,JetCorrectionUncertainty> m_jesUncSources;
   //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with

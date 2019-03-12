@@ -8,7 +8,7 @@
 
 #include <TFormula.h>
 
-enum Variation {
+enum SystVariation {
     Nominal = 0,
     Down = 1,
     Up = 2

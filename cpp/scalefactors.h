@@ -6,12 +6,12 @@
 class ILeptonScaleFactor {
 public:
   virtual ~ILeptonScaleFactor() {}
-  virtual float get(const Parameters& parameters, Variation variation) const = 0;
+  virtual float get(const Parameters& parameters, SystVariation variation) const = 0;
 };
 class IDiLeptonScaleFactor {
 public:
   virtual ~IDiLeptonScaleFactor() {}
-  virtual float get(const Parameters& l1Param, const Parameters& l2Param, Variation variation) const = 0;
+  virtual float get(const Parameters& l1Param, const Parameters& l2Param, SystVariation variation) const = 0;
 };
 
 class IJetScaleFactor {
@@ -33,7 +33,7 @@ public:
         return Flavour::Light;
     }
   }
-  virtual float get(const Parameters& parameters, Flavour flavour, Variation variation) const = 0;
+  virtual float get(const Parameters& parameters, Flavour flavour, SystVariation variation) const = 0;
 };
 
 /**
@@ -46,7 +46,7 @@ public:
   {}
   virtual ~ScaleFactor() {}
 
-  virtual float get(const Parameters& parameters, Variation variation) const override final {
+  virtual float get(const Parameters& parameters, SystVariation variation) const override final {
     return m_values.get(parameters)[static_cast<std::size_t>(variation)];
   }
 private:
@@ -69,7 +69,7 @@ public:
   {}
   virtual ~DiLeptonFromLegsScaleFactor() {}
 
-  virtual float get(const Parameters& l1Param, const Parameters& l2Param, Variation variation) const override final {
+  virtual float get(const Parameters& l1Param, const Parameters& l2Param, SystVariation variation) const override final {
     const float eff_lep1_leg1 = m_l1_leg1->get(l1Param, variation);
     const float eff_lep1_leg2 = m_l1_leg2->get(l1Param, variation);
     const float eff_lep2_leg1 = m_l2_leg1->get(l2Param, variation);
@@ -127,7 +127,7 @@ public:
   {}
   virtual ~BTaggingScaleFactor() {}
 
-  virtual float get(const Parameters& parameters, Flavour flavour, Variation variation) const override final {
+  virtual float get(const Parameters& parameters, Flavour flavour, SystVariation variation) const override final {
     switch(flavour) {
       case Flavour::Beauty:
         return m_beautyValues.get(parameters)[static_cast<std::size_t>(variation)];
@@ -162,7 +162,7 @@ public:
   }
   virtual ~WeightedScaleFactor() {}
 
-  virtual float get(Args&&... args, Variation variation) const override final {
+  virtual float get(Args&&... args, SystVariation variation) const override final {
     const auto myRange = rdfhelpers::IndexRange<std::size_t>(m_terms.size());
     return std::accumulate(myRange.begin(), myRange.end(), 0.,
         [this,&args...,variation] ( float wsum, std::size_t i ) -> float {
@@ -193,7 +193,7 @@ public:
   {}
   virtual ~SampledScaleFactor() {}
 
-  virtual float get(Args... args, Variation variation) const override final {
+  virtual float get(Args... args, SystVariation variation) const override final {
     return m_terms[m_probs(m_rg)]->get(std::forward<Args>(args)..., variation);
   }
 private:

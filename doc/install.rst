@@ -36,9 +36,26 @@ a local clone, such that you can use it to test and propose changes, using
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/piedavid/bamboo.git /path/to/your/bambooclone
    pip install /path/to/your/bambooclone ## e.g. ./bamboo (not bamboo - a package with that name exists)
 
-(you will need to upgrade with ``pip install --upgrade /path/to/your/bambooclone``
-still because installing in editable mode does not work well with including C++
-libraries as extensions).
+such that you can update later on with (inside ``/path/to/your/bambooclone``)
+
+.. code-block:: sh
+
+   git pull upstream master
+   pip install --upgrade .
+
+(installing in editable mode does not work because some C++ libraries that are
+built as extensions are not correctly picked up then).
+
+.. note::
+
+   bambooo is a shared helper package, so everything that is specific to a
+   single analysis (or a few related analyses) is best stored elsewhere (e.g.
+   in ``bamboodev/myanalysis`` in the example below); otherwise you will need to
+   be very careful when updating to a newer version.
+
+   The ``bambooRun`` command can pick up code in different ways, so it is
+   possible to start from a single python file, and move to a pip-installed
+   analysis package later on when code needs to be shared between modules.
 
 For combining the different histograms in stacks and producing pdf or png files,
 which is used in many analyses, the plotIt_

@@ -48,9 +48,9 @@ built as extensions are not correctly picked up then).
 
 .. note::
 
-   bambooo is a shared helper package, so everything that is specific to a
-   single analysis (or a few related analyses) is best stored elsewhere (e.g.
-   in ``bamboodev/myanalysis`` in the example below); otherwise you will need to
+   bamboo is a shared package, so everything that is specific to a single
+   analysis (or a few related analyses) is best stored elsewhere (e.g. in
+   ``bamboodev/myanalysis`` in the example below); otherwise you will need to
    be very careful when updating to a newer version.
 
    The ``bambooRun`` command can pick up code in different ways, so it is

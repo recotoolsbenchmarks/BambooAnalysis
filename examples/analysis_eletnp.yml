@@ -1,4 +1,6 @@
 tree: Events
+eras:
+  '2016': {}
 samples:
   SingleElectron_2016C:
     #db: /SingleElectron/Run2016C-Nano14Dec2018-v1/NANOAOD
@@ -13,7 +15,7 @@ samples:
     run_range: [275657, 276283]
     certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
     group: data
-    era: 2016
+    era: '2016'
   DYM50_2017:
     #db: /DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/RunIISummer16NanoAODv4-PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/NANOAODSIM
     files: [ ## for testing
@@ -23,7 +25,7 @@ samples:
       "root://xrootd-cms.infn.it//store/mc/RunIISummer16NanoAODv4/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/80000/F72ADA47-6850-7D4D-B7BA-3BB34929A6E4.root"
     ]
     group: DY
-    era: 2016 ## FIXME
+    era: '2016' ## FIXME
     cross-section: 5765.4
     generated-events: genEventSumw
 plotIt:

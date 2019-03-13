@@ -1,11 +1,13 @@
 tree: Events
+eras:
+  '2016': {}
 samples:
   SingleMuon_2016E:
     run_range: [276831, 277420]
     certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
     files: [ NanoAOD_SingleMu_test.root ]
     group: data
-    era: 2016
+    era: '2016'
 plotIt:
   configuration:
     width: 800

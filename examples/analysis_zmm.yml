@@ -1,4 +1,6 @@
 tree: Events
+eras:
+  '2016': {}
 samples:
   SingleMuon_2016E: ## names should be unique (also between this and the MC samples list)
     #db: das:/SingleMuon.../...Run2016B.../NANOAOD ## optional, alternatively: list of files (or path of a text file that contains those)
@@ -6,14 +8,14 @@ samples:
     certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
     files: [ NanoAOD_SingleMu_test.root ]
     group: data
-    era: 2016
+    era: '2016'
   DYM50_2017:
     files: [
       "root://xrootd-cms.infn.it///store/mc/RunIIFall17NanoAODv4/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/PU2017_12Apr2018_Nano14Dec2018_new_pmx_102X_mc2017_realistic_v6_ext1-v1/90000/F07C1A14-6115-B04B-8F6C-9FEBF7CC5040.root",
       "root://xrootd-cms.infn.it///store/mc/RunIIFall17NanoAODv4/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/PU2017_12Apr2018_Nano14Dec2018_new_pmx_102X_mc2017_realistic_v6_ext1-v1/00000/AE7A505A-16BB-A742-B057-8EE7A234F2E5.root"
     ]
     group: DY
-    era: 2016 ## FIXME
+    era: '2016' ## FIXME
     cross-section: 5765.4
     generated-events: genEventSumw
 plotIt:

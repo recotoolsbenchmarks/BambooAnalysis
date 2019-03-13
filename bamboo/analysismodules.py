@@ -111,7 +111,7 @@ class AnalysisModule(object):
             analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
-            smpNm,smpCfg = analysisCfg["samples"].items()[0]
+            smpNm,smpCfg = next(itm for itm in analysisCfg["samples"].items())
             tup.Add(smpCfg["files"][0])
             return tup, {"name": smpNm, "era": smpCfg["era"]}
         else:
@@ -155,7 +155,8 @@ class AnalysisModule(object):
                 else:
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
-                    os.makedirs(resultsdir)
+                    else:
+                        os.makedirs(resultsdir)
                     ##
                     if not self.args.distributed: ## sequential mode
                         for (inputs, output), kwargs in taskArgs:
@@ -366,7 +367,7 @@ class HistogramsModule(AnalysisModule):
             tup, tupInfo = self.getATree()
             tree, noSel, backend, runAndLS = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
             self.plotList = self.definePlots(tree, noSel, systVar="nominal", era=tupInfo.get("era"), sample=tupInfo.get("name"))
-        for eraName, eraCfg in config.get("eras", {}):
+        for eraName, eraCfg in config.get("eras", {}).items():
             if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
                 for cmbCfg in eraCfg:
                     runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=cmbCfg)

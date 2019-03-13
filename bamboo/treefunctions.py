@@ -22,7 +22,9 @@ def _load_extensions():
         gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
     gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))
     gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
-    for fname in ("range.h", "jmesystematics.h", "scalefactors.h", "LumiMask.h"):
+    gbl.gSystem.Load(os.path.join(libDir, "libJMEObjects"))
+    ## TODO combine into libBamboo, and "bamboo.h"?
+    for fname in ("range.h", "JMESystematicsCalculator.h", "scalefactors.h", "LumiMask.h"):
         gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
 _load_extensions()
 
@@ -393,6 +395,7 @@ def rng_pickRandom(rng, seed=0):
     """
     return rng[_to.PseudoRandom(0, rng_len(rng), seed, isIntegral=True)]
 
+## TODO remove
 def addKinematicVariation(vrng, key, modif=( lambda elm : elm.p4 ), pred=( lambda mp4,elm : True )):
     """ Add a container with modified kinematics (for jet systematics)
 

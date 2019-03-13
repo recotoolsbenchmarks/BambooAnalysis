@@ -32,7 +32,7 @@ private:
 #include "JetResolution.h"
 #include "JetCorrectorParameters.h"
 #include "JetCorrectionUncertainty.h"
-class FactorizedJetCorrector;
+class FactorizedJetCorrectorCalculator;
 
 class JMESystematicsCalculator {
 public:
@@ -103,9 +103,9 @@ private:
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;
   mutable std::mt19937 m_random; // for resolution
-  struct jetcorrdeleter { void operator()(FactorizedJetCorrector*) const; };
+  struct jetcorrdeleter { void operator()(FactorizedJetCorrectorCalculator*) const; };
   // TODO if these would have pure interface functions operator() and produceModifiedCollections could be const (and largely thread-safe)
-  std::unique_ptr<FactorizedJetCorrector,jetcorrdeleter> m_jetCorrector;
+  std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;
   std::map<std::string,JetCorrectionUncertainty> m_jesUncSources;
   //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with
 };

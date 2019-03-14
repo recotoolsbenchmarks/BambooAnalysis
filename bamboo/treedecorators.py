@@ -183,7 +183,7 @@ def decorateNanoAOD(aTree, description=None):
             else:
                 for att in p4AttNames:
                     itm_dict["_{0}".format(att)] = itm_dict[att]
-                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) ## TODO replace by get from the right vector
+                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note too efficient, but only for "original" jet collection ("nominal" should be the default)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
         if sizeNm != "nJet":
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
@@ -200,15 +200,25 @@ def decorateNanoAOD(aTree, description=None):
                 elif isinstance(itmAtt, itemRefProxy):
                     itm_dict_var[nm] = varItemRefProxy(itmAtt.op, itmAtt.getTarget)
                 elif isinstance(itmAtt, funProxy) and ( nm == "p4" ):
-                    pass ## ok to skip
+                    pass ## ok to skip, redefined below
                 elif isinstance(itmAtt, str): ## __doc__
                     itm_dict_var[nm] = itmAtt
                 else:
                     raise RuntimeError("Cannot translate attribute {0} for jet variations yet".format(nm))
-            itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.momenta()[inst._idx]) ## container parent is the modifier op
+            itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
 
-            tree_dict[grpNm] = Variations(None, jets_orig, varItemType=varItemType)
+            aJet = jets_orig[0]
+            kinj = tuple(comp.op.arg for comp in (aJet.pt, aJet.eta, aJet.phi, aJet.mass))
+            ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
+            import copy
+            genkinj = copy.deepcopy(kinj)
+            for it in genkinj:
+                it.name = it.name.replace("Jet", "GenJet")
+            ##
+            tree_dict[grpNm] = JMEVariations(None, jets_orig, tuple(
+                chain(kinj, (GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt")), genkinj)),
+                varItemType=varItemType)
 
         for lvNm in itm_lvs:
             del tree_dict[lvNm]

@@ -73,7 +73,7 @@ public:
   }
 
   // interface for NanoAOD
-  result_t operator() (
+  result_t produceModifiedCollections(
       const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
       const float met_phi, const float met_pt, const float sumEt,

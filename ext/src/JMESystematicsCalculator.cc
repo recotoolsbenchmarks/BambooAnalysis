@@ -16,7 +16,7 @@ void JMESystematicsCalculator::setJEC(const std::vector<JetCorrectorParameters>&
 void JMESystematicsCalculator::jetcorrdeleter::operator() (FactorizedJetCorrectorCalculator* ptr) const
 { delete ptr; }
 
-JMESystematicsCalculator::result_t JMESystematicsCalculator::operator() (
+JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedCollections(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
     const float met_phi, const float met_pt, const float sumEt,

@@ -88,12 +88,15 @@ class DataframeBackend(FactoryBackend):
         return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.KinematicVariation, top.Combine))
                 and not any(op.deps(defCache=defCache, select=lambda dp : isinstance(dp, top.LocalVariablePlaceholder))) )
 
-    def symbol(self, decl, resultType=None, args=None):
+    def symbol(self, decl, resultType=None, args=None, nameHint=None):
         global _gSymbols
         if decl in _gSymbols:
             return _gSymbols[decl]
         else:
-            name = self._getUSymbName()
+            if nameHint and nameHint not in _gSymbols.values():
+                name = nameHint
+            else:
+                name = self._getUSymbName()
             _gSymbols[decl] = name
             if resultType and args: ## then it needs to be wrapped in a function
                 fullDecl = "{result} {name}({args})\n{{\n  return {0};\n}};\n".format(

@@ -347,11 +347,17 @@ class varItemRefProxy(object):
 class JMEVariations(TupleBaseProxy):
     def __init__(self, parent, orig, args, varItemType=None):
         self.orig = orig
-        self.calc = DefinedVar("JMESystematicsCalculator", "JMESystematicsCalculator <<name>>{};").result
-        self._res = self.calc.produceModifiedCollections(*args)
+        self._args = args
         self.varItemType = varItemType if varItemType else orig.valuetype
+        self.calc = None
+        self.calcProd = DefinedVar("JMESystematicsCalculator", "JMESystematicsCalculator <<name>>;").result.produceModifiedCollections(*self._args)
+    def initCalc(self, calcProxy, calcHandle=None):
+        self.calc = calcHandle ## handle to the actual module object
+        self.calcProd = calcProxy.produceModifiedCollections(*self._args)
     def __getitem__(self, key):
-        res_item = GetItem(self._res, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
+        if self.calc and not self.calc.hasProduct(key):
+            raise KeyError("Modified jet collection with name {0!r} will not be produced, please check the configuration".format(key))
+        res_item = GetItem(self.calcProd, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class ModifiedCollectionProxy(TupleBaseProxy,ListBase):

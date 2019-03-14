@@ -359,6 +359,12 @@ class NanoAODHistoModule(HistogramsModule):
         from bamboo.dataframebackend import DataframeBackend
         t = decorateNanoAOD(tree)
         be, noSel = DataframeBackend.create(t)
+        ## force definition of the jet variations calculator such that
+        ## it can be configured by calling its member methods through t.Jet.calc
+        from bamboo import treefunctions as op
+        from cppyy import gbl
+        jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{};", nameHint="bamboo_jmeSystCalc")
+        t.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """

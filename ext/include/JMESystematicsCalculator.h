@@ -72,6 +72,8 @@ public:
         std::forward_as_tuple(JetCorrectorParameters(fileName, ( section != "__default__" ? section : name ))));
   }
 
+  bool hasProduct(const std::string& name) const;
+
   // interface for NanoAOD
   result_t produceModifiedCollections(
       const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,

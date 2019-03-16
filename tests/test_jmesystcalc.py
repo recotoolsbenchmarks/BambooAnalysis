@@ -42,6 +42,36 @@ def jmesystcalc_smear():
     calc.setSmearing("tests/Summer16_25nsV1_MC_PtResolution_AK4PFchs.txt", "tests/Summer16_25nsV1_MC_SF_AK4PFchs.txt", True, 0.2, 3.)
     yield calc
 
+@pytest.fixture(scope="module")
+def jmesystcalc_jec():
+    from cppyy import gbl
+    import bamboo.treefunctions
+    calc = gbl.JMESystematicsCalculator()
+    jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+    l1Param = gbl.JetCorrectorParameters("tests/Summer16_07Aug2017_V20_MC_L1FastJet_AK4PFchs.txt")
+    l2Param = gbl.JetCorrectorParameters("tests/Summer16_07Aug2017_V20_MC_L2Relative_AK4PFchs.txt")
+    jecParams.push_back(l1Param)
+    jecParams.push_back(l2Param)
+    calc.setJEC(jecParams)
+    yield calc
+
+@pytest.fixture(scope="module")
+def jmesystcalc_jesunc():
+    from cppyy import gbl
+    import bamboo.treefunctions
+    calc = gbl.JMESystematicsCalculator()
+    jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+    l1Param = gbl.JetCorrectorParameters("tests/Summer16_07Aug2017_V20_MC_L1FastJet_AK4PFchs.txt")
+    l2Param = gbl.JetCorrectorParameters("tests/Summer16_07Aug2017_V20_MC_L2Relative_AK4PFchs.txt")
+    jecParams.push_back(l1Param)
+    jecParams.push_back(l2Param)
+    calc.setJEC(jecParams)
+    ## uncertaintysources?
+    for jus in ["AbsoluteStat", "AbsoluteScale"]:
+        param = gbl.JetCorrectorParameters("tests/Summer16_07Aug2017_V20_MC_UncertaintySources_AK4PFchs.txt", jus)
+        calc.addJESUncertainty(jus, param)
+    yield calc
+
 def test_jmesystcalc_empty(jmesystcalc_empty):
     assert jmesystcalc_empty
 
@@ -49,6 +79,16 @@ def test_jmesystcalc_smear(jmesystcalc_smear):
     assert jmesystcalc_smear
 
 def test_jmesystcalc_nano_smear(jmesystcalc_smear, nanojetargs):
-    res = jmesystcalc_smear(*nanojetargs)
+    res = jmesystcalc_smear.produceModifiedCollections(*nanojetargs)
+    assert res
+    # assert None ## to see the printout
+
+def test_jmesystcalc_nano_jec(jmesystcalc_jec, nanojetargs):
+    res = jmesystcalc_jec.produceModifiedCollections(*nanojetargs)
+    assert res
+    # assert None ## to see the printout
+
+def test_jmesystcalc_nano_jesunc(jmesystcalc_jesunc, nanojetargs):
+    res = jmesystcalc_jesunc.produceModifiedCollections(*nanojetargs)
     assert res
     # assert None ## to see the printout

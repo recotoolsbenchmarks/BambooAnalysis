@@ -9,6 +9,8 @@ import subprocess
 import urllib.parse
 import yaml
 
+bamboo_cachedir = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache")), "bamboo")
+
 def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
     from . import treefunctions as op
     """ Refine selection with a luminosity block filter
@@ -184,3 +186,49 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         logger.info("plotIt output is available in {0}".format(plotsdir))
     except subprocess.CalledProcessError as ex:
         logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
+
+def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None):
+    """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
+
+    :param calc: jet variations calculator to configure (e.g. ``Jet.calc``)
+    :param jetType: jet type, e.g. AK4PFchs
+    :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
+    :param jec: tag of the new JEC to apply, or for the JES uncertainties (pass an empty list to jecLevels to produce only the latter without reapplying the JEC)
+    :param jesUncertaintySources: list of jet energy scale uncertainty sources
+
+    :param useGenMatch: use matching to generator-level jets for resolution smearing
+    :param genMatchDR: DeltaR for generator-level jet matching (half the cone size is recommended, default is 0.2)
+    :param genMatchDPt: maximal relative PT difference (in units of the resolution) between reco and gen jet
+    :param jecLevels: list of JEC levels to apply (if left out the recommendations are used: L1FastJet, L2Relative, L3Absolute, and also L2L3Residual for data)
+    :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
+    """
+    from .jetdatabasecache import JetDatabaseCache
+    if smear is not None:
+        with JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir) as jrDBCache:
+            mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
+            mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
+        calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
+    if jec is not None:
+        if jecLevels == "default":
+            # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
+            if jec.endswith("_DATA"):
+                jecLevels = ["L1FastJet", "L2Relative", "L2L3Residual"]
+            elif jec.endswith("_MC"):
+                # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
+                jecLevels = ["L1FastJet", "L2Relative"]
+            else:
+                raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed. Please specify the JEC levels explicitly")
+        with JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir) as jecDBCache:
+            from cppyy import gbl
+            if jecLevels:
+                jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+                for jLev in jecLevels:
+                    plf = jecDBCache.getPayload(jec, jLev, jetType)
+                    params = gbl.JetCorrectorParameters(plf)
+                    jecParams.push_back(params)
+                calc.setJEC(jecParams)
+            if jesUncertaintySources:
+                plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
+                for src in jesUncertaintySources:
+                    params = gbl.JetCorrectorParameters(plf, src)
+                    calc.addJESUncertainty(src, params)

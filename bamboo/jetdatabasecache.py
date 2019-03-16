@@ -7,8 +7,14 @@ import os.path
 import requests
 
 class JetDatabaseCache(object):
-    def __init__(self, statusFile, service="https://api.github.com/repos", repository=None, branch="master"):
-        self.statusFile = statusFile
+    def __init__(self, name, service="https://api.github.com/repos", repository=None, branch="master", cachedir=None):
+        if cachedir is None:
+            from .analysisutils import bamboo_cachedir
+            cachedir = bamboo_cachedir
+        self.cachedir = os.path.join(cachedir, name)
+        if not os.path.isdir(self.cachedir):
+            os.makedirs(self.cachedir)
+        self.statusFile = os.path.join(self.cachedir, "status.json")
         self.service = service
         self.repository = repository
         self.branch = branch
@@ -76,7 +82,7 @@ class JetDatabaseCache(object):
                 for tagName, statTag in stTags.items():
                     if not any(r_tg["path"] == tagName for r_tg in r_tagsTree["tree"]):
                         logger.debug("Tag {0} was removed from {1}".format(tagname, self.repository))
-                        tagDir = os.path.join(os.path.dirname(self.statusFile), tag)
+                        tagDir = os.path.join(self.cachedir, tag)
                         if os.path.isdir(tagDir):
                             import shutil
                             logger.debug("Should remove cache directory {0}".format(tagDir))
@@ -146,7 +152,7 @@ class JetDatabaseCache(object):
                 _,actTag,actFName = content.decode().strip().split(os.sep)
                 stPL["symlink"] = (actTag, actFName)
             else:
-                tagDir = os.path.join(os.path.dirname(self.statusFile), tag)
+                tagDir = os.path.join(self.cachedir, tag)
                 if not os.path.exists(tagDir):
                     os.makedirs(tagDir)
                 plFName = os.path.join(tagDir, fName)
@@ -167,5 +173,5 @@ class JetDatabaseCache(object):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     import IPython
-    with JetDatabaseCache("JECDB_status.json", repository="cms-jet/JECDatabase") as jecDBCache:
+    with JetDatabaseCache("JECDB", repository="cms-jet/JECDatabase", cachedir=".") as jecDBCache:
         IPython.embed()

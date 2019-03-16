@@ -3,6 +3,8 @@
 #include "Math/VectorUtil.h"
 #include "FactorizedJetCorrectorCalculator.h"
 
+// #define BAMBOO_JME_DEBUG // uncomment to debug
+
 #ifdef BAMBOO_JME_DEBUG
 #define LogDebug std::cout
 #else

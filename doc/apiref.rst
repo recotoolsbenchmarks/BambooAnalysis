@@ -19,5 +19,16 @@ Analysis modules
    :members:
    :special-members: __init__
 
+Helper modules
+--------------
+
+Scale factors
+'''''''''''''
+
+.. automodule:: bamboo.scalefactors
+   :members:
+   :special-members: __init__
+
+
 .. |---| unicode:: U+2014
    :trim:

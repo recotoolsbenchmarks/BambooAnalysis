@@ -129,7 +129,7 @@ For the code inside the module, the example is also very instructive:
 
 .. code-block:: python
 
-       def definePlots(self, t, noSel, systVar="nominal"):
+       def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
            from bamboo.plots import Plot, EquidistantBinning
            from bamboo import treefunctions as op
 
@@ -241,6 +241,49 @@ tab-completion can be used to have a look at what's there:
       anElectron.dzErr                    anElectron.mvaSpring16GP_WP90       anElectron.tightCharge
       anElectron.eCorr                    anElectron.mvaSpring16HZZ           anElectron.vidNestedWPBitmap
 
+
+Recipes for common tasks
+------------------------
+
+Using scalefactors
+''''''''''''''''''
+
+Scalefactors |---| CMS jargon for efficiency corrections for MC, typically
+binned in lepton or jet kinematic variables |---| can be generalized to
+functions that take some properties of a physics object and return a single
+floating-point number.
+The :py:mod:`bamboo.scalefactors` module provides support for constructing
+such callable objects from the JSON format used in the `CP3-llbb framework`_,
+see some examples
+`here <https://github.com/cp3-llbb/Framework/tree/CMSSW_8_0_6p/data/ScaleFactors>`_
+(these JSON files are produced from the txt or ROOT files provided by the POGs
+using simple python
+`scripts <https://github.com/cp3-llbb/Framework/tree/CMSSW_8_0_6p/scripts>`_).
+Like their inputs, the JSON files contain the nominal scale factor as well as
+its up and down systematic variations, so the
+:py:class:`~bamboo.scalefactors.ScaleFactor` behaves as a callable that takes
+a physics object and an optional `variation` keyword argument (technically,
+it wraps a C++ object that gets the correct value from the JSON file).
+
+The :py:meth:`~bamboo.scalefactors.get_scalefactor` method constructs such
+objects from a nested dictionary such as the one in :py:mod:`bamboo.llbbSF`:
+the first key is a tag (as an example: "electron_2015_76", for electrons in
+2015 data, analysed with a ``CMSSW_7_6_X`` release) and the second key is an
+identifier of the selection they correspond to (e.g. ``id_loose``).
+The value inside this dictionary can be either a single path to a JSON file,
+or a list of ``(period, path)`` pairs, in case scalefactors for different
+running periods need to be combined (the ``periods`` keyword argument to
+:py:meth:`~bamboo.scalefactors.get_scalefactor` can be used to select only
+a certain set of these periods).
+The combination is done by either weighting or randomly sampling from the
+different periods, according to the fraction of the integrated luminosity in
+each (by passing ``combine="weight"`` or ``combine="sample"``, respectively).
+Jet flavour tagging and dilepton (e.g. trigger) scalefactors are can also be
+specified by passing tuples of the light, c-jet and b-jet scalefactor paths,
+and tuples of first-if-leading, first-if-subleading, second-if-leading,
+and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
+respectively, instead of a single path.
+
 .. _YAML: https://yaml.org
 
 .. _YAML Wikipedia page: https://en.wikipedia.org/wiki/YAML
@@ -252,6 +295,8 @@ tab-completion can be used to have a look at what's there:
 .. _DAS: https://cmsweb.cern.ch/das/
 
 .. _SAMADhi: https://cp3.irmp.ucl.ac.be/samadhi/index.php
+
+.. _CP3-llbb framework: https://github.com/cp3-llbb/Framework
 
 .. |---| unicode:: U+2014
    :trim:

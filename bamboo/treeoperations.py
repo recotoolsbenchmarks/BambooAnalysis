@@ -411,9 +411,10 @@ class ExtVar(TupleOp):
 
 class DefinedVar(TupleOp):
     """ Defined variable (used by name), first use will trigger definition """
-    def __init__(self, typeName, definition):
+    def __init__(self, typeName, definition, nameHint=None):
         self.typeName = typeName
         self.definition = definition
+        self._nameHint = nameHint
         super(DefinedVar, self).__init__()
     @property
     def result(self):
@@ -426,7 +427,7 @@ class DefinedVar(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        return defCache.symbol(self.definition)
+        return defCache.symbol(self.definition, nameHint=self._nameHint)
 
 class InitList(TupleOp):
     def __init__(self, typeName, elmType, elms):

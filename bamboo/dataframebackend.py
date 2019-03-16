@@ -32,8 +32,7 @@ class SelWithDefines(top.CppStrRedir):
             ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
             else weights
             )
-        logger.debug("Defining {0} as {1}".format(wName, self(weightExpr)))
-        self.df = self.df.Define(wName, self(weightExpr))
+        self._define(wName, self(weightExpr))
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -43,9 +42,14 @@ class SelWithDefines(top.CppStrRedir):
             if res:
                 return res
 
+    def _define(self, name, expr):
+        logger.debug("Defining {0} as {1}".format(name, expr.get_cppStr(defCache=self)))
+        self.df = self.df.Define(name, expr.get_cppStr(defCache=self))
+        self._definedColumns[expr] = name
+
     def symbol(self, decl, **kwargs):
         return self.backend.symbol(decl, **kwargs)
-    
+
     def __call__(self, arg):
         """ Get the C++ string corresponding to an op """
         if not self.backend.shouldDefine(arg, defCache=self): ## the easy case
@@ -57,9 +61,7 @@ class SelWithDefines(top.CppStrRedir):
             nm = self._getColName(arg)
             if not nm: ## define it then
                 nm = self.backend.getUColName()
-                logger.debug("Defining {0} as {1}".format(nm, arg.get_cppStr(defCache=self)))
-                self.df = self.df.Define(nm, arg.get_cppStr(defCache=self))
-                self._definedColumns[arg] = nm
+                self._define(nm, arg)
             return nm
 
 ## NOTE these are global (for the current process&interpreter)

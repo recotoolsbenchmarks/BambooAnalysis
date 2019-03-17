@@ -25,7 +25,7 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
     if runAndLS is None:
         raise RuntimeError("Cannot construct a filter for the good lumi blocks without accessors (backend.create(..., runAndLS=XXX)), tree->(run, LS)")
     lumiSel = op.define("LumiMask", 'const auto <<name>> = LumiMask::fromJSON("{0}"{1});'.format(
-                jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")), nameHint="bamboo_lumiMask")
+                jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")))
     return sel.refine(name, cut=lumiSel.accept(*runAndLS))
 
 def downloadCertifiedLumiFiles(taskArgs, workdir="."):

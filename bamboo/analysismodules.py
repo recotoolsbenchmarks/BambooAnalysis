@@ -390,7 +390,7 @@ class NanoAODHistoModule(HistogramsModule):
         ## it can be configured by calling its member methods through t.Jet.calc
         from bamboo import treefunctions as op
         from cppyy import gbl
-        jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{};", nameHint="bamboo_jmeSystCalc")
+        jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{};", nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in sample if c.isalnum())))
         t.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):

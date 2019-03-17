@@ -249,7 +249,7 @@ def forceDefine(arg, selection):
     Use only for really computation-intensive operations that need to be precalculated
 
     :param arg: expression to define as a column
-    :param selection: selection for which the expression should be defined
+    :param selection: :py:class:`~bamboo.plots.Selection` for which the expression should be defined
     """
     from .treeoperations import adaptArg
     return selection._fbe.selDFs[selection.name].define(adaptArg(arg))

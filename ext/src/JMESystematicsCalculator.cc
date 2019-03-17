@@ -189,7 +189,7 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
     }
     sort(jNom);
   }
-  out["nomimal"] = convertToModifKin(jNom);
+  out["nominal"] = convertToModifKin(jNom);
 
   // JES uncertainties
   for ( auto& jesUnc : m_jesUncSources ) {

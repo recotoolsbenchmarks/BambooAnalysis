@@ -13,6 +13,7 @@ from . import treeoperations as top
 class SelWithDefines(top.CppStrRedir):
     def __init__(self, parent, df, weights=None, wName=None):
         self.df = df
+        self.explDefine = list()
         self._definedColumns = dict()
         if isinstance(parent, SelWithDefines):
             self.parent = parent
@@ -42,6 +43,12 @@ class SelWithDefines(top.CppStrRedir):
             if res:
                 return res
 
+    def define(self, expr):
+        """ explicitly define column for expression (returns the column name) """
+        if not self._getColName(expr):
+            self.explDefine.append(expr)
+        return self(expr)
+
     def _define(self, name, expr):
         logger.debug("Defining {0} as {1}".format(name, expr.get_cppStr(defCache=self)))
         self.df = self.df.Define(name, expr.get_cppStr(defCache=self))
@@ -50,9 +57,15 @@ class SelWithDefines(top.CppStrRedir):
     def symbol(self, decl, **kwargs):
         return self.backend.symbol(decl, **kwargs)
 
+    def _inExplDefines(self, arg):
+        return arg in self.explDefine or ( self.parent and self.parent._inExplDefines(arg) )
+
+    def shouldDefine(self, arg):
+        return self.backend.shouldDefine(arg, defCache=self) or self._inExplDefines(arg)
+
     def __call__(self, arg):
         """ Get the C++ string corresponding to an op """
-        if not self.backend.shouldDefine(arg, defCache=self): ## the easy case
+        if not self.shouldDefine(arg): ## the easy case
             try:
                 return arg.get_cppStr(defCache=self)
             except Exception as ex:
@@ -87,7 +100,7 @@ class DataframeBackend(FactoryBackend):
         return "myCol{0:d}".format(self._iCol)
 
     def shouldDefine(self, op, defCache=None):
-        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.KinematicVariation, top.Combine))
+        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.Combine))
                 and not any(op.deps(defCache=defCache, select=lambda dp : isinstance(dp, top.LocalVariablePlaceholder))) )
 
     def symbol(self, decl, resultType=None, args=None, nameHint=None):

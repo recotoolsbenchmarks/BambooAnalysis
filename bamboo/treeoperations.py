@@ -318,7 +318,7 @@ class CallMethod(TupleOp):
         return hash(self.__repr__())
     # backends
     def get_cppStr(self, defCache=cppNoRedir):
-        if not defCache.backend.shouldDefine(self, defCache=defCache):
+        if not defCache.shouldDefine(self):
             return "{0}({1})".format(self.name, ", ".join(defCache(arg) for arg in self.args))
         else: ## go through a symbol
             depList = _collectDeps(self.args, [], defCache=defCache)
@@ -471,13 +471,13 @@ class LocalVariablePlaceholder(TupleOp):
 def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
     ## first pass (will trigger definitions, if necessary)
     exprs1, exprs2 = tee(exprs, 2)
-    for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.backend.shouldDefine(op, defCache=defCache)) for expr in exprs1):
+    for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.shouldDefine(op)) for expr in exprs1):
         cn = defCache(dep)
         if not cn:
             print("WARNING: Probably a problem in triggering definition for {0}".format(dep))
     return set(chain.from_iterable(
             expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or defCache.backend.shouldDefine(op, defCache=defCache) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
+                or defCache.shouldDefine(op) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
                 ))
             for expr in exprs2))
 
@@ -517,7 +517,7 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
             captures.append(ld.name)
             paramDecl.append("{0} {1}".format(ld.typeHint, ld.name))
             paramCall.append(ld.name)
-        elif defCache.backend.shouldDefine(ld, defCache=defCache):
+        elif defCache.shouldDefine(ld):
             nm = defCache._getColName(ld)
             if not nm:
                 print("ERROR: no column name for {0}".format(ld))

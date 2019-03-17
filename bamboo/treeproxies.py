@@ -357,7 +357,8 @@ class JMEVariations(TupleBaseProxy):
     def __getitem__(self, key):
         if self.calc and not self.calc.hasProduct(key):
             raise KeyError("Modified jet collection with name {0!r} will not be produced, please check the configuration".format(key))
-        res_item = GetItem(self.calcProd, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
+        #res_item = GetItem(self.calcProd, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
+        res_item = self.calcProd.at(makeConst(key, "std::string")).op
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
@@ -367,26 +368,21 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
         ## parent has a member indices() and one for each of modBranches
         ListBase.__init__(self)
         self.valueType = base.valueType ## for ListBase
-        self._base = base
         self.itemType = itemType ## for actual items
         super(ModifiedCollectionProxy, self).__init__(self.valueType, parent=parent)
-    @property
-    def _idxs(self):
-        return self._parent.result.indices()
     def __len__(self):
-        return self._idxs.__len__()
+        return self._parent.result.indices().__len__()
     def __getitem__(self, index):
         return self.itemType(self, index)
     def __repr__(self):
-        return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self._base, self.itemType)
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
     ##
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (self._parent, self._base):
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if select(self._parent):
+            yield self._parent
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self._base == other._base ) and ( self.itemType == other.itemType )
+        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType )
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination

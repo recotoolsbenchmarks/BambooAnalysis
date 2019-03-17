@@ -136,7 +136,7 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
-def decorateNanoAOD(aTree, description=None):
+def decorateNanoAOD(aTree, description=None, isMC=False):
     if description is None:
         description = dict()
 
@@ -145,8 +145,8 @@ def decorateNanoAOD(aTree, description=None):
     ## NOTE first attempt: fill all, take some out later
     tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm))) for lvNm,lv in allTreeLeafs.items()))
     tree_postconstr = []
-    simpleGroupPrefixes = ("CaloMET_", "Flag_", "HLT_", "RawMET_", "PuppiMET_", "MET_", "TkMET_", "PV_") ## TODO get this from description
-    for prefix in simpleGroupPrefixes:
+    simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_") ## TODO get this from description?
+    for prefix in (chain(simpleGroupPrefixes, ("GenMET_",)) if isMC else simpleGroupPrefixes):
         grpNm = prefix.rstrip("_")
         grp_dict = {
             "__doc__" : "{0} leaf group proxy class".format(grpNm)
@@ -159,8 +159,9 @@ def decorateNanoAOD(aTree, description=None):
             del tree_dict[lvNm]
         tree_postconstr.append(SetAsParentOfAtt(grpNm))
     ## SOA, nanoAOD style (LeafCount, shared)
-    containerGroupCounts = ("nElectron", "nMuon", "nTau", "nPhoton", "nJet", "nFatJet", "nSubJet", "nTrigObj", "nSV", "nOtherPV", "nSoftActivityJet")
-    for sizeNm in containerGroupCounts:
+    containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj")
+    containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
+    for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
         grpNm = sizeNm[1:]
         prefix = "{0}_".format(grpNm)
         itm_dict = {
@@ -210,14 +211,17 @@ def decorateNanoAOD(aTree, description=None):
 
             aJet = jets_orig[0]
             kinj = tuple(comp.op.arg for comp in (aJet.pt, aJet.eta, aJet.phi, aJet.mass))
-            ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
-            import copy
-            genkinj = copy.deepcopy(kinj)
-            for it in genkinj:
-                it.name = it.name.replace("Jet", "GenJet")
+            if isMC:
+                ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
+                import copy
+                genkinj = copy.deepcopy(kinj)
+                for it in genkinj:
+                    it.name = it.name.replace("Jet", "GenJet")
+            else:
+                genkinj = tuple(repeat(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
             ##
-            tree_dict[grpNm] = JMEVariations(None, jets_orig, tuple(
-                chain(kinj, (GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt")), genkinj)),
+            tree_dict[grpNm] = JMEVariations(None, jets_orig, tuple(chain(kinj, (aJet.rawFactor.op.arg, aJet.area.op.arg),
+                (GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt")), genkinj)),
                 varItemType=varItemType)
 
         for lvNm in itm_lvs:

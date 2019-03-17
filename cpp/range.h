@@ -13,7 +13,13 @@ template<typename RANGE,typename PREDICATE>
 ROOT::VecOps::RVec<typename RANGE::value_type> select(const RANGE& range, PREDICATE&& pred)
 {
   ROOT::VecOps::RVec<typename RANGE::value_type> sel;
-  std::copy_if(range.begin(), range.end(), std::back_inserter(sel), pred);
+  //std::copy_if(range.begin(), range.end(), std::back_inserter(sel), pred);
+  // explicit copy to work around universal-reference push_back of RVec
+  for ( const auto& itm : range ) {
+    if ( pred(itm) ) {
+      sel.push_back(typename RANGE::value_type(itm));
+    }
+  }
   return sel;
 }
 

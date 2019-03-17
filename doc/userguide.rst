@@ -284,6 +284,60 @@ and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
 respectively, instead of a single path.
 
+Jet systematics
+'''''''''''''''
+
+For propagating uncertainties related to the jet energy calibration, and the
+difference in jet energy resolution between data and simulation, each jet in
+the reconstructed jet collection should be modified, the collection sorted,
+and any derived quantity re-evaluated.
+
+For efficiency and consistency, this is done by a single C++ module
+that produces a set of jet collections (technically, only lists with the sorted
+new momenta and the corresponding indices of the original jets are stored, and
+the python decorations take care of redirecting to those if necessary).
+The base jet collection proxy (e.g. ``Jet`` for NanoAOD) has a member ``calc``
+that can be used to store a reference to the module instance, and serves as a
+handle to configure it.
+By default, only the nominal jet collection (``Jet["nominal"]`` for NanoAOD) is
+available. The :py:meth:`bamboo.analysisutils.configureJets` provides a
+convenient way to correct the jet resolution in MC, apply a different JEC, and
+add variations due to different sources of uncertainty in the jet energy scale.
+As an example, the ``prepareTrees`` method of a NanoAOD analysis module could
+look like this to apply a newer JEC to 2016 data and perform smearing and add
+uncertainties to 2016 MC:
+
+.. code-block:: python
+
+   def prepareTree(self, tree, era=None, sample=None):
+       ## initializes tree.Jet.calc so should be called first (better: use super() instead)
+       tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
+       from bamboo.analysisutils import configureJets
+       if era == "2016":
+           if self.isMC(sample): # can be inferred from sample name
+               configureJets(tree.Jet.calc, "AK4PFchs",
+                   jec="Summer16_07Aug2017_V20_MC",
+                   smear="Summer16_25nsV1_MC",
+                   jesUncertaintySources=["Total"])
+           else:
+               if "2016G" in sample or "2016H" in sample:
+                   configureJets(tree.Jet.calc, "AK4PFchs",
+                       jec="Summer16_07Aug2017GH_V11_DATA")
+               elif ...: ## other 2016 periods
+                   pass
+
+       return tree,noSel,be,lumiArgs
+
+The jet collections ``t.Jet["nominal"]``, ``t.Jet["jerup"]``,
+``t.Jet["jerdown"]``, ``t.jet["jesTotalUp"]`` and ``t.Jet["jesTotalDown"]``
+will then be available when defining plots.
+
+The necessary txt files will be automatically downloaded (and kept up to date)
+from the repositories on github, and stored in a local cache (this should be
+entirely transparent to the user |---| in case of doubt one can remove the
+corresponding directory and status file from ``~/.bamboo/cache``, they will be
+recreated automatically at the next use).
+
 .. _YAML: https://yaml.org
 
 .. _YAML Wikipedia page: https://en.wikipedia.org/wiki/YAML

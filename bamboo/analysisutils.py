@@ -1,5 +1,7 @@
-"""
-Analysis helper functions that don't fit in treefunctions
+""" The :py:mod:`bamboo.analysisutils` module bundles a number of more
+specific helper methods that use the tree decorators and integrate with
+other components, connect to external services, or are factored out of the
+classes in :py:mod:`bamboo.analysismodules` to facilitate reuse.
 """
 import copy
 import logging
@@ -202,7 +204,7 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
     :param jetType: jet type, e.g. AK4PFchs
     :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
     :param jec: tag of the new JEC to apply, or for the JES uncertainties (pass an empty list to jecLevels to produce only the latter without reapplying the JEC)
-    :param jesUncertaintySources: list of jet energy scale uncertainty sources
+    :param jesUncertaintySources: list of jet energy scale uncertainty sources (see `the JECUncertaintySources twiki page <https://twiki.cern.ch/twiki/bin/viewauth/CMS/JECUncertaintySources>`_)
 
     :param useGenMatch: use matching to generator-level jets for resolution smearing
     :param genMatchDR: DeltaR for generator-level jet matching (half the cone size is recommended, default is 0.2)
@@ -240,3 +242,14 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
                 for src in jesUncertaintySources:
                     params = gbl.JetCorrectorParameters(plf, src)
                     calc.addJESUncertainty(src, params)
+
+def forceDefine(arg, selection):
+    """ Force the definition of an expression as a column at a selection stage
+
+    Use only for really computation-intensive operations that need to be precalculated
+
+    :param arg: expression to define as a column
+    :param selection: selection for which the expression should be defined
+    """
+    from .treeoperations import adaptArg
+    return selection._fbe.selDFs[selection.name].define(adaptArg(arg))

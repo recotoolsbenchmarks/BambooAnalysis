@@ -19,8 +19,12 @@ Analysis modules
    :members:
    :special-members: __init__
 
-Helper modules
---------------
+Helper functions
+----------------
+
+.. automodule:: bamboo.analysisutils
+   :members:
+   :special-members: __init__
 
 Scale factors
 '''''''''''''

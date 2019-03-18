@@ -146,7 +146,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
     tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm))) for lvNm,lv in allTreeLeafs.items()))
     tree_postconstr = []
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_") ## TODO get this from description?
-    for prefix in (chain(simpleGroupPrefixes, ("GenMET_",)) if isMC else simpleGroupPrefixes):
+    for prefix in (chain(simpleGroupPrefixes, ("GenMET_", "Generator_", "LHE_",)) if isMC else simpleGroupPrefixes):
         grpNm = prefix.rstrip("_")
         grp_dict = {
             "__doc__" : "{0} leaf group proxy class".format(grpNm)

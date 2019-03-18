@@ -5,16 +5,14 @@ samples:
   DoubleMuon_2016F:
     group: data
     era: '2016'
-    #db: das:/DoubleMuon/Run2016F-Nano14Dec2018-v1/NANOAOD
-    files: [ '/storage/data/cms/store/data/Run2016F/DoubleMuon/NANOAOD/Nano14Dec2018-v1/20000/EF0AC64B-E137-9949-B0A9-2D0CB70D6783.root', '/storage/data/cms/store/data/Run2016F/DoubleMuon/NANOAOD/Nano14Dec2018-v1/20000/415B256D-5FA3-8349-8035-BAF7C497358F.root' ]
+    db: das:/DoubleMuon/Run2016F-Nano14Dec2018-v1/NANOAOD
     run_range: [277772, 278808]
     certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
   DY_M50_2016:
     group: DY
     era: '2016'
-    #db: das:/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/RunIISummer16NanoAODv4-PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/NANOAODSIM
-    files: [ '/storage/data/cms/store/mc/RunIISummer16NanoAODv4/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/NANOAODSIM/PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/90000/B8760B26-38E3-C941-A9CD-0DAD1B1F355E.root' ]
-    cross-section: 5765.4
+    db: das:/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/RunIISummer16NanoAODv4-PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/NANOAODSIM
+    cross-section: 5765.400
     generated-events: genEventSumw
 plotIt:
   configuration:

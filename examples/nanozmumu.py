@@ -32,6 +32,9 @@ class NanoZMuMu(NanoAODHistoModule):
         return tree,noSel,be,lumiArgs
 
     def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
+        if self.isMC(sample):
+            noSel = noSel.refine("mcWeight", weight=t.genWeight)
+
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
 

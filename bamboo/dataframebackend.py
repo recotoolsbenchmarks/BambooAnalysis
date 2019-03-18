@@ -23,9 +23,12 @@ class SelWithDefines(top.CppStrRedir):
             self.backend = parent
         if weights:
             self._initWeights(wName, weights)
+            self.wName = wName
+        elif self.parent and self.parent.wName:
+            self.wName = self.parent.wName
         else:
             assert not wName
-        self.wName = wName
+            self.wName = None
         top.CppStrRedir.__init__(self)
     
     def _initWeights(self, wName, weights):
@@ -33,7 +36,7 @@ class SelWithDefines(top.CppStrRedir):
             ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
             else weights
             )
-        self._define(wName, self(weightExpr))
+        self._define(wName, weightExpr)
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -163,8 +166,10 @@ class DataframeBackend(FactoryBackend):
             plotDF = plotDF.Define(vName, vExpr)
         plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
         if selND.wName:
-            plotDF = plotFun(hModel, *(varExprs.keys()+[selND.wName]))
+            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName))
+            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName]))
         else:
+            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
             plotDF = plotFun(hModel, *varExprs.keys())
         self.plotResults[plot.name] = plotDF
 

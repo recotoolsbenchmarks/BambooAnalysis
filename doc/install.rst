@@ -25,15 +25,15 @@ one of
 
 .. code-block:: sh
 
-   pip install git+https://gitlab.cern.ch/piedavid/bamboo.git
-   pip install git+ssh://git@gitlab.cern.ch:7999/piedavid/bamboo.git
+   pip install git+https://gitlab.cern.ch/cp3-cms/bamboo.git
+   pip install git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
 
 but in the current development stage it may be useful to install from
 a local clone, such that you can use it to test and propose changes, using
 
 .. code-block:: sh
 
-   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/piedavid/bamboo.git /path/to/your/bambooclone
+   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git /path/to/your/bambooclone
    # copy and patch some jet-related classes from CMSSW (requires cvmfs) --- temporary
    pushd /path/to/your/bambooclone
    ./getjetclasses.sh
@@ -90,7 +90,7 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
-   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/piedavid/bamboo.git
+   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
    pip install ./bamboo
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git
    cd plotIt/external

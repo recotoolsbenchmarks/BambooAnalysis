@@ -318,7 +318,7 @@ class CallMethod(TupleOp):
         return hash(self.__repr__())
     # backends
     def get_cppStr(self, defCache=cppNoRedir):
-        if not defCache.backend.shouldDefine(self, defCache=defCache):
+        if not defCache.shouldDefine(self):
             return "{0}({1})".format(self.name, ", ".join(defCache(arg) for arg in self.args))
         else: ## go through a symbol
             depList = _collectDeps(self.args, [], defCache=defCache)
@@ -411,9 +411,10 @@ class ExtVar(TupleOp):
 
 class DefinedVar(TupleOp):
     """ Defined variable (used by name), first use will trigger definition """
-    def __init__(self, typeName, definition):
+    def __init__(self, typeName, definition, nameHint=None):
         self.typeName = typeName
         self.definition = definition
+        self._nameHint = nameHint
         super(DefinedVar, self).__init__()
     @property
     def result(self):
@@ -426,7 +427,7 @@ class DefinedVar(TupleOp):
     def __hash__(self):
         return hash(self.__repr__())
     def get_cppStr(self, defCache=cppNoRedir):
-        return defCache.symbol(self.definition)
+        return defCache.symbol(self.definition, nameHint=self._nameHint)
 
 class InitList(TupleOp):
     def __init__(self, typeName, elmType, elms):
@@ -470,13 +471,13 @@ class LocalVariablePlaceholder(TupleOp):
 def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
     ## first pass (will trigger definitions, if necessary)
     exprs1, exprs2 = tee(exprs, 2)
-    for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.backend.shouldDefine(op, defCache=defCache)) for expr in exprs1):
+    for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.shouldDefine(op)) for expr in exprs1):
         cn = defCache(dep)
         if not cn:
             print("WARNING: Probably a problem in triggering definition for {0}".format(dep))
     return set(chain.from_iterable(
             expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
-                or defCache.backend.shouldDefine(op, defCache=defCache) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
+                or defCache.shouldDefine(op) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
                 ))
             for expr in exprs2))
 
@@ -516,7 +517,7 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
             captures.append(ld.name)
             paramDecl.append("{0} {1}".format(ld.typeHint, ld.name))
             paramCall.append(ld.name)
-        elif defCache.backend.shouldDefine(ld, defCache=defCache):
+        elif defCache.shouldDefine(ld):
             nm = defCache._getColName(ld)
             if not nm:
                 print("ERROR: no column name for {0}".format(ld))
@@ -660,62 +661,6 @@ class Reduce(TupleOp):
             else:
                 funName = defCache.symbol(expr, resultType=self.resultType, args=paramDecl)
                 return "{0}({1})".format(funName, paramCall)
-
-class KinematicVariation(TupleOp):
-    def __init__(self, rng, modif, pred):
-        self.rng = rng ## PROXY (original range)
-        self._im = LocalVariablePlaceholder(SizeType)
-        self.modifExpr = adaptArg(modif(self.rng._base[self._im.result]))
-        self._mp4 = LocalVariablePlaceholder("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>")
-        self._ip = LocalVariablePlaceholder(SizeType)
-        self.predExpr = adaptArg(pred(self._mp4.result, self.rng._base[self._ip.result]))
-        super(KinematicVariation, self).__init__()
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        if not defCache._getColName(self):
-            for arg in (adaptArg(self.rng), self.modifExpr, self.predExpr):
-                if select(arg):
-                    yield
-                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if includeLocal or dp not in (self._im, self._mp4, self._ip):
-                        yield dp
-    @property
-    def result(self):
-        from .treeproxies import makeProxy, ModifiedCollectionProxy
-        return ModifiedCollectionProxy(makeProxy("rdfhelpers::ModifiedKinCollection", self), self.rng._base) ## itemType to be filled in by 
-    def __eq__(self, other):
-        return isinstance(other, KinematicVariation) and ( self.rng == other.rng ) and ( self.modifExpr == other.modifExpr ) and ( self.predExpr == other.predExpr )
-    def __repr__(self):
-        return "KinematicVariation({0!r}, {1!r}, {2!r})".format(self.rng, self.modifExpr, self.predExpr)
-    def __hash__(self):
-        return hash(self.__repr__())
-    def get_cppStr(self, defCache=cppNoRedir):
-        depList_modif = _collectDeps((self.rng, self.modifExpr), (self._im,), defCache=defCache)
-        depList_pred  = _collectDeps((self.rng, self.predExpr ), (self._mp4, self._ip), defCache=defCache)
-        depList_merged = set(depList_modif)
-        depList_merged.update(depList_pred)
-        ## should only be a non-empty list for the topmost op in case of nested expressions
-        localVarsToName = _collectLocalVars((self.rng, self.modifExpr, self.predExpr), (self._im, self._mp4, self._ip), defCache=defCache)
-        with _nameLocalVars(localVarsToName):
-            captures_modif, paramDecl_modif, paramCall_modif = _convertFunArgs(depList_modif, defCache=defCache)
-            captures_pred, paramDecl_pred, paramCall_pred = _convertFunArgs(depList_pred, defCache=defCache)
-            captures_merged, paramDecl_merged, paramCall_merged = _convertFunArgs(depList_merged, defCache=defCache)
-            expr = ("rdfhelpers::modifyKinCollection({idxs},\n"
-                "     [{captures_modif}] ( {im} ) {{ return {modifExpr}; }},\n"
-                "     [{captures_pred}] ( {mp4}, {ip} ) {{ return {predExpr}; }})").format(
-                    idxs=defCache(self.rng._idxs.op),
-                    captures_modif=captures_modif,
-                    im="{0} {1}".format(self._im.typeHint, self._im.name),
-                    modifExpr=defCache(self.modifExpr),
-                    captures_pred=captures_pred,
-                    ip="{0} {1}".format(self._ip.typeHint, self._ip.name),
-                    mp4="const {0}& {1}".format(self._mp4.typeHint, self._mp4.name),
-                    predExpr=defCache(self.predExpr)
-                    )
-            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList_merged):
-                return expr
-            else:
-                funName = defCache.symbol(expr, resultType="rdfhelpers::ModifiedKinCollection", args=paramDecl_merged)
-                return "{0}({1})".format(funName, paramCall_merged)
 
 class Combine(TupleOp):
     def __init__(self, num, ranges, candPredFun, sameIdxPred=lambda i1,i2: i1 < i2):

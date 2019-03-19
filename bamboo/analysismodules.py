@@ -108,7 +108,8 @@ class AnalysisModule(object):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists)
+            envConfig = readEnvConfig(self.args.envConfig)
+            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
             import ROOT
             tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
             smpNm,smpCfg = next(itm for itm in analysisCfg["samples"].items())
@@ -378,12 +379,20 @@ class NanoAODHistoModule(HistogramsModule):
     """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODHistoModule, self).__init__(args)
+    def isMC(self, sampleName):
+        return not any(sampleName.startswith(pd) for pd in ("SingleMuon", "SingleElectron", "DoubleMuon", "DoubleEG", "MuonEG"))
     def prepareTree(self, tree, era=None, sample=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree)
+        t = decorateNanoAOD(tree, isMC=self.isMC(sample))
         be, noSel = DataframeBackend.create(t)
+        ## force definition of the jet variations calculator such that
+        ## it can be configured by calling its member methods through t.Jet.calc
+        from bamboo import treefunctions as op
+        from cppyy import gbl
+        jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in sample if c.isalnum())))
+        t.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """

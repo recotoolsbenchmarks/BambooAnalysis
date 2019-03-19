@@ -31,3 +31,27 @@ target_link_libraries(BambooLumiMask ${Boost_LIBRARIES})
 install(TARGETS BambooLumiMask
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
+
+set(SRC_CMSJET
+  src/JetCorrectionUncertainty.cc
+  src/JetCorrectorParameters.cc
+  src/JetCorrectorParametersHelper.cc
+  src/JetResolution.cc
+  src/JetResolutionObject.cc
+  src/SimpleJetCorrectionUncertainty.cc
+  src/SimpleJetCorrector.cc
+  src/FactorizedJetCorrector.cc
+  src/FactorizedJetCorrectorCalculator.cc
+  src/formulaEvaluatorBase.cc
+  src/formulaConstantEvaluator.cc
+  src/formulaParameterEvaluator.cc
+  src/formulaVariableEvaluator.cc
+  src/FormulaEvaluator.cc
+  )
+add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc)
+target_compile_features(JMEObjects PRIVATE cxx_std_17)
+target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(JMEObjects ${ROOT_LIBRARIES})
+install(TARGETS JMEObjects
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )

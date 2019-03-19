@@ -22,8 +22,11 @@ def _load_extensions():
         gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
     gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))
     gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
-    for fname in ("range.h", "jmesystematics.h", "scalefactors.h", "LumiMask.h"):
+    gbl.gSystem.Load(os.path.join(libDir, "libJMEObjects"))
+    ## TODO combine into libBamboo, and "bamboo.h"?
+    for fname in ("range.h", "JMESystematicsCalculator.h", "scalefactors.h", "LumiMask.h"):
         gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
+    getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
 _load_extensions()
 
 ## simple type support
@@ -74,8 +77,8 @@ def construct(typeName, args):
     return _to.Construct(typeName, args).result
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elmName, elms).result
-def define(typeName, definition):
-    return _to.DefinedVar(typeName, definition).result
+def define(typeName, definition, nameHint=None):
+    return _to.DefinedVar(typeName, definition, nameHint=nameHint).result
 
 ## math
 def abs(sth):
@@ -392,22 +395,6 @@ def rng_pickRandom(rng, seed=0):
         empty placeholder, to be implemented
     """
     return rng[_to.PseudoRandom(0, rng_len(rng), seed, isIntegral=True)]
-
-def addKinematicVariation(vrng, key, modif=( lambda elm : elm.p4 ), pred=( lambda mp4,elm : True )):
-    """ Add a container with modified kinematics (for jet systematics)
-
-    :param vrng: base object range (kinematic variation-enabled, see :py:class:`bamboo.treeproxies.Variations`)
-    :param key: registered name of the variation
-    :param modif: transformation to apply (a callable that takes a base object and returns the modified momentum)
-    :param pred: selection to apply after performing the transformation (a callable that takes a modified momentum and base object, and returns a boolean)
-
-    .. note::
-
-        to be tested further with realistic systematic variations
-    """
-    modif = _to.KinematicVariation(vrng.nominal, modif, pred).result
-    modif.itemType = vrng._varItemType
-    vrng.register(key, modif)
 
 def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1 < i2):
     """ Create N-particle combination from one or several ranges

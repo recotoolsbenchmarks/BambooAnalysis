@@ -200,14 +200,14 @@ class ObjectProxy(NumberProxy):
     """
     __slots__ = ("_typ",)
     def __init__(self, parent, typeName):
-        import ROOT
-        self._typ = getattr(ROOT, typeName) ## NOTE could also use TClass machinery
+        from cppyy import gbl
+        self._typ = getattr(gbl, typeName) ## NOTE could also use TClass machinery
         super(ObjectProxy, self).__init__(parent, typeName)
     def __getattr__(self, name):
         if name not in dir(self._typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
-        import ROOT
-        if hasattr(self._typ, name) and isinstance(getattr(self._typ, name), ROOT.MethodProxy):
+        from cppyy import gbl
+        if hasattr(self._typ, name) and isinstance(getattr(self._typ, name), gbl.MethodProxy):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result
@@ -224,7 +224,7 @@ class ObjectMethodProxy(TupleBaseProxy): ## TODO data members?
         self._name = name
         super(ObjectMethodProxy, self).__init__("{0}.{1}(...)".format(objStb._typeName, self._name))
     def __call__(self, *args):
-        ## TODO maybe tihs is a good place to resolve the right overload? or do some arguments checking
+        ## TODO maybe this is a good place to resolve the right overload? or do some arguments checking
         return CallMemberMethod(self._objStb, self._name, tuple(args)).result
     def __repr__(self):
         return "ObjectMethodProxy({0!r}, {1!r})".format(self._objStb, self._name)
@@ -238,17 +238,17 @@ class MethodProxy(TupleBaseProxy):
         self._name = name
         super(MethodProxy, self).__init__("{0}(...)".format(self._name))
     def __call__(self, *args):
-        ## TODO maybe tihs is a good place to resolve the right overload? or do some arguments checking
+        ## TODO maybe this is a good place to resolve the right overload? or do some arguments checking
         return CallMethod(self._name, tuple(args)).result
     def __repr__(self):
         return "MethodProxy({0!r})".format(self._name)
 
 class VectorProxy(ObjectProxy,ListBase):
-    """ Vector-as-array (to be eliminated with var-array branches / generalised into object) """
+    """ Vector-as-array (maybe to be eliminated with var-array branches / generalised into object) """
     def __init__(self, parent, typeName):
         ListBase.__init__(self)
-        import ROOT
-        vecClass = getattr(ROOT, typeName)
+        from cppyy import gbl
+        vecClass = getattr(gbl, typeName)
         if hasattr(vecClass, "value_type"):
             value = getattr(vecClass, "value_type")
             if hasattr(value, "__cppname__"):
@@ -336,57 +336,53 @@ class varItemProxy(object):
     def __init__(self, op):
         self.op = op
     def __get__(self, inst, cls):
-        return self.op[inst._parent._parent.indices()[inst._idx]]
+        return self.op[inst._parent._parent.result.indices()[inst._idx]]
 class varItemRefProxy(object):
     def __init__(self, op, getTarget):
         self.op = op
         self.getTarget = getTarget
     def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._parent._parent.indices()[inst._idx]]]
+        return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
 
-class Variations(TupleBaseProxy):
-    """ Proxy with variations (that can be dynamically added) """
-    def __init__(self, parent, nominal, varItemType=None):
-        self._vars = dict()
-        self._vars["nominal"] = nominal
-        self._varItemType = varItemType if varItemType else nominal.valuetype
-        super(Variations, self).__init__("dict", parent=parent)
-    @property
-    def nominal(self):
-        return self._vars["nominal"]
+class JMEVariations(TupleBaseProxy):
+    def __init__(self, parent, orig, args, varItemType=None):
+        self.orig = orig
+        self._args = args
+        self.varItemType = varItemType if varItemType else orig.valuetype
+        self.calc = None
+        self.calcProd = DefinedVar("JMESystematicsCalculator", "JMESystematicsCalculator <<name>>;").result.produceModifiedCollections(*self._args)
+    def initCalc(self, calcProxy, calcHandle=None):
+        self.calc = calcHandle ## handle to the actual module object
+        self.calcProd = calcProxy.produceModifiedCollections(*self._args)
     def __getitem__(self, key):
-        return self._vars[key]
-    def register(self, key, modified):
-        if key in self._vars:
-            raise ValueError("Variation '{0}' is already registered".format(key))
-        self._vars[key] = modified
+        if self.calc and not self.calc.hasProduct(key):
+            raise KeyError("Modified jet collection with name {0!r} will not be produced, please check the configuration".format(key))
+        #res_item = GetItem(self.calcProd, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
+        res_item = self.calcProd.at(makeConst(key, "std::string")).op
+        return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
+    ## TODO make jet-specific, maybe add a bit of MET deco
     """ Collection with a selection and modified branches """
     def __init__(self, parent, base, itemType=None):
         ## parent has a member indices() and one for each of modBranches
         ListBase.__init__(self)
         self.valueType = base.valueType ## for ListBase
-        self._base = base
         self.itemType = itemType ## for actual items
         super(ModifiedCollectionProxy, self).__init__(self.valueType, parent=parent)
-    @property
-    def _idxs(self):
-        return self._parent.indices()
     def __len__(self):
-        return self._idxs.__len__()
+        return self._parent.result.indices().__len__()
     def __getitem__(self, index):
         return self.itemType(self, index)
     def __repr__(self):
-        return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self._base, self.itemType)
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
     ##
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (self._parent, self._base):
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if select(self._parent):
+            yield self._parent
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self._base == other._base ) and ( self.itemType == other.itemType )
+        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType )
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination

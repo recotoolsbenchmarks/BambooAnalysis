@@ -13,6 +13,7 @@ from . import treeoperations as top
 class SelWithDefines(top.CppStrRedir):
     def __init__(self, parent, df, weights=None, wName=None):
         self.df = df
+        self.explDefine = list()
         self._definedColumns = dict()
         if isinstance(parent, SelWithDefines):
             self.parent = parent
@@ -22,9 +23,12 @@ class SelWithDefines(top.CppStrRedir):
             self.backend = parent
         if weights:
             self._initWeights(wName, weights)
+            self.wName = wName
+        elif self.parent and self.parent.wName:
+            self.wName = self.parent.wName
         else:
             assert not wName
-        self.wName = wName
+            self.wName = None
         top.CppStrRedir.__init__(self)
     
     def _initWeights(self, wName, weights):
@@ -32,8 +36,7 @@ class SelWithDefines(top.CppStrRedir):
             ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
             else weights
             )
-        logger.debug("Defining {0} as {1}".format(wName, self(weightExpr)))
-        self.df = self.df.Define(wName, self(weightExpr))
+        self._define(wName, weightExpr)
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -43,12 +46,29 @@ class SelWithDefines(top.CppStrRedir):
             if res:
                 return res
 
+    def define(self, expr):
+        """ explicitly define column for expression (returns the column name) """
+        if not self._getColName(expr):
+            self.explDefine.append(expr)
+        return self(expr)
+
+    def _define(self, name, expr):
+        logger.debug("Defining {0} as {1}".format(name, expr.get_cppStr(defCache=self)))
+        self.df = self.df.Define(name, expr.get_cppStr(defCache=self))
+        self._definedColumns[expr] = name
+
     def symbol(self, decl, **kwargs):
         return self.backend.symbol(decl, **kwargs)
-    
+
+    def _inExplDefines(self, arg):
+        return arg in self.explDefine or ( self.parent and self.parent._inExplDefines(arg) )
+
+    def shouldDefine(self, arg):
+        return self.backend.shouldDefine(arg, defCache=self) or self._inExplDefines(arg)
+
     def __call__(self, arg):
         """ Get the C++ string corresponding to an op """
-        if not self.backend.shouldDefine(arg, defCache=self): ## the easy case
+        if not self.shouldDefine(arg): ## the easy case
             try:
                 return arg.get_cppStr(defCache=self)
             except Exception as ex:
@@ -57,9 +77,7 @@ class SelWithDefines(top.CppStrRedir):
             nm = self._getColName(arg)
             if not nm: ## define it then
                 nm = self.backend.getUColName()
-                logger.debug("Defining {0} as {1}".format(nm, arg.get_cppStr(defCache=self)))
-                self.df = self.df.Define(nm, arg.get_cppStr(defCache=self))
-                self._definedColumns[arg] = nm
+                self._define(nm, arg)
             return nm
 
 ## NOTE these are global (for the current process&interpreter)
@@ -85,15 +103,18 @@ class DataframeBackend(FactoryBackend):
         return "myCol{0:d}".format(self._iCol)
 
     def shouldDefine(self, op, defCache=None):
-        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.KinematicVariation, top.Combine))
+        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.Combine))
                 and not any(op.deps(defCache=defCache, select=lambda dp : isinstance(dp, top.LocalVariablePlaceholder))) )
 
-    def symbol(self, decl, resultType=None, args=None):
+    def symbol(self, decl, resultType=None, args=None, nameHint=None):
         global _gSymbols
         if decl in _gSymbols:
             return _gSymbols[decl]
         else:
-            name = self._getUSymbName()
+            if nameHint and nameHint not in _gSymbols.values():
+                name = nameHint
+            else:
+                name = self._getUSymbName()
             _gSymbols[decl] = name
             if resultType and args: ## then it needs to be wrapped in a function
                 fullDecl = "{result} {name}({args})\n{{\n  return {0};\n}};\n".format(
@@ -145,8 +166,10 @@ class DataframeBackend(FactoryBackend):
             plotDF = plotDF.Define(vName, vExpr)
         plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
         if selND.wName:
-            plotDF = plotFun(hModel, *(varExprs.keys()+[selND.wName]))
+            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName))
+            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName]))
         else:
+            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
             plotDF = plotFun(hModel, *varExprs.keys())
         self.plotResults[plot.name] = plotDF
 

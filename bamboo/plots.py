@@ -267,7 +267,7 @@ class Selection(object):
         elif len(listOfReqs) == 1:
             return listOfReqs[0]
         else:
-            from .treeproxies import makeConst
+            from .treeproxies import makeConst, boolType
             return adaptArg(makeConst("true", boolType), typeHint=boolType)
     @staticmethod
     def _makeExprProduct(listOfFactors):

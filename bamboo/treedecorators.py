@@ -176,7 +176,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                 itm_dict[lvNm_short] = itemProxy(col)
             else:
                 coll,i = lvNm_short.split("Idx")
-                itm_dict["".join((coll,i))] = itemRefProxy(col, (lambda colName : (lambda me : getattr(me._parent._parent, colName))) (coll.capitalize()))
+                collPrefix = coll[0].capitalize()+coll[1:]
+                itm_dict["".join((coll,i))] = itemRefProxy(col, (lambda colName : (lambda me : getattr(me._parent._parent, colName))) (collPrefix))
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
             if sizeNm != "nJet":

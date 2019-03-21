@@ -33,9 +33,9 @@ _load_extensions()
 def c_bool(arg):
     """ Construct a boolean constant """
     if arg:
-        return _tp.makeConst("true", _tp.boolType)
+        return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "true"))
     else:
-        return _tp.makeConst("false", _tp.boolType)
+        return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "false"))
 def c_int(num):
     """ Construct an integer number constant """
     return _tp.makeConst(num, "Int_t")

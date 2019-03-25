@@ -7,6 +7,12 @@ set(CMAKE_INSTALL_LIBDIR "lib")
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
+if(EXISTS "$ENV{CMAKE_PREFIX_PATH}/include/boost")
+    message(STATUS "Will use $ENV{CMAKE_PREFIX_PATH} as base path for boost")
+    set(BOOST_ROOT $ENV{CMAKE_PREFIX_PATH})
+    set(Boost_NO_BOOST_CMAKE ON)
+endif()
+
 find_package( ROOT REQUIRED )
 find_package( Boost REQUIRED ) # property_tree is header-only
 

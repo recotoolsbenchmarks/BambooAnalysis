@@ -11,7 +11,7 @@ class NanoZMuMu(NanoAODHistoModule):
     def prepareTree(self, tree, era=None, sample=None):
         ## initializes tree.Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
-        from bamboo.analysisutils import configureJets
+        from bamboo.analysisutils import configureJets, makePileupWeight
         if self.isMC(sample):
             jecTag = None
             smearTag = None
@@ -19,19 +19,15 @@ class NanoZMuMu(NanoAODHistoModule):
             if era == "2016":
                 jecTag = "Summer16_07Aug2017_V20_MC"
                 smearTag = "Summer16_25nsV1_MC"
+                import os.path
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
-            configureJets(tree.Jet.calc, "AK4PFchs",
-                jec=jecTag, smear=smearTag,
-                jesUncertaintySources=["Total"])
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"])
 
             mcWgts = [ tree.genWeight ]
             if puWeightsFile:
-                from bamboo.scalefactors import BinningParameters
-                puArgs = BinningParameters({"NumTrueInteractions": lambda evt : evt.Pileup_nTrueInt})(tree)
-                from bamboo import treefunctions as op
-                puWFun = op.define("ILeptonScaleFactor", 'ScaleFactor{{"{0}"}};'.format(puWeightsFile))
-                mcWgts.append(puWFun(puArgs))
+                mcWgts.append(makePileupWeight(puWeightsFile, tree.Pileup_nTrueInt, variation="Nominal",
+                    nameHint="bamboo_puWeight{0}".format("".join(c for c in sample if c.isalnum()))))
 
             noSel = noSel.refine("mcWeight", weight=mcWgts)
 
@@ -45,8 +41,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 elif "2016G" in sample or "2016H" in sample:
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
-            configureJets(tree.Jet.calc, "AK4PFchs",
-                jec=jecTag)
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag)
 
         return tree,noSel,be,lumiArgs
 

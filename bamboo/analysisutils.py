@@ -253,3 +253,16 @@ def forceDefine(arg, selection):
     """
     from .treeoperations import adaptArg
     return selection._fbe.selDFs[selection.name].define(adaptArg(arg))
+
+def makePileupWeight(puWeightsFile, numTrueInteractions, variation="Nominal", nameHint=None):
+    """ Construct a pileup weight for MC, based on the weights in a JSON file
+
+    :param puWeightsFile: path of the JSON file with weights (binned in NumTrueInteractions)
+    :param numTrueInteractions: expression to get the number of true interactions (Poissonian expectation value for an event)
+    """
+    from bamboo import treefunctions as op
+    paramVType = "Parameters::value_type::value_type"
+    puArgs = op.construct("Parameters", (op.initList("std::initializer_list<{0}>".format(paramVType), paramVType,
+        (op.initList(paramVType, "float", (op.extVar("int", "BinningVariable::NumTrueInteractions"), numTrueInteractions)),)),))
+    puWFun = op.define("ILeptonScaleFactor", 'const ScaleFactor <<name>>{{"{0}"}};'.format(puWeightsFile), nameHint=nameHint)
+    return puWFun.get(puArgs, op.extVar("int", variation))

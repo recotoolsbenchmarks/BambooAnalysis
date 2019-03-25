@@ -35,7 +35,7 @@ a local clone, such that you can use it to test and propose changes, using
 
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git /path/to/your/bambooclone
    # copy and patch some jet-related classes from CMSSW (requires cvmfs) --- temporary
-   pushd /path/to/your/bambooclone
+   pushd /path/to/your/bambooclone/ext
    ./getjetclasses.sh
    popd
    pip install /path/to/your/bambooclone ## e.g. ./bamboo (not bamboo - a package with that name exists)
@@ -49,6 +49,17 @@ such that you can update later on with (inside ``/path/to/your/bambooclone``)
 
 (installing in editable mode does not work because some C++ libraries that are
 built as extensions are not correctly picked up then).
+
+When developing bamboo, setuptools can be used to build this documentation and
+run the tests (the final clean command is to prevent the next upgrade with pip
+from picking up the wrong build directory).
+
+.. code-block:: sh
+
+   python setup.py build
+   python setup.py build_sphinx
+   python setup.py test
+   python setup.py clean --all ## before upgrading the virtualenv with pip
 
 .. note::
 

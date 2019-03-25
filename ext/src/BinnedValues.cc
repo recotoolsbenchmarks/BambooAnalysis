@@ -61,7 +61,8 @@ std::vector<float> Parameters::toArray(const std::vector<BinningVariable>& binni
 
 const BinnedValues::mapping_bimap BinnedValues::variable_to_string_mapping = {
     {BinningVariable::Pt, "Pt"}, {BinningVariable::Eta, "Eta"},
-    {BinningVariable::AbsEta, "AbsEta"}, {BinningVariable::BTagDiscri, "BTagDiscri"}
+    {BinningVariable::AbsEta, "AbsEta"}, {BinningVariable::BTagDiscri, "BTagDiscri"},
+    {BinningVariable::NumTrueInteractions, "NumTrueInteractions"}
 };
 
 void BinnedValues::setVariables(const std::vector<std::string>& v) {

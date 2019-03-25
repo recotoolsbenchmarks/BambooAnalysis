@@ -8,6 +8,8 @@
 
 #include <TFormula.h> // TODO move to FormulaEvaluator, and bundle with jet classes
 
+// FIXME lots of global namespace pollution
+
 enum SystVariation {
     Nominal = 0,
     Down = 1,
@@ -46,7 +48,8 @@ enum class BinningVariable {
     Pt,
     Eta,
     AbsEta,
-    BTagDiscri
+    BTagDiscri,
+    NumTrueInteractions
 };
 
 // Hash function for BinningVariable enum class

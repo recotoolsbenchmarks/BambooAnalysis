@@ -20,6 +20,13 @@ to install python packages in, after installation it is sufficient to run two
 other commands, to pick up the correct base system and then the installed
 packages).
 
+.. note::
+
+   Querying DAS relies on dasgoclient (and a valid grid proxy). If you use this
+   feature the safest is currently to run ``cms_env`` before the commands above
+   (together with ``voms-proxy-init`` |---| which can alternatively also be run
+   from a different shell on the same machine).
+
 Bamboo_ can be installed in the `virtual environment`_ with pip, minimally either
 one of
 
@@ -154,3 +161,6 @@ directory, then ``$XDG_CONFIG_HOME/bamboorc`` (which typically resolves to
 .. _virtual environment: https://packaging.python.org/tutorials/installing-packages/#creating-virtual-environments
 
 .. _plotIt: https://github.com/cp3-llbb/plotIt
+
+.. |---| unicode:: U+2014
+   :trim:

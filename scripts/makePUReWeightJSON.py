@@ -145,10 +145,10 @@ if __name__ == "__main__":
         out = {
               "dimensin" : 1
             , "variables" : ["NumTrueInteractions"]
-            , "binning" : {"x": list(nomBins)}
+            , "binning" : {"x": list(ratioBins)}
             , "error_type" : "absolute"
             , "data" : [
-                { "bin" : [nomBins[i], nomBins[i+1]]
+                { "bin" : [ratioBins[i], ratioBins[i+1]]
                 , "value" : nomRatio[i]
                 , "error_low"  : (nomRatio[i]-downRatio[i] if downRatio is not None else 0.)
                 , "error_high" : (upRatio[i]-nomRatio[i] if upRatio is not None else 0.)

@@ -1,9 +1,12 @@
 import pytest
+import os.path
+
+testData = os.path.join(os.path.dirname(__file__), "data")
 
 @pytest.fixture(scope="module")
 def json_lumimask():
     import os.path
-    jsonName = os.path.join(os.path.dirname(__file__), "Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt")
+    jsonName = os.path.join(testData, "Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt")
     runRange = (276831, 277420) ## 2016E
     import bamboo.treefunctions ## loads and includes, minimal alternative below
     from cppyy import gbl

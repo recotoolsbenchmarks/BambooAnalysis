@@ -1,12 +1,5 @@
 image: gitlab-registry.cern.ch/ci-tools/ci-worker:cc7
 
-## local pip&venv cache
-#variables:
-#  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-#cache:
-#  paths:
-#    - .cache/pip
-
 before_script:
   - yum install -y libgfortran make
   - source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
@@ -15,7 +8,6 @@ before_script:
   - cd ext
   - ./getjetclasses.sh
   - cd ..
-  - pip install .
 
 test:
   tags:

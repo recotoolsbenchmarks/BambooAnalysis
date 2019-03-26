@@ -2,10 +2,12 @@
 
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 template<typename T, typename _Bin = T>
 class Histogram {
     public:
+        virtual ~Histogram();
 
         virtual std::size_t findBin(const std::vector<_Bin>& values) = 0;
         virtual std::size_t findClosestBin(const std::vector<_Bin>& values, bool* outOfRange = nullptr) = 0;
@@ -54,12 +56,8 @@ class Histogram {
         }
 
         static size_t findBin(const std::vector<_Bin>& array, _Bin value) {
-            for (std::size_t i = 0; i < array.size() - 1; i++) {
-                if ((value >= array[i]) && (value < array[i + 1]))
-                    return i + 1;
-            }
-
-            return 0;
+            return ( ( value < array[0] ) || ( value >= array[array.size()-1] ) ) ? 0 :
+                std::distance(array.begin(), std::upper_bound(array.begin(), array.end(), value));
         }
 
         static size_t findClosestBin(const std::vector<_Bin>& array, _Bin value, bool* outOfRange = nullptr) {
@@ -116,6 +114,7 @@ class OneDimensionHistogram: public Histogram<T, _Bin> {
             Histogram<T, _Bin>(bins.size() - 1) {
                 m_bins = bins;
         }
+        virtual ~OneDimensionHistogram();
 
         virtual std::size_t findBin(const std::vector<_Bin>& values) override {
             if (values.size() != 1)
@@ -165,6 +164,7 @@ class TwoDimensionsHistogram: public Histogram<T, _Bin> {
                 m_bins_x = bins_x;
                 m_bins_y = bins_y;
         }
+        virtual ~TwoDimensionsHistogram();
 
         virtual std::size_t findBin(const std::vector<_Bin>& values) override {
             if (values.size() != 2)
@@ -251,6 +251,7 @@ class ThreeDimensionsHistogram: public Histogram<T, _Bin> {
                 m_bins_y = bins_y;
                 m_bins_z = bins_z;
         }
+        virtual ~ThreeDimensionsHistogram();
 
         virtual std::size_t findBin(const std::vector<_Bin>& values) override {
             if (values.size() != 3)
@@ -360,3 +361,8 @@ template <typename _Value, typename _Bin = _Value>
 _Value getBinErrorHigh(const Histogram<_Value, _Bin>& object, std::size_t bin) {
     return object.getBinErrorHigh(bin);
 }
+
+template<typename T, typename _Bin> Histogram<T,_Bin>::~Histogram() {}
+template<typename T, typename _Bin> OneDimensionHistogram<T,_Bin>::~OneDimensionHistogram() {}
+template<typename T, typename _Bin> TwoDimensionsHistogram<T,_Bin>::~TwoDimensionsHistogram() {}
+template<typename T, typename _Bin> ThreeDimensionsHistogram<T,_Bin>::~ThreeDimensionsHistogram() {}

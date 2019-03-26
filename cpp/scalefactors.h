@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinnedValuesJSONParser.h"
+#include "BinnedValues.h"
 #include <stdexcept>
 
 class ILeptonScaleFactor {
@@ -42,7 +43,7 @@ public:
 class ScaleFactor : public ILeptonScaleFactor {
 public:
   explicit ScaleFactor(const std::string& file)
-  : m_values{BinnedValuesJSONParser(file).get_values()}
+  : m_values{BinnedValuesJSONParser::parse_file(file)}
   {}
   virtual ~ScaleFactor() {}
 
@@ -121,9 +122,9 @@ private:
 class BTaggingScaleFactor : public IJetScaleFactor {
 public:
   BTaggingScaleFactor(const std::string& lightFile, const std::string& charmFile, const std::string& beautyFile)
-  : m_lightValues {BinnedValuesJSONParser(lightFile ).get_values()}
-  , m_charmValues {BinnedValuesJSONParser(charmFile ).get_values()}
-  , m_beautyValues{BinnedValuesJSONParser(beautyFile).get_values()}
+  : m_lightValues {BinnedValuesJSONParser::parse_file(lightFile )}
+  , m_charmValues {BinnedValuesJSONParser::parse_file(charmFile )}
+  , m_beautyValues{BinnedValuesJSONParser::parse_file(beautyFile)}
   {}
   virtual ~BTaggingScaleFactor() {}
 

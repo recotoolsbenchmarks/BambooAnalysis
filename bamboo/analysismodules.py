@@ -78,7 +78,6 @@ class AnalysisModule(object):
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
-        driver.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
         driver.add_argument("--onlypost", action="store_true", help="Only run postprocessing step on previous results")
         worker = parser.add_argument_group("worker mode only (--distributed=worker) arguments")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name (default: Events)")
@@ -100,8 +99,8 @@ class AnalysisModule(object):
     def getATree(self):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
-            import ROOT
-            tup = ROOT.TChain(self.args.treeName)
+            from cppyy import gbl
+            tup = gbl.TChain(self.args.treeName)
             tup.Add(self.args.input[0])
             return tup, {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
@@ -110,8 +109,8 @@ class AnalysisModule(object):
             anaCfgName = self.args.input[0]
             envConfig = readEnvConfig(self.args.envConfig)
             analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-            import ROOT
-            tup = ROOT.TChain(analysisCfg.get("tree", "Events"))
+            from cppyy import gbl
+            tup = gbl.TChain(analysisCfg.get("tree", "Events"))
             smpNm,smpCfg = next(itm for itm in analysisCfg["samples"].items())
             tup.Add(smpCfg["files"][0])
             return tup, {"name": smpNm, "era": smpCfg["era"]}
@@ -264,6 +263,10 @@ class HistogramsModule(AnalysisModule):
         super(HistogramsModule, self).__init__(args)
         self.systVars = []
         self.plotList = []
+
+    def addArgs(self, parser):
+        parser.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
+
     def initialize(self):
         """ initialize """
         if self.args.distributed == "worker" and len(self.args.input) == 0:
@@ -290,15 +293,15 @@ class HistogramsModule(AnalysisModule):
         (with ``systVar="nominal"`` and each of the variations defined in ``self.systVars``),
         run over all files, and write the produced histograms to the output file.
         """
-        import ROOT
-        tup = ROOT.TChain(tree)
+        from cppyy import gbl
+        tup = gbl.TChain(tree)
         for fName in inputFiles:
             tup.Add(fName)
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
-        outF = ROOT.TFile.Open(outputFile, "RECREATE")
+        outF = gbl.TFile.Open(outputFile, "RECREATE")
         plotList = self.definePlots(tree, noSel, systVar="nominal", era=era, sample=sample)
         if not self.plotList:
             self.plotList = list(plotList) ## shallow copy
@@ -321,11 +324,11 @@ class HistogramsModule(AnalysisModule):
         :param sample: sample name (as in the samples section of the analysis configuration file)
         """
         return tree, None, None, None
-    def definePlots(self, tree, systVar="nominal", era=None, sample=None):
+    def definePlots(self, tree, noSel, systVar="nominal", era=None, sample=None):
         """ Main method: define plots on the trees (for a give systematic variation)
 
-        should be implemented by concrete modules, and return the backend and
-        a list of :py:class:`bamboo.plots.Plot` objects.
+        should be implemented by concrete modules, and return a list of
+        :py:class:`bamboo.plots.Plot` objects.
         The structure (name, binning) of the histograms should not depend on the sample, era,
         or the systematic variation, and the list should be the same for all values, with
         one exception: for ``systVar`` different from ``"nominal"`` some histograms may
@@ -333,11 +336,12 @@ class HistogramsModule(AnalysisModule):
         systematic effects may only affect some of the MC samples).
 
         :param tree: decorated tree
+        :param noSel: base selection
         :param systVar: ``"nominal"``, or the name of a systematic variation
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
         """
-        return None, [] ## backend, and plot list
+        return [] ## plot list
     def mergeCounters(self, outF, infileNames):
         """ Merge counters
 
@@ -375,10 +379,10 @@ class HistogramsModule(AnalysisModule):
             else:
                 runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=eraName)
 
-class NanoAODHistoModule(HistogramsModule):
-    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
+class NanoAODModule(AnalysisModule):
+    """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
-        super(NanoAODHistoModule, self).__init__(args)
+        super(NanoAODModule, self).__init__(args)
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("SingleMuon", "SingleElectron", "DoubleMuon", "DoubleEG", "MuonEG"))
     def prepareTree(self, tree, era=None, sample=None):
@@ -396,8 +400,8 @@ class NanoAODHistoModule(HistogramsModule):
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """
-        import ROOT
-        cruns = ROOT.TChain("Runs")
+        from cppyy import gbl
+        cruns = gbl.TChain("Runs")
         for fn in infileNames:
             cruns.Add(fn)
         outF.cd()
@@ -406,8 +410,8 @@ class NanoAODHistoModule(HistogramsModule):
     def readCounters(self, resultsFile):
         """ Sum over each leaf of the (merged) ``Runs`` tree (except ``run``) """
         runs = resultsFile.Get("Runs")
-        import ROOT
-        if ( not runs ) or ( not isinstance(runs, ROOT.TTree) ):
+        from cppyy import gbl
+        if ( not runs ) or ( not isinstance(runs, gbl.TTree) ):
             raise RuntimeError("No tree with name 'Runs' found in {0}".format(resultsFile.GetName()))
         sums = dict()
         runs.GetEntry(0)
@@ -431,3 +435,104 @@ class NanoAODHistoModule(HistogramsModule):
                 else:
                     sums[cn] += getattr(runs, cn)
         return sums
+
+class NanoAODHistoModule(NanoAODModule, HistogramsModule):
+    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
+    def __init__(self, args):
+        super(NanoAODHistoModule, self).__init__(args)
+
+class SkimmerModule(AnalysisModule):
+    """ Base skimmer module """
+    def __init__(self, args):
+        """ Constructor """
+        super(SkimmerModule, self).__init__(args)
+
+    def addArgs(self, parser):
+        parser.add_argument("--maxSelected", type=int, default=-1, help="Maximum number of accepted events (default: -1 for all)")
+
+    def initialize(self):
+        """ initialize """
+        if self.args.distributed == "worker" and len(self.args.input) == 0:
+            raise RuntimeError("Worker task needs at least one input file")
+
+    def interact(self):
+        """ Inte ## TODO fully genericractively inspect a decorated input tree
+
+        Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
+        ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
+        (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
+        """
+        tup, tupInfo = self.getATree()
+        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
+        import bamboo.treefunctions as op
+        import IPython
+        IPython.embed()
+
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+        """ Worker sequence: produce histograms from the input files
+
+        More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.SkimmerModule.prepareTree`,
+        add a lumi mask if requested, call :py:meth:`~bamboo.analysismodules.SkimmerModule.defineSkimSelection`,
+        run over all files, and write the skimmed trees to the output file.
+        """
+        treeName = tree
+        from cppyy import gbl
+        tup = gbl.TChain(treeName)
+        for fName in inputFiles:
+            tup.Add(fName)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
+        if certifiedLumiFile:
+            noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
+
+        finalSel = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
+        selDF = backend.selDFs[finalSel.name].df
+
+        if self.args.maxSelected and self.args.maxSelected > 0:
+            selDF = selDF.Range(self.args.maxSelected)
+
+        # exclude defined columns
+        allcolN = selDF.GetColumnNames()
+        defcolN = selDF.GetDefinedColumnNames()
+        origcolN = type(allcolN)()
+        for cn in allcolN:
+            if cn not in defcolN:
+                origcolN.push_back(cn)
+
+        selDF.Snapshot(treeName, outputFile, origcolN)
+
+        outF = gbl.TFile.Open(outputFile, "UPDATE")
+        self.mergeCounters(outF, inputFiles)
+        outF.Close()
+
+    # processTrees customisation points
+    def prepareTree(self, tree, era=None, sample=None):
+        """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
+
+        should be implemented by concrete modules
+
+        :param tree: decorated tree
+        :param era: era name, to allow era-based customization
+        :param sample: sample name (as in the samples section of the analysis configuration file)
+        """
+        return tree, None, None, None
+    def defineSkimSelection(self, tree, noSel, era=None, sample=None):
+        """ Main method: define a selection for the skim
+
+        should be implemented by concrete modules, and return a
+        :py:class:`bamboo.plots.Selection` object
+
+        :param tree: decorated tree
+        :param noSel: base selection
+        :param era: era name, to allow era-based customization
+        :param sample: sample name (as in the samples section of the analysis configuration file)
+        """
+        return noSel
+
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        """ Postprocess: write the equivalent analysis.yml file """
+        pass ## TODO implement
+
+class NanoAODSkimmerModule(NanoAODModule, SkimmerModule):
+    """ A :py:class:`~bamboo.analysismodules.SkimmerModule` implementation for NanoAOD, adding decorations and merging of the counters """
+    def __init__(self, args):
+        super(NanoAODSkimmerModule, self).__init__(args)

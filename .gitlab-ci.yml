@@ -1,11 +1,11 @@
 image: gitlab-registry.cern.ch/ci-tools/ci-worker:cc7
 
 ## local pip&venv cache
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-cache:
-  paths:
-    - .cache/pip
+#variables:
+#  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+#cache:
+#  paths:
+#    - .cache/pip
 
 before_script:
   - yum install -y libgfortran make

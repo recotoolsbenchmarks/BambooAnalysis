@@ -484,7 +484,7 @@ class SkimmerModule(AnalysisModule):
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
-        finalSel = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
+        finalSel, defBrToKeep = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
         selDF = backend.selDFs[finalSel.name].df
 
         if self.args.maxSelected and self.args.maxSelected > 0:
@@ -495,7 +495,7 @@ class SkimmerModule(AnalysisModule):
         defcolN = selDF.GetDefinedColumnNames()
         origcolN = type(allcolN)()
         for cn in allcolN:
-            if cn not in defcolN:
+            if cn not in defcolN or cn in defBrToKeep:
                 origcolN.push_back(cn)
 
         selDF.Snapshot(treeName, outputFile, origcolN)
@@ -525,8 +525,10 @@ class SkimmerModule(AnalysisModule):
         :param noSel: base selection
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+
+        :returns: the skim :py:class:`bamboo.plots.Selection`, and a list of defined branch names to save
         """
-        return noSel
+        return noSel, []
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         """ Postprocess: write the equivalent analysis.yml file """

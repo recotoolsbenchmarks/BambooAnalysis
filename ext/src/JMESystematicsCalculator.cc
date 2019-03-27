@@ -183,7 +183,7 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
       vals.setJetA(jet_area[j.i]);
       vals.setRho(rho);
       const auto corr = m_jetCorrector->getCorrection(vals);
-      if ( corr <= 0. ) {
+      if ( corr > 0. ) {
         j.p4 *= jet_rawfactor[j.i]*corr;
       }
     }

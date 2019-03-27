@@ -146,9 +146,9 @@ class Plot(object):
         """ Construct a 2-dimensional histogram plot
 
         :param name: unique plot name
-        :param variable: x-axis variable expression
+        :param variables: x- and y-axis variable expression (iterable, e.g. tuple or list)
         :param selection: the :py:class:`~bamboo.plots.Selection` with cuts and weights to apply
-        :param binnings: x- and y-axis binnings
+        :param binnings: x- and y-axis binnings (iterable, e.g. tuple or list)
         :param title: plot title
         :param xTitle: x-axis title (optional, empty by default)
         :param yTitle: y-axis title (optional, empty by default)
@@ -166,9 +166,9 @@ class Plot(object):
         """ Construct a 3-dimensional histogram
 
         :param name: unique plot name
-        :param variable: x-axis variable expression
+        :param variables: x-, y- and z-axis variable expression (iterable, e.g. tuple or list)
         :param selection: the :py:class:`~bamboo.plots.Selection` with cuts and weights to apply
-        :param binnings: x-, y-, and z-axis binnings
+        :param binnings: x-, y-, and z-axis binnings (iterable, e.g. tuple or list)
         :param title: plot title
         :param xTitle: x-axis title (optional, empty by default)
         :param yTitle: y-axis title (optional, empty by default)

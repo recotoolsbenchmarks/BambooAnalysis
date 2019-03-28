@@ -284,7 +284,7 @@ class CallMethod(TupleOp):
             else:
                 self._mp  = getattr(gbl, name)
         except Exception as ex:
-            logger.error("Exception in getting method pointer: {0}".format(ex))
+            logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
             self._mp = None
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMethod, self).__init__()
@@ -474,7 +474,7 @@ def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
     for dep in chain.from_iterable(expr.deps(defCache=defCache, select=lambda op : defCache.shouldDefine(op)) for expr in exprs1):
         cn = defCache(dep)
         if not cn:
-            print("WARNING: Probably a problem in triggering definition for {0}".format(dep))
+            logger.warning("Probably a problem in triggering definition for {0}".format(dep))
     return set(chain.from_iterable(
             expr.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn)
                 or defCache.shouldDefine(op) or ( isinstance(op, LocalVariablePlaceholder) and op not in ownLocal )
@@ -528,7 +528,7 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
             else:
                 print("WARNING: dependency {0} is there twice".format(nm))
         else:
-            raise AssertionError("Dependency with unknown type: {1}, or {0!r}".format(ld, cppStr))
+            raise AssertionError("Dependency with unknown type: {0}".format(ld))
     return ",".join(captures), ", ".join(paramDecl), ", ".join(paramCall)
 
 class Select(TupleOp):

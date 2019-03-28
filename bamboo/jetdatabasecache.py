@@ -81,13 +81,13 @@ class JetDatabaseCache(object):
                 toRemove = []
                 for tagName, statTag in stTags.items():
                     if not any(r_tg["path"] == tagName for r_tg in r_tagsTree["tree"]):
-                        logger.debug("Tag {0} was removed from {1}".format(tagname, self.repository))
-                        tagDir = os.path.join(self.cachedir, tag)
+                        logger.debug("Tag {0} was removed from {1}".format(tagName, self.repository))
+                        tagDir = os.path.join(self.cachedir, tagName)
                         if os.path.isdir(tagDir):
                             import shutil
                             logger.debug("Should remove cache directory {0}".format(tagDir))
                             #shutil.rmtree(tagDir)
-                        toRemove.append(tagNamE)
+                        toRemove.append(tagName)
                 for tagName in toRemove:
                     del stTags[tagName]
                 statTF["sha"] = r_TF["sha"]

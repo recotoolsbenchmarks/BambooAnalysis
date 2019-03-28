@@ -241,6 +241,15 @@ tab-completion can be used to have a look at what's there:
       anElectron.dzErr                    anElectron.mvaSpring16GP_WP90       anElectron.tightCharge
       anElectron.eCorr                    anElectron.mvaSpring16HZZ           anElectron.vidNestedWPBitmap
 
+For NanoAOD the content of the branches is documented in the various branches of
+`this directory <https://cms-nanoaod-integration.web.cern.ch/integration/>`_,
+e.g. NanoAODv4 for
+`2016 MC <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/mc94X2016_doc.html>`_,
+`2017 MC <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/mc94Xv2_doc.html>`_,
+`2018 MC <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/mc102X_doc.html>`_, and for
+`2016 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data94X2016_doc.html>`_,
+`2017 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data94Xv2_doc.html>`_, and
+`2018 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data101X_doc.html>`_.
 
 Recipes for common tasks
 ------------------------

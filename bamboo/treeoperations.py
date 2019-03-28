@@ -542,7 +542,7 @@ class Select(TupleOp):
         if not defCache._getColName(self):
             for arg in (adaptArg(self.rng), self.predExpr):
                 if select(arg):
-                    yield
+                    yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
                         yield dp
@@ -583,9 +583,9 @@ class Next(TupleOp):
         super(Next, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
-            for arg in (self.rng, self.predExpr):
+            for arg in (adaptArg(self.rng), self.predExpr):
                 if select(arg):
-                    yield
+                    yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
                         yield dp

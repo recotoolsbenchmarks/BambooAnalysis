@@ -1,9 +1,12 @@
 Installation and setup
 ======================
 
-Bamboo_ only depends on python3 (with pip/setuptools to install PyYAML if needed)
-and a recent version of ROOT (at least 6.14, for the necessary features of
-RDataFrame).
+Dependencies and environment
+----------------------------
+
+Bamboo_ only depends on python3 (with pip/setuptools to install PyYAML and
+numpy if needed) and a recent version of ROOT (at least 6.14, and better
+6.16, for the necessary features of RDataFrame).
 On ingrid and lxplus (or any machine with cvmfs), an easy way to get such
 a recent version of ROOT is through a CMSSW release that depends on it (``10_4``
 has a recent enough ROOT, but no python3 yet), or from the lcgsoft distribution,
@@ -20,15 +23,25 @@ to install python packages in, after installation it is sufficient to run two
 other commands, to pick up the correct base system and then the installed
 packages).
 
-.. note::
+Some features bring in additional dependencies. Bamboo_ should detect if these
+are relied on and missing, and print a clear error message.
+Currently, they include:
 
-   Querying DAS relies on dasgoclient (and a valid grid proxy). If you use this
-   feature the safest is currently to run ``cms_env`` before the commands above
-   (together with ``voms-proxy-init`` |---| which can alternatively also be run
-   from a different shell on the same machine).
+- the dasgoclient executable (and a valid grid proxy) for retrieving the list
+  of files in samples specified with ``db: das:/X/Y/Z``. Due to some
+  interference with the setup script above, the best is to run the cms
+  environment scripts first, and also run ``voms-proxy-init`` then (this can
+  alternatively also be done from a different shell on the same machine)
+- the SAMADhi_ python library, to retrieve the list of files in samples
+  specified with ``db: SAMADhi:<ID-or-name>`` (not yet integrated)
+- the slurm command-line tools, and CP3SlurmUtils_, which can be loaded with
+  ``module load slurm/slurm_utils`` on the ingrid ui machines
 
-Bamboo_ can be installed in the `virtual environment`_ with pip, minimally either
-one of
+Installation
+------------
+
+Bamboo_ can (and should, in most cases) be installed in a
+`virtual environment`_ (see above) with pip, minimally either one of
 
 .. code-block:: sh
 
@@ -80,8 +93,8 @@ from picking up the wrong build directory).
    analysis package later on when code needs to be shared between modules.
 
 For combining the different histograms in stacks and producing pdf or png files,
-which is used in many analyses, the plotIt_
-tool is used. It can be installed with
+which is used in many analyses, the plotIt_ tool is used.
+It can be installed with
 
 .. code-block:: sh
 
@@ -118,6 +131,9 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    cd ..
    cp plotIt/plotIt bamboovenv/bin
 
+Test your setup
+---------------
+
 Now you can run a few simple tests on a CMS NanoAOD (on ingrid you could use
 ``/home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root``)
 to see if the installation was successful.
@@ -147,6 +163,9 @@ if all went well, you should have a dimuon Z peak plot in
 ``test_nanozmm1/plots/dimu_M.pdf``. To run on slurm add
 ``--distributed=driver``.
 
+Environment configuration file
+------------------------------
+
 Passing the ``--envConfig`` option can in practice be avoided by copying the
 appropriate file to ``~/.config/bamboorc``. It is necessary to pick up the
 configuration of the computing environment (files for ingrid and lxplus are
@@ -157,6 +176,10 @@ directory, then ``$XDG_CONFIG_HOME/bamboorc`` (which typically resolves to
 ``~/.config/bamboorc``).
 
 .. _bamboo: http://to-fill-bamboodocs-home
+
+.. _CP3SlurmUtils: https://cp3-git.irmp.ucl.ac.be/cp3-support/helpdesk/wikis/Slurm#the-cp3slurmutils-package
+
+.. _SAMADhi: https://cp3.irmp.ucl.ac.be/samadhi/index.php
 
 .. _virtual environment: https://packaging.python.org/tutorials/installing-packages/#creating-virtual-environments
 

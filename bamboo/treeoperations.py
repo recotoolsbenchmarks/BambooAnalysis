@@ -604,7 +604,7 @@ class Next(TupleOp):
         localVarsToName = _collectLocalVars((self.rng, self.predExpr), (self._i,), defCache=defCache)
         with _nameLocalVars(localVarsToName):
             captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
-            expr = "rdfhelpers::next({idxs},\n     [{captures}] ( {i} ) {{ return {predexpr}; }})".format(
+            expr = "rdfhelpers::next({idxs},\n     [{captures}] ( {i} ) {{ return {predexpr}; }}, -1)".format(
                     idxs=defCache(self.rng._idxs.op),
                     captures=captures,
                     i="{0} {1}".format(self._i.typeHint, self._i.name),

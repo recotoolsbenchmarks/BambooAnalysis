@@ -175,7 +175,7 @@ class AnalysisModule(object):
                         if backend == "slurm":
                             from . import batch_slurm as batchBackend
                             backendOpts = {
-                                    "sbatch_time"     : "0-00:20",
+                                    "sbatch_time"     : "0-01:00",
                                     "sbatch_mem"      : "2048",
                                     "stageoutFiles"   : ["*.root"],
                                     "sbatch_workdir"  : os.getcwd(),

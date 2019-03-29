@@ -93,12 +93,13 @@ class CommandListJob(CommandListJobBase):
 
     def submit(self):
         """ Submit the job to slurm """
-        logger.info("Submitting an array of {0:d} jobs to slurm".format(len(self.commandList)))
-        result = subprocess.check_output(["sbatch"
-            , "--partition={}".format(self.cfg.sbatch_partition)
+        sbatchOpts = [
+              "--partition={}".format(self.cfg.sbatch_partition)
             , "--qos={}".format(self.cfg.sbatch_qos)
-            , "--wckey=cms"
-            , self.slurmScript]).decode()
+            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        logger.info("Submitting an array of {0:d} jobs to slurm".format(len(self.commandList)))
+        logger.debug("sbatch {0} {1}".format(" ".join(sbatchOpts), self.slurmScript))
+        result = subprocess.check_output(["sbatch"]+sbatchOpts+[self.slurmScript]).decode()
 
         self.clusterId = next(tok for tok in reversed(result.split()) if tok.isdigit())
         
@@ -160,6 +161,21 @@ class CommandListJob(CommandListJobBase):
         return self.subjobStatus(self.commandList.index(command)+1)
 
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
+    if batchConfig:
+        if not configOpts:
+            configOpts = dict()
+        else:
+            configOpts = dict(configOpts)
+        bc_c = dict(batchConfig)
+        for k,cov in configOpts.items():
+            if k.lower() in bc_c:
+                if isinstance(cov, list):
+                    cov.append(bc_c[k.lower()])
+                    del bc_c[k.lower()]
+                else: # ini file takes preference
+                    configOpts[k] = bc_c[k.lower()]
+                    del bc_c[k.lower()]
+        configOpts.update(bc_c)
     slurmJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)), workDir=workdir, configOpts=configOpts)
     for task in taskList:
         task.jobCluster = slurmJob

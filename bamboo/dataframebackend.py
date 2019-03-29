@@ -138,16 +138,18 @@ class DataframeBackend(FactoryBackend):
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
             raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
-        if sele.parent:
-            parentDF = self.selDFs[sele.parent.name]
-            selDF = parentDF.df
-        else:
-            selDF = self.rootDF
+        parentDF = self.selDFs[sele.parent.name] if sele.parent else None
         if sele._cuts:
             assert parentDF ## FIXME if not something went wrong - there *needs* to be a root no-op sel
             expr = Selection._makeExprAnd(sele._cuts)
-            logger.debug("Filtering with {0}".format(expr.get_cppStr(defCache=parentDF)))
-            selDF = selDF.Filter(expr.get_cppStr(defCache=parentDF))
+            filterStr = expr.get_cppStr(defCache=parentDF)
+            logger.debug("Filtering with {0}".format(filterStr))
+            selDF = parentDF.df.Filter(filterStr)
+        else:
+            if parentDF:
+                selDF = parentDF.df
+            else:
+                selDF = self.rootDF
 
         self.selDFs[sele.name] = SelWithDefines((parentDF if sele.parent else self), selDF, weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
 

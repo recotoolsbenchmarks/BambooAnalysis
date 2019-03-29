@@ -72,7 +72,8 @@ class SelWithDefines(top.CppStrRedir):
             try:
                 return arg.get_cppStr(defCache=self)
             except Exception as ex:
-                raise RuntimeError("Could not get cpp string for {0!r}: {1!r}".format(arg, ex))
+                logger.error("Could not get cpp string for {0!r}: {1!r}".format(arg, ex))
+                return "NONE"
         else:
             nm = self._getColName(arg)
             if not nm: ## define it then

@@ -206,38 +206,21 @@ def invariant_mass_squared(*args):
     """
     return extMethod("ROOT::Math::VectorUtil::InvariantMass2")(*args)
 def deltaPhi(a1, a2):
-    """ Calculate the difference in azimutal angles (using ``Kinematics::deltaPhi``)
+    """ Calculate the difference in azimutal angles (using ``ROOT::Math::VectorUtil::DeltaPhi``)
 
     :Example:
 
     >>> elelDphi = op.deltaPhi(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("Kinematics::deltaPhi")(a1, a2)
+    return extMethod("ROOT::Math::VectorUtil::DeltaPhi")(a1, a2)
 def deltaR(a1, a2):
-    """ Calculate the Delta R distance (using ``Kinematics::deltaR``)
+    """ Calculate the Delta R distance (using ``ROOT::Math::VectorUtil::DeltaR``)
 
     :Example:
 
     >>> elelDR = op.deltaR(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("Kinematics::deltaR")(a1, a2)
-def signedDeltaPhi(a1, a2):
-    """ Calculate the signed difference in azimutal angles (using ``Kinematics::signedDeltaPhi``)
-
-    :Example:
-
-    >>> elelDphi = op.signedDeltaPhi(t.Electron[0].p4, t.Electron[1].p4)
-    """
-    return extMethod("Kinematics::signedDeltaPhi")(a1, a2)
-def signedDeltaEta(a1, a2):
-    """ Calculate the signed difference in pseudorapidity (using ``Kinematics::signedDeltaEta``)
-
-    :Example:
-
-    >>> elelDphi = op.signedDeltaEta(t.Electron[0].p4, t.Electron[1].p4)
-    """
-    return extMethod("Kinematics::signedDeltaEta")(a1, a2)
-
+    return extMethod("ROOT::Math::VectorUtil::DeltaR")(a1, a2)
 
 ## range operations
 def rng_len(sth):
@@ -358,7 +341,7 @@ def rng_any(rng, pred=lambda elm : elm):
 
     >>> hasCentralMu = op.rng_any(t.Muon. lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return rng.__len__() != _to.Next(rng, pred)
+    return  _tp.makeConst(-1, _to.SizeType) != _to.Next(rng, pred)
 def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
     """ Find the first item in a range that passes a selection
 

@@ -104,7 +104,7 @@ for nm,(opNm,outType) in {
         opNm, outType))
 
 def _hasFloat(*args):
-    return any(isinstance(a, FloatType) for a in args)
+    return any(isinstance(a, float) or isinstance(a, FloatProxy) for a in args)
 
 class ArrayProxy(TupleBaseProxy):
     """ (possibly var-sized) array of anything """

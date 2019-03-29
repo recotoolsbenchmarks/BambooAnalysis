@@ -32,9 +32,10 @@ typename ROOT::VecOps::RVec<RESULT> transform(const RANGE& range, FUNCTION&& fun
 }
 
 template<typename RANGE,typename PREDICATE>
-typename RANGE::value_type next(const RANGE& range, PREDICATE&& pred)
+typename RANGE::value_type next(const RANGE& range, PREDICATE&& pred, const typename RANGE::value_type invalid)
 {
-  return *std::find_if(range.begin(), range.end(), pred);
+  const auto it = std::find_if(range.begin(), range.end(), pred);
+  return it != range.end() ? *it : invalid;
 }
 
 template<typename RANGE,typename RESULT,typename REDUCE>

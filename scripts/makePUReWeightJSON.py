@@ -102,6 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--up", type=str, help="File with the data (true) pileup distribution histogram assuming the nominal+1sigma minimum bias cross-section value")
     parser.add_argument("--down", type=str, help="File with the data (true) pileup distribution histogram assuming the nominal-1sigma minimum bias cross-section value")
     parser.add_argument("--rebin", type=int, help="Factor to rebin the data histograms by")
+    parser.add_argument("--makePlot", action="store_true", help="Make a plot of the PU profiles and weights (requires matplotlib)")
     args = parser.parse_args()
     if args.listmcprofiles:
         print("The known PU profiles are: {0}".format(", ".join(repr(k) for k in mcPUProfiles)))
@@ -115,8 +116,6 @@ if __name__ == "__main__":
         if len(mcPUBins) != len(mcPUVals)+1:
             print(len(mcPUBins), len(mcPUVals))
 
-        from matplotlib import pyplot as plt
-        
         fNom, hNom = getHist(args.nominal)
         if args.rebin:
             hNom.Rebin(args.rebin)
@@ -158,21 +157,28 @@ if __name__ == "__main__":
         with open(args.output, "w") as outF:
             json.dump(out, outF)
 
-        fig,(ax,rax) = plt.subplots(2,1,sharex=True)
-        rax.semilogy()
-        #rax = ax.twinx()
-        dBinCenters = .5*(mcPUBins[:-1]+mcPUBins[1:])
-        nBinCenters = .5*(nomBins[:-1]+nomBins[1:])
-        rBinCenters = .5*(ratioBins[:-1]+ratioBins[1:])
-        ax.hist(dBinCenters, bins=mcPUBins, weights=mcPUVals, histtype="step", label="MC")
-        ax.hist(nBinCenters, bins=nomBins, weights=nomCont, histtype="step", label="Nominal", color="k")
-        rax.hist(rBinCenters, bins=ratioBins, weights=nomRatio, histtype="step", color="k")
-        if upCont is not None:
-            ax.hist(nBinCenters, bins=nomBins, weights=upCont, histtype="step", label="Up", color="r")
-            ax.hist(nBinCenters, bins=nomBins, weights=downCont, histtype="step", label="Down", color="b")
-            rax.hist(rBinCenters, bins=ratioBins, weights=upRatio, histtype="step", color="r")
-            rax.hist(rBinCenters, bins=ratioBins, weights=downRatio, histtype="step", color="b")
-        rax.axhline(1.)
-        ax.legend()
-        rax.set_ylim(.1, 2.)
-        plt.show()
+        if args.makePlot:
+            try:
+                from matplotlib import pyplot as plt
+            except Exception as ex:
+                logger.error("matplotlib could not be imported, so no plot will be produced")
+                import sys; sys.exit(0)
+
+            fig,(ax,rax) = plt.subplots(2,1,sharex=True)
+            rax.semilogy()
+            #rax = ax.twinx()
+            dBinCenters = .5*(mcPUBins[:-1]+mcPUBins[1:])
+            nBinCenters = .5*(nomBins[:-1]+nomBins[1:])
+            rBinCenters = .5*(ratioBins[:-1]+ratioBins[1:])
+            ax.hist(dBinCenters, bins=mcPUBins, weights=mcPUVals, histtype="step", label="MC")
+            ax.hist(nBinCenters, bins=nomBins, weights=nomCont, histtype="step", label="Nominal", color="k")
+            rax.hist(rBinCenters, bins=ratioBins, weights=nomRatio, histtype="step", color="k")
+            if upCont is not None:
+                ax.hist(nBinCenters, bins=nomBins, weights=upCont, histtype="step", label="Up", color="r")
+                ax.hist(nBinCenters, bins=nomBins, weights=downCont, histtype="step", label="Down", color="b")
+                rax.hist(rBinCenters, bins=ratioBins, weights=upRatio, histtype="step", color="r")
+                rax.hist(rBinCenters, bins=ratioBins, weights=downRatio, histtype="step", color="b")
+            rax.axhline(1.)
+            ax.legend()
+            rax.set_ylim(.1, 2.)
+            plt.show()

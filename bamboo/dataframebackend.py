@@ -14,13 +14,15 @@ class SelWithDefines(top.CppStrRedir):
     def __init__(self, parent, df, weights=None, wName=None):
         self.df = df
         self.explDefine = list()
-        self._definedColumns = dict()
         if isinstance(parent, SelWithDefines):
             self.parent = parent
-            self.backend = self.parent.backend
+            self.backend = parent.backend
+            self._definedColumns = dict(parent._definedColumns)
         else:
             self.parent = None
             self.backend = parent
+            self._definedColumns = dict()
+
         if weights:
             self._initWeights(wName, weights)
             self.wName = wName
@@ -41,10 +43,6 @@ class SelWithDefines(top.CppStrRedir):
     def _getColName(self, op):
         if op in self._definedColumns:
             return self._definedColumns[op]
-        elif self.parent:
-            res = self.parent._getColName(op)
-            if res:
-                return res
 
     def define(self, expr):
         """ explicitly define column for expression (returns the column name) """

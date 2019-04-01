@@ -52,7 +52,7 @@ with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 projName = "bamboo"
-projVersion = "0.1.0a2"
+projVersion = "0.1.0b1"
 setup(
     name=projName,
     version=projVersion,

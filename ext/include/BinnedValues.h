@@ -8,6 +8,8 @@
 
 #include <TFormula.h> // TODO move to FormulaEvaluator, and bundle with jet classes
 
+// FIXME lots of global namespace pollution
+
 enum SystVariation {
     Nominal = 0,
     Down = 1,
@@ -46,7 +48,8 @@ enum class BinningVariable {
     Pt,
     Eta,
     AbsEta,
-    BTagDiscri
+    BTagDiscri,
+    NumTrueInteractions
 };
 
 // Hash function for BinningVariable enum class
@@ -103,11 +106,30 @@ class BinnedValues {
         VARIATED
     };
 
-    friend class BinnedValuesJSONParser;
-
     BinnedValues(BinnedValues&& rhs) = default;
 
     BinnedValues() = default;
+
+    const Histogram<float>& binned() const { return *m_binned; }
+    Histogram<float>& binned() { return *m_binned; }
+    void setBinned(std::unique_ptr<Histogram<float>>&& binned) { m_binned = std::move(binned); }
+
+    const Histogram<std::shared_ptr<TFormula>, float>& formula() const { return *m_formula; }
+    Histogram<std::shared_ptr<TFormula>, float>& formula() { return *m_formula; }
+    void setFormula(std::unique_ptr<Histogram<std::shared_ptr<TFormula>, float>>&& formula) { m_formula = std::move(formula); }
+
+    void setVariables(const std::vector<std::string>&);
+    void setFormulaVariableIndex(std::size_t idx)
+    {
+      use_formula = true;
+      formula_variable_index = idx;
+    }
+    void setRange(float xMin, float xMax)
+    {
+      minimum = xMin;
+      maximum = xMax;
+    }
+    void setErrorType(ErrorType eType) { error_type = eType; }
 
     private:
     template <typename _Value>
@@ -129,18 +151,16 @@ class BinnedValues {
             return {h.getBinContent(bin), h.getBinErrorLow(bin), h.getBinErrorHigh(bin)};
         }
 
-    void setVariables(const std::vector<std::string>&);
-
     // List of variables used in the binning. First entry is the X variable, second one Y, etc.
     std::vector<BinningVariable> binning_variables;
 
     bool use_formula = false;
 
     // Binned data
-    std::shared_ptr<Histogram<float>> binned;
+    std::unique_ptr<Histogram<float>> m_binned;
 
     // Formula data
-    std::shared_ptr<Histogram<std::shared_ptr<TFormula>, float>> formula;
+    std::unique_ptr<Histogram<std::shared_ptr<TFormula>, float>> m_formula;
 
     ErrorType error_type;
     size_t formula_variable_index = -1; // Only used in formula mode
@@ -213,10 +233,10 @@ class BinnedValues {
         bool outOfRange = false;
 
         if (!use_formula) {
-            if (! binned.get())
+            if (! m_binned)
                 return {0., 0., 0.};
 
-            std::vector<float> values = convert_errors(get<float>(*binned.get(), variables, outOfRange));
+            std::vector<float> values = convert_errors(get<float>(*m_binned, variables, outOfRange));
 
             if (outOfRange)
                 double_errors(values);
@@ -225,14 +245,14 @@ class BinnedValues {
 
             return values;
         } else {
-            if (! formula.get())
+            if (! m_formula)
                 return {0., 0., 0.};
 
-            std::vector<std::shared_ptr<TFormula>> formulas = get<std::shared_ptr<TFormula>>(*formula.get(), variables, outOfRange);
+            std::vector<std::shared_ptr<TFormula>> formulas = get<std::shared_ptr<TFormula>>(*m_formula, variables, outOfRange);
             std::vector<float> values;
 
             // Ensure variables are not outside the validity range
-            variables = formula->clamp(variables);
+            variables = m_formula->clamp(variables);
 
             for (auto& formula: formulas) {
                 values.push_back(formula->Eval(variables[formula_variable_index]));

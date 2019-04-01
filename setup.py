@@ -90,7 +90,7 @@ setup(
     scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
 
     setup_requires=["pytest-runner"],
-    install_requires=["PyYAML"],
+    install_requires=["PyYAML", "numpy"],
     extras_require={"Interactive mode" : ["IPython"]},
     tests_require=["pytest"],
 

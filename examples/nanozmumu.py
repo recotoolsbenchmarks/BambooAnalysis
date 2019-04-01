@@ -11,30 +11,41 @@ class NanoZMuMu(NanoAODHistoModule):
     def prepareTree(self, tree, era=None, sample=None):
         ## initializes tree.Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
-        from bamboo.analysisutils import configureJets
-        if era == "2016":
-            if self.isMC(sample):
-                configureJets(tree.Jet.calc, "AK4PFchs",
-                    jec="Summer16_07Aug2017_V20_MC",
-                    smear="Summer16_25nsV1_MC",
-                    jesUncertaintySources=["Total"])
-            else:
+        from bamboo.analysisutils import configureJets, makePileupWeight
+        if self.isMC(sample):
+            jecTag = None
+            smearTag = None
+            puWeightsFile = None
+            if era == "2016":
+                jecTag = "Summer16_07Aug2017_V20_MC"
+                smearTag = "Summer16_25nsV1_MC"
+                import os.path
+                puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
+
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"])
+
+            mcWgts = [ tree.genWeight ]
+            if puWeightsFile:
+                mcWgts.append(makePileupWeight(puWeightsFile, tree.Pileup_nTrueInt, variation="Nominal",
+                    nameHint="bamboo_puWeight{0}".format("".join(c for c in sample if c.isalnum()))))
+
+            noSel = noSel.refine("mcWeight", weight=mcWgts)
+
+        else: ## DATA
+            if era == "2016":
+                jecTag = None
                 if "2016B" in sample or "2016C" in sample or "2016D" in sample:
-                    configureJets(tree.Jet.calc, "AK4PFchs",
-                        jec="Summer16_07Aug2017BCD_V11_DATA")
+                    jecTag = "Summer16_07Aug2017BCD_V11_DATA"
                 elif "2016E" in sample or "2016F" in sample:
-                    configureJets(tree.Jet.calc, "AK4PFchs",
-                        jec="Summer16_07Aug2017EF_V11_DATA")
+                    jecTag = "Summer16_07Aug2017EF_V11_DATA"
                 elif "2016G" in sample or "2016H" in sample:
-                    configureJets(tree.Jet.calc, "AK4PFchs",
-                        jec="Summer16_07Aug2017GH_V11_DATA")
+                    jecTag = "Summer16_07Aug2017GH_V11_DATA"
+
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag)
 
         return tree,noSel,be,lumiArgs
 
     def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
-        if self.isMC(sample):
-            noSel = noSel.refine("mcWeight", weight=t.genWeight)
-
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
 

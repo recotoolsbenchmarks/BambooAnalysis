@@ -36,6 +36,9 @@ Currently, they include:
   specified with ``db: SAMADhi:<ID-or-name>`` (not yet integrated)
 - the slurm command-line tools, and CP3SlurmUtils_, which can be loaded with
   ``module load slurm/slurm_utils`` on the ingrid ui machines
+- the ``makePUReWeightJSON.py`` script can make a plot of the PU distributions
+  and weights if the ``--makePlot`` option is given, but it needs matplotlib_
+  for that
 
 Installation
 ------------
@@ -178,6 +181,8 @@ directory, then ``$XDG_CONFIG_HOME/bamboorc`` (which typically resolves to
 .. _bamboo: http://to-fill-bamboodocs-home
 
 .. _CP3SlurmUtils: https://cp3-git.irmp.ucl.ac.be/cp3-support/helpdesk/wikis/Slurm#the-cp3slurmutils-package
+
+.. _matplotlib: https://matplotlib.org
 
 .. _SAMADhi: https://cp3.irmp.ucl.ac.be/samadhi/index.php
 

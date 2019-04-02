@@ -412,6 +412,34 @@ and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
 respectively, instead of a single path.
 
+Cleaning collections
+''''''''''''''''''''
+
+The CMS reconstruction sometimes ends up double-counting some objects.
+This can be because of the different quality criteria used to identify each object
+or because of the different performance and inner working of the reconstruction algorithms.
+Tau reconstruction for example operates on clusters that are usually reconstructed as jets,
+and on top of that it can easily pick up even isolated muons or electrons as taus (i.e. as
+clusters of energy with one, two, or three tracks).
+
+It is oftentimes necessary therefore to clean a collection of objects by excluding any object
+that is spatially in the sample place of another object whose reconstruction we trust more.
+
+We trust more muon and electron reconstrution than tau reconstruction, after all the quality 
+cuts (ID efficiencies for muons and electrons are around 99.X%, whereas tau ID efficiencies 
+are of the order of 70%. Misidentification rates are similarly quite different), and therefore
+we exclude from the tau collection any tau that happens to include within its reconstruction cone
+a muon or an electron.
+
+Bamboo provides a handy sintax for that, resulting in something like
+
+.. code-block:: python
+        cleanedTaus = op.select(taus, lambda it : op.AND(op.NOT(op.rng_any(electrons, lambda ie : op.deltaR(it.p4, ie.p4) < 0.3 )), op.NOT(op.rng_any(muons, lambda im : op.deltaR(it.p4, im.p4) < 0.3 ))))
+
+In this example, we assume that the collection ``taus`` has already been defined via ``taus = op.select(t.Tau, lambda tau : ...)``,
+and we move on to use the method ``op.rng_any()`` to filter all taus that are within a cone of a given size (0.3, in the example) from any selected electron or muon.
+
+
 Pileup reweighting
 ''''''''''''''''''
 

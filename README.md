@@ -24,11 +24,25 @@ only needs to provide a subclass with their selection and plot definitions,
 and a configuration file with a list of samples, and instructions how to
 display them.
 
-To view the documentation, for now (i.e. until automatic deployment to a website
-is enabled) run
+## Documentation
+
+The HTML documentation (with a longer introduction, installation instructions,
+recipes for common tasks and an API reference of the classes and methdos) is
+available [here](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/)
+or can be generated from the source code repository with
 ```sh
-python setup.py build ## only needed if you haven't installed bamboo yet
+python setup.py build
 python setup.py build_sphinx
 ```
-inside your bamboo clone. This will generate the documentation in
-`doc/build/html`.
+(the output will be placed in `doc/build/html`).
+
+## Development
+
+Bamboo is currently at the beta stage, which means that a first version of most
+of the planned features is there and it starts to be usable, but some things are
+missing, incomplete, or buggy - your feedback is essential for fixing those, so
+please watch out, check, feel free to add tests if something is not covered yet,
+and do not hesitate to
+[open an issue](https://gitlab.cern.ch/cp3-cms/bamboo/boards) or ask in
+[the mattermost channel](https://cp3-mm.irmp.ucl.ac.be/cp3-llbb/channels/bamboo)
+in case of doubt.

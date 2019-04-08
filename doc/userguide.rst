@@ -182,7 +182,7 @@ by passing the ``--interactive`` flag, with either one of
 
 .. code-block:: sh
 
-   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive --distributed=worker /home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root
+   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive --distributed=worker bamboo/tests/data/DY_M50_2016.root
    bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive bamboo/examples/test_nanozmm.yml [ --envConfig=bamboo/examples/ingrid.ini ] -o int1
 
 The decorated tree is in the ``tree`` variable (the original ``TChain`` is in

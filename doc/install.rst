@@ -137,34 +137,40 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
 Test your setup
 ---------------
 
-Now you can run a few simple tests on a CMS NanoAOD (on ingrid you could use
-``/home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root``)
-to see if the installation was successful.
+Now you can run a few simple tests on a CMS NanoAOD to see if the installation
+was successful.
 First, we can pretend we are a 'worker' task, which processes trees and outputs
 a file with histograms, with a test module like :py:mod:`examples.nanozmumu`:
 
 .. code-block:: sh
 
-   bambooRun -m /path/to/your/clone/examples/nanozmumu.py:NanoZMuMu --distributed=worker /home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root -o testh1.root
+   bambooRun -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu --distributed=worker /path/to/your/bambooclone/tests/data/DY_M50_2016.root -o testh1.root
 
 (``--distributed=worker`` is needed to interpret the positional arguments as
 input file names, in sequential mode (no ``--distributed`` option) and for
 the driver task (``--distributed=driver``) the positional argument is reserved
-for a json/yaml file that contains more information, such as input file
-locations for several samples, normalisation etc. - there are a few examples).
+for a yaml file that contains more information, such as input file locations
+for several samples, normalisation etc. - there are a few examples).
 
-A more complete example would run from an ``analysis.yml`` file (copy it to
-``bamboo/examples`` because ``test_nanozmm1.yml`` specifies it as a local file
-with relative path):
+The normal way of running bamboo is with an ``analysis.yml`` file:
 
 .. code-block:: sh
 
-   cp /home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root bamboo/examples
-   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/test_nanozmm1.yml --envConfig=bamboo/examples/ingrid.ini -o test_nanozmm1
+   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/test_nanozmm.yml --envConfig=bamboo/examples/ingrid.ini -o test_nanozmm_1
 
-if all went well, you should have a dimuon Z peak plot in
-``test_nanozmm1/plots/dimu_M.pdf``. To run on slurm add
-``--distributed=driver``.
+If all went well, you should have a (very low-statistics) dimuon Z peak plot in
+``test_nanozmm_1/plots/dimu_M.pdf``.
+There is also an example that does the same with about 3.1/fb of CMS dimuon data
+from 2016 (please note that this needs a valid grid proxy to retrieve the file
+lists, and the files to be avialable locally under the ``storageroot`` directory
+of the ``[das]`` section in the argument to ``-envConfig``):
+
+.. code-block:: sh
+
+   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/analysis_zmm.yml --envConfig=bamboo/examples/ingrid.ini -o test_nanozmm_2
+
+To run this on slurm it is sufficient to add ``--distributed=driver`` (a task
+with two jobs will be created, one for each sample sample).
 
 Environment configuration file
 ------------------------------

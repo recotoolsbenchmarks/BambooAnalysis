@@ -5,16 +5,15 @@ Dependencies and environment
 ----------------------------
 
 Bamboo_ only depends on python3 (with pip/setuptools to install PyYAML and
-numpy if needed) and a recent version of ROOT (at least 6.14, and better
-6.16, for the necessary features of RDataFrame).
+numpy if needed) and a recent version of ROOT (6.16.00 is recommended because
+it brings some changes to RDataFrame with respect to 6.14.06).
 On ingrid and lxplus (or any machine with cvmfs), an easy way to get such
 a recent version of ROOT is through a CMSSW release that depends on it (``10_4``
-has a recent enough ROOT, but no python3 yet), or from the lcgsoft distribution,
-e.g.
+has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
 
 .. code-block:: sh
 
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
 

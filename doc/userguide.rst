@@ -412,6 +412,55 @@ and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
 respectively, instead of a single path.
 
+As an example, some basic lepton ID and jet tagging scalefactors could be
+included in an analysis on NanoAOD by defining
+
+.. code-block:: python
+
+ import bamboo.scalefactors
+ from itertools import chain
+ import os.path
+
+ # scalefactor JSON files are in ScaleFactors/<era>/ alongside the module
+ def localize_myanalysis(aPath, era="2016legacy"):
+     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "ScaleFactors", era, aPath)
+
+ # nested dictionary with path names of scalefactor JSON files
+ # { tag : { selection : absole-json-path } }
+ myScalefactors = {
+     "electron_2016_94" : dict((k,localize_myanalysis(v)) for k, v in dict(
+         ("id_{wp}".format(wp=wp.lower()), ("Electron_EGamma_SF2D_{wp}.json".format(wp=wp)))
+         for wp in ("Loose", "Medium", "Tight") ).items()),
+     "btag_2016_94" : dict((k, (tuple(localize_myanalysis(fv) for fv in v))) for k,v in dict(
+         ( "{algo}_{wp}".format(algo=algo, wp=wp),
+           tuple("BTagging_{wp}_{flav}_{calib}_{algo}.json".format(wp=wp, flav=flav, calib=calib, algo=algo)
+               for (flav, calib) in (("lightjets", "incl"), ("cjets", "comb"), ("bjets","comb")))
+         ) for wp in ("loose", "medium", "tight") for algo in ("DeepCSV", "DeepJet") ).items())
+     }
+
+ # fill in some defaults: myScalefactors and bamboo.scalefactors.binningVariables_nano
+ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=None):
+     return bamboo.scalefactors.get_scalefactor(objType, key, periods=None, combine=None,
+         additionalVariables=(additionalVariables if additionalVariables else dict()),
+         sfLib=myScalefactors, paramDefs=bamboo.scalefactors.binningVariables_nano)
+
+and adding the weights to the appropriate :py:class:`~bamboo.plots.Selection`
+instances with
+
+.. code-block:: python
+
+ electrons = op.select(t.Electron, lambda ele : op.AND(ele.cutBased >= 2, ele.p4.Pt() > 20., op.abs(ele.p4.Eta()) < 2.5))
+ elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_loose"))
+ hasTwoEl = noSel.refine("hasTwoEl", cut=[ op.rng_len(electrons) > 1 ],
+               weight=[ elLooseIDSF(electrons[0]), elLooseIDSF(electrons[1]) ])
+
+ jets = op.select(t.Jet, lambda j : j.p4.Pt() > 30.)
+ bJets = op.select(jets, lambda j : j.btagDeepFlavB > 0.2217) ## DeepFlavour loose b-tag working point
+ deepFlavB_discriVar = { "BTagDiscri": lambda j : j.btagDeepFlavB }
+ deepBLooseSF = get_scalefactor("jet", ("btag_2016_94", "DeepJet_loose"), additionalVariables=deepFlavB_discriVar)
+ hasTwoElTwoB = hasTwoEl.refine("hasTwoElTwoB", cut=[ op.rng_len(bJets) > 1 ],
+                  weight=[ deepBLooseSF(bJets[0]), deepBLooseSF(bJets[1]) ])
+
 Pileup reweighting
 ''''''''''''''''''
 

@@ -4,6 +4,8 @@ and proxy classes
 User-facing module
 """
 
+from functools import partial
+
 from .treeproxies import *
 from . import treefunctions as op
 
@@ -140,6 +142,13 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
     if description is None:
         description = dict()
 
+    def getItemRefCollection(name, me):
+        return getattr(me._parent._parent, name)
+    def getItemRefCollection_var(name, me):
+        return getattr(me._parent.orig._parent, name)
+    def getItemRefCollection_toVar(name, varName, me):
+        return getattr(me._parent._parent, name)[varName]
+
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
     ## NOTE first attempt: fill all, take some out later
@@ -177,7 +186,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             else:
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
-                itm_dict["".join((coll,i))] = itemRefProxy(col, (lambda colName : (lambda me : getattr(me._parent._parent, colName))) (collPrefix))
+                itm_dict["".join((coll,i))] = itemRefProxy(col, collPrefix)
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
             if sizeNm != "nJet":
@@ -189,6 +198,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
         if sizeNm != "nJet":
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+            for nm,itmAtt in itm_dict.items():
+                if isinstance(itmAtt, itemRefProxy):
+                    colName = itmAtt.getTarget
+                    itmAtt.getTarget = partial(getItemRefCollection, colName) if colName != "Jet" else partial(getItemRefCollection_toVar, colName, "nominal")
         else:
             jets_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             tree_postconstr.append(SetAsParent(jets_orig))
@@ -200,7 +213,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                 if isinstance(itmAtt, itemProxy): ## regular branch, change just index
                     itm_dict_var[nm] = varItemProxy(itmAtt.op)
                 elif isinstance(itmAtt, itemRefProxy):
-                    itm_dict_var[nm] = varItemRefProxy(itmAtt.op, itmAtt.getTarget)
+                    colName = itmAtt.getTarget
+                    itm_dict_var[nm] = varItemRefProxy(itmAtt.op, partial(getItemRefCollection_var, colName))
                 elif isinstance(itmAtt, funProxy) and ( nm == "p4" ):
                     pass ## ok to skip, redefined below
                 elif isinstance(itmAtt, str): ## __doc__

@@ -120,7 +120,7 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
 
    mkdir bamboodev
    cd bamboodev
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_94python3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git

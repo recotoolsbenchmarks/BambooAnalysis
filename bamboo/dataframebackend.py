@@ -86,9 +86,9 @@ _giFun = 0
 
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
-        import ROOT
-        self.rootDF = ROOT.RDataFrame(tree)
-        self.outFile = ROOT.TFile.Open(outFileName, "CREATE") if outFileName else None
+        from cppyy import gbl
+        self.rootDF = gbl.RDataFrame(tree)
+        self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## selection name -> SelWithDefines
         self.plotResults = dict() ## plot name -> result pointer
         super(DataframeBackend, self).__init__()
@@ -122,8 +122,8 @@ class DataframeBackend(FactoryBackend):
                 fullDecl = decl.replace("<<name>>", name)
 
             logger.debug("Defining new symbol with interpreter: {0}".format(fullDecl))
-            import ROOT
-            ROOT.gInterpreter.Declare(fullDecl)
+            from cppyy import gbl
+            gbl.gInterpreter.Declare(fullDecl)
             return name
 
     @staticmethod
@@ -176,8 +176,8 @@ class DataframeBackend(FactoryBackend):
 
     @staticmethod
     def makePlotModel(plot):
-        import ROOT
-        modCls = getattr(ROOT.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
+        from cppyy import gbl
+        modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
         return modCls(plot.name, plot.title, *chain.from_iterable(
             DataframeBackend.makeBinArgs(binning) for binning in plot.binnings))
     @staticmethod

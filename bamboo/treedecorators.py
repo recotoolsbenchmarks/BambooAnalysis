@@ -146,8 +146,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
         return getattr(me._parent._parent, name)
     def getItemRefCollection_var(name, me):
         return getattr(me._parent.orig._parent, name)
-    def getItemRefCollection_toVar(name, varName, me):
-        return getattr(me._parent._parent, name)[varName]
+    def getItemRefCollection_toVar(name, me):
+        return getattr(me._parent._parent, name).orig
 
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
@@ -201,7 +201,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             for nm,itmAtt in itm_dict.items():
                 if isinstance(itmAtt, itemRefProxy):
                     colName = itmAtt.getTarget
-                    itmAtt.getTarget = partial(getItemRefCollection, colName) if colName != "Jet" else partial(getItemRefCollection_toVar, colName, "nominal")
+                    itmAtt.getTarget = partial((getItemRefCollection if colName != "Jet" else getItemRefCollection_toVar), colName)
         else:
             jets_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             tree_postconstr.append(SetAsParent(jets_orig))

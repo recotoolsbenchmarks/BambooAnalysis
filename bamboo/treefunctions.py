@@ -365,7 +365,7 @@ def select(rng, pred=lambda elm : True):
 
     >>> centralMuons = op.select(t.Muon, lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return _tp.SelectionProxy(_to.Select(rng, pred), rng)
+    return _tp.SelectionProxy(_to.Select(rng, pred))
 
 def rng_pickRandom(rng, seed=0):
     """ Pick a random element from a range

@@ -274,12 +274,12 @@ class VectorProxy(ObjectProxy,ListBase):
 
 class SelectionProxy(TupleBaseProxy,ListBase):
     """ Proxy for a selection from an iterable (ContainerGroup/ other selection etc.) """
-    def __init__(self, parent, base):
+    def __init__(self, parent):
         ListBase.__init__(self)
-        self.valueType = base.valueType
-        self._base = base
+        self._base = parent.rng._base
+        self.valueType = self._base.valueType
         ## the list of indices is stored as the parent
-        super(SelectionProxy, self).__init__(base.valueType, parent=parent)
+        super(SelectionProxy, self).__init__(self.valueType, parent=parent)
     @property
     def _idxs(self):
         return self._parent.result
@@ -288,13 +288,12 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __len__(self):
         return self._idxs.__len__()
     def __repr__(self):
-        return "SelectionProxy({0!r}, {1!r})".format(self._parent, self._base)
+        return "SelectionProxy({0!r})".format(self._parent)
     #
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in (self._parent, self._base):
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if select(self._parent):
+            yield self._parent
+        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self, other):
         return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valueType == other.valueType ) and ( self._base == other._base )
 

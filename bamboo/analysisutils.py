@@ -165,8 +165,8 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
             smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
                 smpOpts["cross-section"] = smpCfg["cross-section"]
-                import ROOT
-                resultsFile = ROOT.TFile.Open(os.path.join(resultsdir, resultsName))
+                from cppyy import gbl
+                resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 counters = readCounters(resultsFile)
                 smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
             plotit_files[resultsName] = smpOpts

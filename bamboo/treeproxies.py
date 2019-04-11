@@ -367,6 +367,7 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
     def __init__(self, parent, base, itemType=None):
         ## parent has a member indices() and one for each of modBranches
         ListBase.__init__(self)
+        self.orig = base
         self.valueType = base.valueType ## for ListBase
         self.itemType = itemType ## for actual items
         super(ModifiedCollectionProxy, self).__init__(self.valueType, parent=parent)

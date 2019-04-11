@@ -182,7 +182,7 @@ by passing the ``--interactive`` flag, with either one of
 
 .. code-block:: sh
 
-   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive --distributed=worker /home/ucl/cp3/pdavid/bamboodev/bamboo/examples/NanoAOD_SingleMu_test.root
+   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive --distributed=worker bamboo/tests/data/DY_M50_2016.root
    bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu --interactive bamboo/examples/test_nanozmm.yml [ --envConfig=bamboo/examples/ingrid.ini ] -o int1
 
 The decorated tree is in the ``tree`` variable (the original ``TChain`` is in
@@ -251,6 +251,125 @@ e.g. NanoAODv4 for
 `2017 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data94Xv2_doc.html>`_, and
 `2018 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data101X_doc.html>`_.
 
+Ordering selections and plots efficiently
+'''''''''''''''''''''''''''''''''''''''''
+
+Internally, Bamboo uses the RDataFrame_ class to process the input samples and
+produce histograms or skimmed trees |---| in fact no python code is run while
+looping over the events: Bamboo builds up a computation graph when
+:py:class:`~bamboo.plots.Selection` and :py:class:`~bamboo.plots.Plot`
+are defined by the analysis module's
+:py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` method,
+RDataFrame_ compiles the expressions for the cuts and variables, and the input
+files and events are only looped over once, when the histograms are retrieved
+and stored.
+
+In practice, however, there are not only ``Filter``
+(:py:class:`~bamboo.plots.Selection`) and ``Fill``
+(:py:class:`~bamboo.plots.Plot`) nodes in the computation graph, but also
+``Define`` nodes that calculate a quantity based on other columns and make
+the result available for downstream nodes to use directly.
+This is computationally more efficient if the calculation is complex enough.
+Bamboo tries to make a good guess at which (sub-)expressions are worth
+pre-calculating (typically operations that require looping over a collection),
+but the order in which plots and selections are defined may still help to avoid
+inserting the same operation twice in the computation graph.
+
+The main feature to be aware of is that RDataFrame_ makes a node in the
+computation graph for every ``Define`` operation, and the defined column can
+only be used from nodes downstream of that.
+Logically, however, all defined columns needed for plots or sub-selections of
+one selection will need to be evaluated for all events passing this selection,
+and the most efficient is to do this only once, so ideally all definitions
+should be inserted right after the ``Filter`` operation of the selection, and
+before any of the ``Fill`` and subsequent ``Filter`` nodes.
+This is a bit of a simplification: it is possible to imagine cases where it can
+be better to have a column only defined for the sub-nodes that actually use it,
+but then it is hard to know in all possible cases where exactly to insert the
+definitions, so the current implementation opts for a simple and predictable
+solution: on-demand definitions of subexpressions are done when
+:py:class:`~bamboo.plots.Plot` and :py:class:`~bamboo.plots.Selection` objects
+are constructed, and they update the computation graph node that other nodes
+that derive from the same selection will be based on.
+A direct consequence of this is that it is usually more efficient to first
+define plots for a stage of the selection, and only then define refined
+selections based on it |---| otherwise the subselection will be based on the
+node without the columns defined for the plots and, in the common case where
+the same plots are made at different stages of the selection, recreate nodes
+with the same definitions in its branch of the graph.
+As an illustration, the pseudocode equivalent of these two cases is
+
+.. code-block:: python
+
+   ## define first subselection then plots
+   ## some_calculation(other_columns) is done twice
+   if selectionA:
+       if selectionB:
+          myColumn1 = some_calculation(other_columns)
+          myPlot1B = makePlot(myColumn1)
+       myColumn2 = some_calculation(other_columns)
+       myPlot1A = makePlot(myColumn2)
+
+   ## define first plots then subselection
+   ## some_calculation(other_columns) is only done once
+   if selectionA:
+       myColumn1 = some_calculation(other_columns)
+       myPlot1A = makePlot(myColumn1)
+       if selectionB:
+          myPlot1B = makePlot(myColumn1)
+
+This is why it is advisable to reserve the
+:py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` method of the
+analysis module for defining event and object container selections, and define
+helper methods that declare the plots for a given selection |---| with a
+parameter that is inserted in the plot name to make sure they are unique, if
+used to define the same plots for different selection stages, e.g.
+
+.. code-block:: python
+
+   def makeDileptonPlots(self, sel, leptons, uname):
+       from bamboo.plots import Plot, EquidistantBinning
+       from bamboo import treefunctions as op
+       plots = [
+            Plot.make1D("{0}_llM".format(uname),
+               op.invariant_mass(leptons[0].p4, leptons[1].p4), sel,
+               EquidistantBinning(100, 20., 120.),
+               title="Dilepton invariant mass",
+               plotopts={"show-overflow":False}
+               )
+       ]
+       return plots
+
+   def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
+       from bamboo import treefunctions as op
+
+       plots = []
+
+       muons = op.select(t.Muon, lambda mu : op.AND(mu.p4.Pt() > 20., op.abs(mu.p4.Eta() < 2.4)))
+
+       twoMuSel = noSel.refine("twoMuons", cut=[ op.rng_len(muons) > 1 ])
+
+       plots += self.makeDileptonPlots(twoMuSel, muons, "DiMu")
+
+       jets = op.select(t.Jet["nominal"], lambda j : j.p4.Pt() > 30.)
+
+       twoMuTwoJetSel = twoMuSel.refine("twoMuonsTwoJets", cut=[ op.rng_len(jets) > 1 ])
+
+       plots += self.makeDileptonPlots(twoMuTwoJetSel, muons, "DiMu2j")
+
+       return plots
+
+Finally, there are some cases where the safest is to force the inclusion of a
+calculation at a certain stage, for instance when performing expensive function
+calls, since the default strategy is not to precalculate these because there are
+many more function calls that are not costly.
+A prime example of this is the calculation of modified jet collections with e.g.
+an alternative JEC aplied, which is done in a separate C++ module (see below),
+and is probably the slowest operation in most analysis tasks.
+The definition can be added explicitly under a selection by calling the
+:py:meth:`bamboo.analysisutils.forceDefine` method, e.g. with
+``forceDefine(t.Jet.calcProd, mySelection)``.
+
 Recipes for common tasks
 ------------------------
 
@@ -293,6 +412,55 @@ and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
 respectively, instead of a single path.
 
+As an example, some basic lepton ID and jet tagging scalefactors could be
+included in an analysis on NanoAOD by defining
+
+.. code-block:: python
+
+ import bamboo.scalefactors
+ from itertools import chain
+ import os.path
+
+ # scalefactor JSON files are in ScaleFactors/<era>/ alongside the module
+ def localize_myanalysis(aPath, era="2016legacy"):
+     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "ScaleFactors", era, aPath)
+
+ # nested dictionary with path names of scalefactor JSON files
+ # { tag : { selection : absole-json-path } }
+ myScalefactors = {
+     "electron_2016_94" : dict((k,localize_myanalysis(v)) for k, v in dict(
+         ("id_{wp}".format(wp=wp.lower()), ("Electron_EGamma_SF2D_{wp}.json".format(wp=wp)))
+         for wp in ("Loose", "Medium", "Tight") ).items()),
+     "btag_2016_94" : dict((k, (tuple(localize_myanalysis(fv) for fv in v))) for k,v in dict(
+         ( "{algo}_{wp}".format(algo=algo, wp=wp),
+           tuple("BTagging_{wp}_{flav}_{calib}_{algo}.json".format(wp=wp, flav=flav, calib=calib, algo=algo)
+               for (flav, calib) in (("lightjets", "incl"), ("cjets", "comb"), ("bjets","comb")))
+         ) for wp in ("loose", "medium", "tight") for algo in ("DeepCSV", "DeepJet") ).items())
+     }
+
+ # fill in some defaults: myScalefactors and bamboo.scalefactors.binningVariables_nano
+ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=None):
+     return bamboo.scalefactors.get_scalefactor(objType, key, periods=None, combine=None,
+         additionalVariables=(additionalVariables if additionalVariables else dict()),
+         sfLib=myScalefactors, paramDefs=bamboo.scalefactors.binningVariables_nano)
+
+and adding the weights to the appropriate :py:class:`~bamboo.plots.Selection`
+instances with
+
+.. code-block:: python
+
+ electrons = op.select(t.Electron, lambda ele : op.AND(ele.cutBased >= 2, ele.p4.Pt() > 20., op.abs(ele.p4.Eta()) < 2.5))
+ elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_loose"))
+ hasTwoEl = noSel.refine("hasTwoEl", cut=[ op.rng_len(electrons) > 1 ],
+               weight=[ elLooseIDSF(electrons[0]), elLooseIDSF(electrons[1]) ])
+
+ jets = op.select(t.Jet, lambda j : j.p4.Pt() > 30.)
+ bJets = op.select(jets, lambda j : j.btagDeepFlavB > 0.2217) ## DeepFlavour loose b-tag working point
+ deepFlavB_discriVar = { "BTagDiscri": lambda j : j.btagDeepFlavB }
+ deepBLooseSF = get_scalefactor("jet", ("btag_2016_94", "DeepJet_loose"), additionalVariables=deepFlavB_discriVar)
+ hasTwoElTwoB = hasTwoEl.refine("hasTwoElTwoB", cut=[ op.rng_len(bJets) > 1 ],
+                  weight=[ deepBLooseSF(bJets[0]), deepBLooseSF(bJets[1]) ])
+
 Pileup reweighting
 ''''''''''''''''''
 
@@ -326,6 +494,45 @@ The :py:func:`bamboo.analysisutils.makePileupWeight` method can be used to build
 an expression for the weight, starting from the path of the JSON file with
 weights from above, and an expression for the true number of interactions in the
 event (mean of the Poissonian used), e.g. ``tree.Pileup_nTrueInt`` for NanoAOD.
+
+Cleaning collections
+''''''''''''''''''''
+
+The CMS reconstruction sometimes ends up double-counting some objects.
+This can be because of the different quality criteria used to identify each
+object or because of the different performance and inner working of
+the reconstruction algorithms.
+Tau reconstruction for example operates on clusters that are usually
+reconstructed as jets, and on top of that it can easily pick up even isolated
+muons or electrons as taus (i.e. as clusters of energy with one, two, or three
+tracks).
+
+It is oftentimes necessary therefore to clean a collection of objects by
+excluding any object that is spatially in the sample place of another object
+whose reconstruction we trust more.
+
+We trust more muon and electron reconstrution than tau reconstruction,
+after all the quality cuts (ID efficiencies for muons and electrons are around
+99.X%, whereas tau ID efficiencies are of the order of 70%.
+Misidentification rates are similarly quite different), and therefore we exclude
+from the tau collection any tau that happens to include within its
+reconstruction cone a muon or an electron.
+
+Bamboo provides a handy syntax for that, resulting in something like
+
+.. code-block:: python
+
+   cleanedTaus = op.select(taus, lambda it : op.AND(
+         op.NOT(op.rng_any(electrons, lambda ie : op.deltaR(it.p4, ie.p4) < 0.3 )),
+         op.NOT(op.rng_any(muons, lambda im : op.deltaR(it.p4, im.p4) < 0.3 ))
+         ))
+
+In this example, we assume that the collections ``taus``, ``electrons``, and
+``muons``, have already been defined via
+``taus = op.select(t.Tau, lambda tau : ...)``, and we move on to use the method
+``op.rng_any()`` to filter all taus that are within a cone of a given size
+(0.3, in the example) from any selected electron or muon.
+
 
 Jet systematics
 '''''''''''''''
@@ -394,6 +601,8 @@ recreated automatically at the next use).
 .. _SAMADhi: https://cp3.irmp.ucl.ac.be/samadhi/index.php
 
 .. _CP3-llbb framework: https://github.com/cp3-llbb/Framework
+
+.. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
 
 .. _pileupcalc documentation: https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData#Pileup_JSON_Files_For_Run_II
 

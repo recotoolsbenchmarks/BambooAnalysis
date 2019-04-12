@@ -192,3 +192,31 @@ class DataframeBackend(FactoryBackend):
 
     def getPlotResult(self, plot):
         return self.plotResults[plot.name]
+
+    def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
+        selND = self.selDFs[sele.name]
+
+        allcolN = selND.df.GetColumnNames()
+        defcolN = selND.df.GetDefinedColumnNames()
+        colNToKeep = type(allcolN)()
+        if origBranchesToKeep is None: ## keep all if not defined
+            for cn in allcolN:
+                if cn not in defcolN:
+                    colNToKeep.push_back(cn)
+        elif len(origBranchesToKeep) != 0:
+            for cn in origBranchesToKeep:
+                if cn not in allcolN:
+                    raise RuntimeError("Requested column '{0}' from input not found".format(cn))
+                if cn in defcolN:
+                    raise RuntimeError("Requested column '{0}' from input is a defined column".format(cn))
+                colNToKeep.push_back(cn)
+
+        for dN, dExpr in definedBranches.items():
+            selND._define(dN, top.adaptArg(dExpr))
+            colNToKeep.push_back(dN)
+
+        selDF = selND.df
+        if maxSelected > 0:
+            selDF = selDF.Range(maxSelected)
+
+        selDF.Snapshot(treeName, outputFile, colNToKeep)

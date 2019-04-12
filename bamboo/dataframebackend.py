@@ -102,7 +102,7 @@ class DataframeBackend(FactoryBackend):
         return "myCol{0:d}".format(self._iCol)
 
     def shouldDefine(self, op, defCache=None):
-        return ( any(isinstance(op, expType) for expType in (top.Select, top.Next, top.Reduce, top.Combine))
+        return ( any(isinstance(op, expType) for expType in (top.Select, top.Sort, top.Map, top.Next, top.Reduce, top.Combine))
                 and not any(op.deps(defCache=defCache, select=lambda dp : isinstance(dp, top.LocalVariablePlaceholder))) )
 
     def symbol(self, decl, resultType=None, args=None, nameHint=None):

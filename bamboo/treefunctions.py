@@ -74,7 +74,11 @@ def extMethod(name):
 def extVar(typeName, name):
     return _to.ExtVar(typeName, name).result
 def construct(typeName, args):
+    if not hasattr(args, "__iter__"):
+        args = (args,)
     return _to.Construct(typeName, args).result
+def static_cast(typeName, arg):
+    return _tp.makeProxy(typeName, _to.CallMethod("static_cast<{0}>".format(typeName), (arg,), getFromRoot=False))
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elmName, elms).result
 def define(typeName, definition, nameHint=None):

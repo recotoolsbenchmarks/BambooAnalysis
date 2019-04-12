@@ -270,22 +270,23 @@ class CallMethod(TupleOp):
     """
     Call a method
     """
-    def __init__(self, name, args):
+    def __init__(self, name, args, getFromRoot=True):
         self.name = name ## NOTE can only be a hardcoded string this way
         self._mp = None
-        try:
-            from cppyy import gbl
-            if "::" in name:
-                res = gbl
-                for tok in name.split("::"):
-                    res = getattr(res, tok)
-                if res != gbl:
-                    self._mp = res
-            else:
-                self._mp  = getattr(gbl, name)
-        except Exception as ex:
-            logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
-            self._mp = None
+        if getFromRoot:
+            try:
+                from cppyy import gbl
+                if "::" in name:
+                    res = gbl
+                    for tok in name.split("::"):
+                        res = getattr(res, tok)
+                    if res != gbl:
+                        self._mp = res
+                else:
+                    self._mp  = getattr(gbl, name)
+            except Exception as ex:
+                logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
+                self._mp = None
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):

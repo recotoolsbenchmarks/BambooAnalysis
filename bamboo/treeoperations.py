@@ -270,22 +270,23 @@ class CallMethod(TupleOp):
     """
     Call a method
     """
-    def __init__(self, name, args):
+    def __init__(self, name, args, getFromRoot=True):
         self.name = name ## NOTE can only be a hardcoded string this way
         self._mp = None
-        try:
-            from cppyy import gbl
-            if "::" in name:
-                res = gbl
-                for tok in name.split("::"):
-                    res = getattr(res, tok)
-                if res != gbl:
-                    self._mp = res
-            else:
-                self._mp  = getattr(gbl, name)
-        except Exception as ex:
-            logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
-            self._mp = None
+        if getFromRoot:
+            try:
+                from cppyy import gbl
+                if "::" in name:
+                    res = gbl
+                    for tok in name.split("::"):
+                        res = getattr(res, tok)
+                    if res != gbl:
+                        self._mp = res
+                else:
+                    self._mp  = getattr(gbl, name)
+            except Exception as ex:
+                logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
+                self._mp = None
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -572,6 +573,95 @@ class Select(TupleOp):
                 return expr
             else:
                 funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=paramDecl)
+                return "{0}({1})".format(funName, paramCall)
+
+class Sort(TupleOp):
+    """ Sort a range (ascendingly) by the value of a function on each element """
+    def __init__(self, rng, fun):
+        self.rng = rng ## PROXY
+        self._i = LocalVariablePlaceholder(SizeType)
+        self.funExpr = adaptArg(fun(self.rng._base[self._i.result]))
+        super(Sort, self).__init__()
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        if not defCache._getColName(self):
+            for arg in (adaptArg(self.rng), self.funExpr):
+                if select(arg):
+                    yield arg
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp != self._i:
+                        yield dp
+    @property
+    def result(self):
+        from .treeproxies import VectorProxy
+        return VectorProxy(self, "ROOT::VecOps::RVec<{0}>".format(SizeType))
+    def __eq__(self, other):
+        return isinstance(other, Sort) and ( self.rng == other.rng ) and ( self.funExpr == other.funExpr )
+    def __repr__(self):
+        return "Sort({0!r}, {1!r})".format(self.rng, self.funExpr)
+    def __hash__(self):
+        return hash(self.__repr__())
+    def get_cppStr(self, defCache=cppNoRedir):
+        depList = _collectDeps((self.rng, self.funExpr), (self._i,), defCache=defCache)
+        ## should only be a non-empty list for the topmost op in case of nested expressions
+        localVarsToName = _collectLocalVars((self.rng, self.funExpr), (self._i,), defCache=defCache)
+        with _nameLocalVars(localVarsToName):
+            captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
+            expr = "rdfhelpers::sort({idxs},\n    [{captures}] ( {i} ) {{ return {funExpr}; }})".format(
+                    idxs=defCache(self.rng._idxs.op),
+                    captures=captures,
+                    i="{0} {1}".format(self._i.typeHint, self._i.name),
+                    funExpr=defCache(self.funExpr)
+                    )
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
+                return expr
+            else:
+                funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=paramDecl)
+                return "{0}({1})".format(funName, paramCall)
+
+class Map(TupleOp):
+    """ Create a list of derived values for a collection (mostly useful for storing on skims) """
+    def __init__(self, rng, fun, typeName=None):
+        self.rng = rng ## PROXY
+        self._i = LocalVariablePlaceholder(SizeType)
+        res = fun(self.rng._base[self._i.result])
+        self.typeName = typeName if typeName is not None else res._typeName
+        self.funExpr = adaptArg(res)
+        super(Map, self).__init__()
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        if not defCache._getColName(self):
+            for arg in (adaptArg(self.rng), self.funExpr):
+                if select(arg):
+                    yield arg
+                for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
+                    if includeLocal or dp != self._i:
+                        yield dp
+    @property
+    def result(self):
+        from .treeproxies import VectorProxy
+        return VectorProxy(self, "ROOT::VecOps::RVec<{0}>".format(self.typeName))
+    def __eq__(self, other):
+        return isinstance(other, Map) and ( self.rng == other.rng ) and ( self.funExpr == other.funExpr )
+    def __repr__(self):
+        return "Map({0!r}, {1!r})".format(self.rng, self.funExpr)
+    def __hash__(self):
+        return hash(self.__repr__())
+    def get_cppStr(self, defCache=cppNoRedir):
+        depList = _collectDeps((self.rng, self.funExpr), (self._i,), defCache=defCache)
+        ## should only be a non-empty list for the topmost op in case of nested expressions
+        localVarsToName = _collectLocalVars((self.rng, self.funExpr), (self._i,), defCache=defCache)
+        with _nameLocalVars(localVarsToName):
+            captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
+            expr = "rdfhelpers::map<{valueType}>({idxs},\n    [{captures}] ( {i} ) {{ return {funExpr}; }})".format(
+                    valueType=self.typeName,
+                    idxs=defCache(self.rng._idxs.op),
+                    captures=captures,
+                    i="{0} {1}".format(self._i.typeHint, self._i.name),
+                    funExpr=defCache(self.funExpr)
+                    )
+            if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
+                return expr
+            else:
+                funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=paramDecl)
                 return "{0}({1})".format(funName, paramCall)
 
 class Next(TupleOp):

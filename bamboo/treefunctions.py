@@ -74,7 +74,11 @@ def extMethod(name):
 def extVar(typeName, name):
     return _to.ExtVar(typeName, name).result
 def construct(typeName, args):
+    if not hasattr(args, "__iter__"):
+        args = (args,)
     return _to.Construct(typeName, args).result
+def static_cast(typeName, arg):
+    return _tp.makeProxy(typeName, _to.CallMethod("static_cast<{0}>".format(typeName), (arg,), getFromRoot=False))
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elmName, elms).result
 def define(typeName, definition, nameHint=None):
@@ -366,6 +370,31 @@ def select(rng, pred=lambda elm : True):
     >>> centralMuons = op.select(t.Muon, lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
     return _tp.SelectionProxy(_to.Select(rng, pred))
+
+def sort(rng, fun=lambda elm : 0.):
+    """ Sort the range (ascendingly) by the value of a function applied on each element
+
+    :param rng: input range
+    :param fun: function by whose value the elements should be sorted
+
+    :Example:
+
+    >>> muonsByCentrality = op.sort(t.Muon, lambda mu : op.abs(mu.p4.Eta()))
+    """
+    return _tp.SelectionProxy(_to.Sort(rng, fun))
+
+def map(rng, fun, valueType=None):
+    """ Create a list of derived values for a collection (mostly useful for storing on skims)
+
+    :param rng: input range
+    :param fun: function to calculate derived values
+    :param valueType: stored return type (optional, ``fun(rng[i])`` should be convertible to this type)
+
+    :Example:
+
+    >>> muon_absEta = op.map(t.Muon, lambda mu : op.abs(mu.p4.Eta()))
+    """
+    return _to.Map(rng, fun, typeName=valueType).result
 
 def rng_pickRandom(rng, seed=0):
     """ Pick a random element from a range

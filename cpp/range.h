@@ -23,10 +23,23 @@ ROOT::VecOps::RVec<typename RANGE::value_type> select(const RANGE& range, PREDIC
   return sel;
 }
 
+template<typename RANGE,typename PREDICATE>
+ROOT::VecOps::RVec<typename RANGE::value_type> sort(const RANGE& range, PREDICATE&& pred)
+{
+  using item_t = typename RANGE::value_type;
+  ROOT::VecOps::RVec<item_t> sel{std::begin(range), std::end(range)};
+  std::stable_sort(std::begin(sel), std::end(sel),
+      [&pred] ( const item_t ia, const item_t ib ) {
+        return pred(ia) < pred(ib);
+      });
+  return sel;
+}
+
 template<typename RESULT,typename RANGE,typename FUNCTION>
-typename ROOT::VecOps::RVec<RESULT> transform(const RANGE& range, FUNCTION&& fun)
+typename ROOT::VecOps::RVec<RESULT> map(const RANGE& range, FUNCTION&& fun)
 {
   typename ROOT::VecOps::RVec<RESULT> result;
+  result.reserve(range.size());
   std::transform(range.begin(), range.end(), std::back_inserter(result), fun);
   return result;
 }

@@ -1,7 +1,7 @@
 """
 Example analysis module: make a dimuon mass plot from a NanoAOD
 """
-from bamboo.analysismodules import NanoAODHistoModule
+from bamboo.analysismodules import NanoAODHistoModule, NanoAODSkimmerModule
 
 class NanoZMuMu(NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
@@ -74,3 +74,15 @@ class NanoZMuMu(NanoAODHistoModule):
                 EquidistantBinning(50, 0., 250.), title="Subleading jet PT"))
 
         return plots
+
+class SkimNanoZMuMu(NanoAODSkimmerModule):
+    def __init__(self, args):
+        super(SkimNanoZMuMu, self).__init__(args)
+    def defineSkimSelection(self, tree, noSel, era=None, sample=None):
+        from bamboo import treefunctions as op
+        muons = op.select(tree.Muon, lambda mu : op.AND(mu.p4.Pt() > 20., op.abs(mu.p4.Eta()) < 2.4))
+        hasTwoMu = noSel.refine("hasTwoMu", cut=(op.rng_len(muons) >= 2))
+        varsToKeep = {"nMuon": None, "Muon_eta": None, "Muon_pt": None} ## from input file
+        varsToKeep["nSelMuons"] = op.static_cast("UInt_t", op.rng_len(muons)) ## TBranch doesn't accept size_t
+        varsToKeep["selMu_miniPFRelIsoNeu"] = op.map(muons, lambda mu : mu.miniPFRelIso_all - mu.miniPFRelIso_chg)
+        return hasTwoMu, varsToKeep

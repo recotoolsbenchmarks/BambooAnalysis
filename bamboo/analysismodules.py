@@ -448,6 +448,7 @@ class SkimmerModule(AnalysisModule):
         super(SkimmerModule, self).__init__(args)
 
     def addArgs(self, parser):
+        parser.add_argument("--keepOriginalBranches", action="store_true", help="Keep all original branches (in addition to those defined by the module)")
         parser.add_argument("--maxSelected", type=int, default=-1, help="Maximum number of accepted events (default: -1 for all)")
 
     def initialize(self):
@@ -484,21 +485,11 @@ class SkimmerModule(AnalysisModule):
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
-        finalSel, defBrToKeep = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
-        selDF = backend.selDFs[finalSel.name].df
+        finalSel, brToKeep = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
+        defBr = dict((k,v) for k,v in brToKeep.items() if v is not None)
+        origBr = list(k for k,v in brToKeep.items() if v is None)
 
-        if self.args.maxSelected and self.args.maxSelected > 0:
-            selDF = selDF.Range(self.args.maxSelected)
-
-        # exclude defined columns
-        allcolN = selDF.GetColumnNames()
-        defcolN = selDF.GetDefinedColumnNames()
-        origcolN = type(allcolN)()
-        for cn in allcolN:
-            if cn not in defcolN or cn in defBrToKeep:
-                origcolN.push_back(cn)
-
-        selDF.Snapshot(treeName, outputFile, origcolN)
+        backend.writeSkim(finalSel, outputFile, treeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
 
         outF = gbl.TFile.Open(outputFile, "UPDATE")
         self.mergeCounters(outF, inputFiles)
@@ -526,9 +517,9 @@ class SkimmerModule(AnalysisModule):
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
 
-        :returns: the skim :py:class:`bamboo.plots.Selection`, and a list of defined branch names to save
+        :returns: the skim :py:class:`bamboo.plots.Selection`, and a map ``{ name: expression }`` of branches to store (to store all the branches of the original tree in addition, pass --keepOriginalBranches to bambooRun; individual branches can be added by with an entry ``name: None`` entry)
         """
-        return noSel, []
+        return noSel, {}
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         """ Postprocess: write the equivalent analysis.yml file """

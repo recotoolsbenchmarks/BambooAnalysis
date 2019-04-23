@@ -5,6 +5,8 @@ project(BambooExt LANGUAGES CXX)
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_LIBDIR "lib")
 
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
+
 if(EXISTS "$ENV{CMAKE_PREFIX_PATH}/include/boost")
     message(STATUS "Will use $ENV{CMAKE_PREFIX_PATH} as base path for boost")
     set(BOOST_ROOT $ENV{CMAKE_PREFIX_PATH})
@@ -49,3 +51,35 @@ add_library(RoccoR SHARED src/RoccoR.cc src/RochesterCorrectionCalculator.cc)
 target_include_directories(RoccoR PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(RoccoR ROOT::ROOTVecOps Boost::boost BambooRandom)
 install(TARGETS RoccoR LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+## ML extensions
+
+find_package(TensorflowC)
+if(TensorflowC_FOUND)
+  add_library(BambooTensorflowC SHARED src/bambootensorflowc.cc)
+  target_compile_features(BambooTensorflowC PRIVATE cxx_std_17)
+  target_include_directories(BambooTensorflowC
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+  target_link_libraries(BambooTensorflowC TensorflowC)
+  install(TARGETS BambooTensorflowC
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  message(STATUS "Building Tensorflow C API integration (from ${TENSORFLOWC_INCLUDE_DIR})")
+else()
+  message(STATUS "Tensorflow C API integration will not be built. Specify CMAKE_PREFIX_PATH with the correct prefix to include it")
+endif()
+
+find_package(Torch)
+if(Torch_FOUND)
+  add_library(BambooTorch SHARED src/bambootorch.cc)
+  target_compile_features(BambooTorch PRIVATE cxx_std_17)
+  target_include_directories(BambooTorch
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+  target_link_libraries(BambooTorch torch)
+  install(TARGETS BambooTorch
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  message(STATUS "Building libTorch integration with libTorch from ${TORCH_INSTALL_PREFIX}")
+else()
+  message(STATUS "libTorch integration will not be built. Specify CMAKE_PREFIX_PATH with the libTorch prefix to include it")
+endif()

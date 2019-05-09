@@ -391,7 +391,7 @@ class CombinationProxy(TupleBaseProxy):
         super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
     @property
     def _idx(self):
-        return adaptArg(self._parent)._parent._index ## parent is a GetIndex-proxy
+        return adaptArg(self._parent)._index ## parent is a GetIndex-proxy
     @property
     def index(self):
         return adaptArg(self._parent).index ## parent is a GetIndex-proxy

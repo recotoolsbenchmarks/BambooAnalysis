@@ -313,7 +313,7 @@ def rng_max(rng, fun=lambda x : x):
     >>> mostForwardMuEta = op.rng_max(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce(rng, c_float(float("-inf")), ( lambda fn : (
-        lambda res, elm : max(res, fn(elm))
+        lambda res, elm : extMethod("std::max")(res, fn(elm))
         ) )(fun) ).result
 def rng_min(rng, fun=lambda x : x):
     """ Find the lowest value of a function in a range
@@ -326,7 +326,7 @@ def rng_min(rng, fun=lambda x : x):
     >>> mostCentralMuEta = op.rng_min(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce(rng, c_float(float("+inf")), ( lambda fn : (
-        lambda res, elm : min(res, fn(elm))
+        lambda res, elm : extMethod("std::min")(res, fn(elm))
         ) )(fun) ).result
 
 def rng_max_element_by(rng, fun=lambda elm : elm):
@@ -339,9 +339,10 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
 
     >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
-    return rng._base[_to.Reduce(rng, _tp.makeConst(0, _to.SizeType), ( lambda fn,rn : (
-        lambda ibest, elm : switch(fn(elm) > fn(rn._base[ibest]), elm._idx.result, ibest)
-        ) )(fun,rng) ).result]
+    return rng._base[_to.Reduce(rng,
+        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("-inf")))),
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
+
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
 
@@ -352,9 +353,9 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
 
     >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
-    return rng._base[_to.Reduce(rng, _tp.makeConst(0, _to.SizeType), ( lambda fn,rn : (
-        lambda ibest, elm : switch(fn(elm) < fn(rn._base[ibest]), elm._idx.result, ibest)
-        ) )(fun,rng) ).result]
+    return rng._base[_to.Reduce(rng,
+        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("+inf")))),
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):

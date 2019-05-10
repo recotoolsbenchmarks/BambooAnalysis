@@ -17,4 +17,16 @@ ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> > withMass( const Loren
   return ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >{p4.Pt(), p4.Eta(), p4.Phi(), mass};
 }
 
+// helper methods for min/max (element) reduce expressions, see op.rng_max_element_by
+template<typename T1,typename T2,typename T3>
+typename std::pair<T1,T2> maxPairBySecond( typename std::pair<T1,T2> a, T1 bFirst, T3 bSecond )
+{
+  return ( bSecond > a.second ) ? std::pair<T1,T2>(bFirst, bSecond) : a;
+}
+template<typename T1,typename T2, typename T3>
+typename std::pair<T1,T2> minPairBySecond( typename std::pair<T1,T2> a, T1 bFirst, T3 bSecond )
+{
+  return ( bSecond < a.second ) ? std::pair<T1,T2>(bFirst, bSecond) : a;
+}
+
 };

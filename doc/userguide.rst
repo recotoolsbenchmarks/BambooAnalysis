@@ -3,21 +3,96 @@ User guide
 
 This section contains some more information on doing your analysis with bamboo.
 It assumes you have successfully installed it following the instructions in the
-previous section.
+:doc:`previous section<install>`.
 
 The first thing to make sure is that bamboo can work with your trees.
-A first set of decorators for CMS NanoAOD is included in
+With CMS NanoAOD, many analysis use the same (or a very similar) tree format,
+which is why a set of decorators for is included in
 :py:func:`bamboo.treedecorators.decorateNanoAOD`; to make stacked histogram
 plots from them it is sufficient to make your analysis module inherit from
 :py:class:`bamboo.analysismodules.NanoAODHistoModule`
 (which calls this method from its
 :py:meth:`~bamboo.analysismodules.NanoAODHistoModule.prepareTrees` method).
 Other types of trees can be included in a similar way, but a bit of development
-is needed to provided a convenient way to do so (help welcome).
+is needed to provided a more convenient way to do so (help welcome).
 
-Then, you will need to provide the two really analysis-specific parts: a
-configuration file that lists the samples and plot configuration, and a module
-specifying what to fill in the histograms. Let's start with the latter.
+Running bambooRun
+-----------------
+
+The ``bambooRun`` executable script can be used to run over some samples and
+derive other samples or histograms from them. It needs at least two arguments: a
+:ref:`python module<uganalysismodule>`, which will tell it what to do for each event,
+and a :ref:`configuration file<uganalysisyaml>` with a list of samples to process,
+plot settings etc.
+
+Typically, ``bambooRun`` would be invoked with
+
+.. code-block:: sh
+
+   bambooRun -m module-specification config-file-path -o my-output
+
+where ``module-specification`` is of the format ``modulename:classname``, and
+``modulename`` can be either a file path like ``somedir/mymodule.py`` or an
+importable module name  like ``myanalysispackage.mymodule``.
+This will construct an instance of the specified module, passing it any
+command-line arguments that are not used directly by ``bambooRun``, and run it.
+
+The default base module (:py:class:`bamboo.analysismodules.AnalysisModule`, see
+:ref:`below<uganalysismodule>`) provides a number of convenient command-line
+options (and individual modules can add more by implementing the
+:py:meth:`~bamboo.analysismodules.AnalysisModule.addArgs` method).
+
+* the ``-h`` (``--help``) switch prints the complete list of supported
+  options and arguments, including those defined by the module if used with
+  ``bambooRun -h -m mymodule``
+* the ``-o`` (``--output``) option can be used to specify the base directory for
+  output files
+* the ``-v`` (``--verbose``) switch will produce more output messages, and also
+  print the full C++ code definitions that are passed to RDataFrame_ (which is
+  very useful for debugging)
+* the ``-i`` (``--interactive``) switch will only load one file and launch an
+  IPython terminal, where you can have a look at its structure and test
+  expressions
+
+The usual mode of operation is to parse the analysis configuration file,
+execute some code for every entry in each of the samples, and then perform some
+actions on the aggregated results (e.g. draw histograms).
+Since the second step is by far the most time-consuming, but can be performed
+indepently for different samples (and even entries), it is modeled as a list of
+tasks (which may be run in parallel), after which a postprocessing step takes
+the results ad combines them (this can also be run separately, using
+the results of previously run tasks, assuming these did not change).
+
+More concretely, for histogram stack plots the tasks produce histograms while
+the postprocessing step runs plotIt_, so with the ``--onlypost`` option the
+normalization, colors, labels etc. can be changed without reprocessing the
+samples.
+Passing the ``--distributed=driver`` option will submit the independent tasks to
+a batch scheduler (currently HTCondor and Slurm are supported) instead of
+running them sequentially, wait for the results to be ready, and combine them
+(the worker tasks will run the same module, but with ``--distributed=worker``
+and the actual input and results file names as input and output arguments).
+
+.. _ugenvconfig:
+
+Computing environment configuration file
+''''''''''''''''''''''''''''''''''''''''
+
+For some features such as automatically converting logical filenames from DAS
+to physical filenames at your local T2 storage, submitting to a batch cluster
+etc., some information about the computing resources and environment is needed.
+In order to avoid proliferating the command-line interface of ``bambooRun``,
+these pieces of information are bundled in a file that can be passed in one go
+through the ``--envConfig`` option.
+If not specified, Bamboo_ will try to read ``bamboo.ini`` in the current
+directory, and then ``$XDG_CONFIG_HOME/bamboorc`` (which typically resolves to
+``~/.config/bamboorc``).
+Since these settings are not expected to change often or much, it is advised to
+copy the closest example (e.g. ``examples/ingrid.ini`` or
+``examples/lxplus.ini``) to ``~/.config/bamboorc`` and edit if necessary.
+
+
+.. _uganalysisyaml:
 
 Analysis YAML file format
 -------------------------
@@ -92,6 +167,9 @@ All together, typical data and MC sample entries would look like
        cross-section: 5765.4
        generated-events: genEventSumw
 
+
+.. _uganalysismodule:
+
 Analysis module
 ---------------
 
@@ -153,6 +231,9 @@ the JSON luminosity block mask for data. A plot object refers to a selection,
 and specifies which variable(s) to plot, with which binning(s), labels, options
 etc. (the ``plotOpts`` dictionary is copied directly into the plot section of the
 plotIt configuration file).
+
+
+.. _ugexpressions:
 
 Specifying cuts, weight, and variables: expressions
 ---------------------------------------------------
@@ -251,6 +332,9 @@ e.g. NanoAODv4 for
 `2017 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data94Xv2_doc.html>`_, and
 `2018 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data101X_doc.html>`_.
 
+
+.. _ugcutordering:
+
 Ordering selections and plots efficiently
 '''''''''''''''''''''''''''''''''''''''''
 
@@ -258,7 +342,7 @@ Internally, Bamboo uses the RDataFrame_ class to process the input samples and
 produce histograms or skimmed trees |---| in fact no python code is run while
 looping over the events: Bamboo builds up a computation graph when
 :py:class:`~bamboo.plots.Selection` and :py:class:`~bamboo.plots.Plot`
-are defined by the analysis module's
+objects are defined by the analysis module's
 :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` method,
 RDataFrame_ compiles the expressions for the cuts and variables, and the input
 files and events are only looped over once, when the histograms are retrieved
@@ -370,8 +454,13 @@ The definition can be added explicitly under a selection by calling the
 :py:meth:`bamboo.analysisutils.forceDefine` method, e.g. with
 ``forceDefine(t.Jet.calcProd, mySelection)``.
 
+
+.. _ugrecipes:
+
 Recipes for common tasks
 ------------------------
+
+.. _ugrecipescalefactors:
 
 Using scalefactors
 ''''''''''''''''''
@@ -461,6 +550,9 @@ instances with
  hasTwoElTwoB = hasTwoEl.refine("hasTwoElTwoB", cut=[ op.rng_len(bJets) > 1 ],
                   weight=[ deepBLooseSF(bJets[0]), deepBLooseSF(bJets[1]) ])
 
+
+.. _ugrecipepureweighting:
+
 Pileup reweighting
 ''''''''''''''''''
 
@@ -494,6 +586,9 @@ The :py:func:`bamboo.analysisutils.makePileupWeight` method can be used to build
 an expression for the weight, starting from the path of the JSON file with
 weights from above, and an expression for the true number of interactions in the
 event (mean of the Poissonian used), e.g. ``tree.Pileup_nTrueInt`` for NanoAOD.
+
+
+.. _ugrecipetaucleaning:
 
 Cleaning collections
 ''''''''''''''''''''
@@ -533,6 +628,8 @@ In this example, we assume that the collections ``taus``, ``electrons``, and
 ``op.rng_any()`` to filter all taus that are within a cone of a given size
 (0.3, in the example) from any selected electron or muon.
 
+
+.. _ugrecipejetsystematics:
 
 Jet systematics
 '''''''''''''''
@@ -587,6 +684,8 @@ from the repositories on github, and stored in a local cache (this should be
 entirely transparent to the user |---| in case of doubt one can remove the
 corresponding directory and status file from ``~/.bamboo/cache``, they will be
 recreated automatically at the next use).
+
+.. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _YAML: https://yaml.org
 

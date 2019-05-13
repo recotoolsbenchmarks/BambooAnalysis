@@ -171,19 +171,8 @@ of the ``[das]`` section in the argument to ``-envConfig``):
 To run this on slurm it is sufficient to add ``--distributed=driver`` (a task
 with two jobs will be created, one for each sample sample).
 
-Environment configuration file
-------------------------------
 
-Passing the ``--envConfig`` option can in practice be avoided by copying the
-appropriate file to ``~/.config/bamboorc``. It is necessary to pick up the
-configuration of the computing environment (files for ingrid and lxplus are
-included), e.g. how to access the file storage, which batch submission system
-to use (currently slurm and HTCondor are supported). Bamboo_ tries to find it
-first from the ``--envConfig`` option, then from ``bamboo.ini`` in the current
-directory, then ``$XDG_CONFIG_HOME/bamboorc`` (which typically resolves to
-``~/.config/bamboorc``).
-
-.. _bamboo: http://to-fill-bamboodocs-home
+.. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _CP3SlurmUtils: https://cp3-git.irmp.ucl.ac.be/cp3-support/helpdesk/wikis/Slurm#the-cp3slurmutils-package
 

@@ -384,7 +384,10 @@ def sort(rng, fun=lambda elm : 0.):
     return _tp.SelectionProxy(_to.Sort(rng, fun))
 
 def map(rng, fun, valueType=None):
-    """ Create a list of derived values for a collection (mostly useful for storing on skims)
+    """ Create a list of derived values for a collection
+
+    This is useful for storing a derived quantity each item of a collection on a skim,
+    and also for filling a histogram for each entry in a collection.
 
     :param rng: input range
     :param fun: function to calculate derived values

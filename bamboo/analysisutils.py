@@ -173,12 +173,13 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     plotitCfg["files"] = plotit_files
     plotit_plots = dict()
     for plot in plotList:
-        plotOpts = dict(plotit_plotdefaults)
-        if plotDefaults:
-            plotOpts.update(plotDefaults)
-        plotOpts.update(plot.plotopts)
-        plotOpts = dict((k, (v(plot) if hasattr(v, "__call__") else v)) for k,v in plotOpts.items())
-        plotit_plots[plot.name] = plotOpts
+        if len(plot.variables) == 1:
+            plotOpts = dict(plotit_plotdefaults)
+            if plotDefaults:
+                plotOpts.update(plotDefaults)
+            plotOpts.update(plot.plotopts)
+            plotOpts = dict((k, (v(plot) if hasattr(v, "__call__") else v)) for k,v in plotOpts.items())
+            plotit_plots[plot.name] = plotOpts
     plotitCfg["plots"] = plotit_plots
     cfgName = os.path.join(workdir, "plots.yml")
     with open(cfgName, "w") as plotitFile:

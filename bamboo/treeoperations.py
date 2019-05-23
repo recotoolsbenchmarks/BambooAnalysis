@@ -175,10 +175,11 @@ class MathOp(TupleOp):
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         super(MathOp, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in self.args:
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            for arg in self.args:
+                if select(arg):
+                    yield arg
+                yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         from .treeproxies import makeProxy
@@ -227,10 +228,11 @@ class Construct(TupleOp):
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         super(Construct, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in self.args:
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            for arg in self.args:
+                if select(arg):
+                    yield arg
+                yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         from .treeproxies import makeProxy
@@ -289,10 +291,11 @@ class CallMethod(TupleOp):
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in self.args:
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            for arg in self.args:
+                if select(arg):
+                    yield arg
+                yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         retTypeN = "Float_t"
@@ -336,10 +339,11 @@ class CallMemberMethod(TupleOp):
         self.args = tuple(adaptArg(arg) for arg in args)
         super(CallMemberMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for arg in chain((self.this,), self.args):
-            if select(arg):
-                yield arg
-            yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            for arg in chain((self.this,), self.args):
+                if select(arg):
+                    yield arg
+                yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         retTypeN = guessReturnType(self._mp)
@@ -362,9 +366,10 @@ class GetDataMember(TupleOp):
         self.name = name ## NOTE can only be a hardcoded string this way
         super(GetDataMember, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        if select(self.this):
-            yield self.this
-        yield from self.this.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            if select(self.this):
+                yield self.this
+            yield from self.this.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         from .treeproxies import makeProxy
@@ -435,10 +440,11 @@ class InitList(TupleOp):
         self.elms = tuple(adaptArg(e, typeHint=elmType) for e in elms)
         super(InitList, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        for elm in self.elms:
-            if select(elm):
-                yield elm
-            yield from elm.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+        if not defCache._getColName(self):
+            for elm in self.elms:
+                if select(elm):
+                    yield elm
+                yield from elm.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
         from .treeproxies import makeProxy

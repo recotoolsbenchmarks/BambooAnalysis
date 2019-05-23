@@ -74,7 +74,7 @@ running them sequentially, wait for the results to be ready, and combine them
 and the actual input and results file names as input and output arguments).
 By default one batch job is submitted for each input sample, unless there is
 a ``split`` entry different from one for the sample, see
-:ref:`below<uganalysisyml>` for the precise meaning.
+:ref:`below<uganalysisyaml>` for the precise meaning.
 
 .. _ugenvconfig:
 

@@ -560,8 +560,9 @@ Pileup reweighting to make the pileup distribution in simulation match the one
 in data is very similar to applying a scalefactor, except that the efficiency
 correction is for the whole event or per-object |---| so the same code can be
 used.
-The ``makePUReWeightJSON.py`` script can be used to make a JSON file with
-weights out of a data pileup profile obtained by running ``pileupcalc.py``
+The ``makePUReWeightJSON.py`` script included in bamboo can be used to make
+a JSON file with weights out of a data pileup profile obtainedby running
+``pileupcalc.py``
 (inside CMSSW, see the `pileupcalc documentation`_ for details), e.g. with
 something like
 

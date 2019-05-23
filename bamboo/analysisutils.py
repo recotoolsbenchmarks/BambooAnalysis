@@ -138,7 +138,7 @@ plotit_plotdefaults = {
         "y-axis"           : "Evt",
         "y-axis-format"    : "%1% / %2$.0f",
         "normalized"       : False,
-        "x-axis-format"    : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
+        "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
         "log-y"            : "both",
         "y-axis-show-zero" : True,
         "save-extensions"  : ["pdf"],

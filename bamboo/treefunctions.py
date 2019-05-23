@@ -24,7 +24,7 @@ def _load_extensions():
     gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
     gbl.gSystem.Load(os.path.join(libDir, "libJMEObjects"))
     ## TODO combine into libBamboo, and "bamboo.h"?
-    for fname in ("range.h", "JMESystematicsCalculator.h", "scalefactors.h", "LumiMask.h"):
+    for fname in ("bamboohelpers.h", "range.h", "JMESystematicsCalculator.h", "scalefactors.h", "LumiMask.h"):
         gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
     getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
 _load_extensions()
@@ -186,11 +186,19 @@ def in_range(low, arg, up):
 
     >>> op.in_range(10., t.Muon[0].p4.Pt(), 20.)
     """
-    return AND(arg > low, arg < up)
+    return extMethod("rdfhelpers::in_range")(*(_to.adaptArg(iarg, typeHint=_tp.floatType) for iarg in (low, arg, up)))
 
 ## Kinematics and helpers
+def withMass(arg, massVal):
+    """ Construct a Lorentz vector with given mass (taking the other components from the input)
+
+    :Example:
+
+    >>> pW = withMass((j1.p4+j2.p4), 80.4)
+    """
+    return extMethod("rdfhelpers::withMass")(arg, _to.adaptArg(massVal, typeHint=_tp.floatType))
 def invariant_mass(*args):
-    """ Calculate the invariant mass of the arguments using ``ROOT::Math::VectorUtil::InvariantMass``
+    """ Calculate the invariant mass of the arguments
 
     :Example:
 
@@ -200,7 +208,14 @@ def invariant_mass(*args):
 
         Unlike in the example above, :py:meth:`bamboo.treefunctions.combine` should be used to make N-particle combinations in most practical cases
     """
-    return extMethod("ROOT::Math::VectorUtil::InvariantMass")(*args)
+    if len(args) == 0:
+        raise RuntimeError("Need at least one argument to calculate invariant mass")
+    elif len(args) == 1:
+        return args[0].M()
+    elif len(args) == 2:
+        return extMethod("ROOT::Math::VectorUtil::InvariantMass")(*args)
+    else:
+        return sum(*args, outType=args[0]._typeName).M()
 def invariant_mass_squared(*args):
     """ Calculate the squared invariant mass of the arguments using ``ROOT::Math::VectorUtil::InvariantMass2``
 
@@ -208,7 +223,14 @@ def invariant_mass_squared(*args):
 
     >>> m2ElEl = op.invariant_mass2(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("ROOT::Math::VectorUtil::InvariantMass2")(*args)
+    if len(args) == 0:
+        raise RuntimeError("Need at least one argument to calculate invariant mass")
+    elif len(args) == 1:
+        return args[0].M2()
+    elif len(args) == 2:
+        return extMethod("ROOT::Math::VectorUtil::InvariantMass2")(*args)
+    else:
+        return sum(*args, outType=args[0]._typeName).M2()
 def deltaPhi(a1, a2):
     """ Calculate the difference in azimutal angles (using ``ROOT::Math::VectorUtil::DeltaPhi``)
 
@@ -291,7 +313,7 @@ def rng_max(rng, fun=lambda x : x):
     >>> mostForwardMuEta = op.rng_max(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce(rng, c_float(float("-inf")), ( lambda fn : (
-        lambda res, elm : max(res, fn(elm))
+        lambda res, elm : extMethod("std::max")(res, fn(elm))
         ) )(fun) ).result
 def rng_min(rng, fun=lambda x : x):
     """ Find the lowest value of a function in a range
@@ -304,7 +326,7 @@ def rng_min(rng, fun=lambda x : x):
     >>> mostCentralMuEta = op.rng_min(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce(rng, c_float(float("+inf")), ( lambda fn : (
-        lambda res, elm : min(res, fn(elm))
+        lambda res, elm : extMethod("std::min")(res, fn(elm))
         ) )(fun) ).result
 
 def rng_max_element_by(rng, fun=lambda elm : elm):
@@ -317,9 +339,10 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
 
     >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
-    return rng._base[_to.Reduce(rng, _tp.makeConst(0, _to.SizeType), ( lambda fn,rn : (
-        lambda ibest, elm : switch(fn(elm) > fn(rn._base[ibest]), elm._idx.result, ibest)
-        ) )(fun,rng) ).result]
+    return rng._base[_to.Reduce(rng,
+        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("-inf")))),
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
+
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
 
@@ -330,9 +353,9 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
 
     >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
-    return rng._base[_to.Reduce(rng, _tp.makeConst(0, _to.SizeType), ( lambda fn,rn : (
-        lambda ibest, elm : switch(fn(elm) < fn(rn._base[ibest]), elm._idx.result, ibest)
-        ) )(fun,rng) ).result]
+    return rng._base[_to.Reduce(rng,
+        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("+inf")))),
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):

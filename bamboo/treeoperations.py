@@ -121,7 +121,6 @@ class GetArrayColumn(TupleOp):
 
 ## helper
 def adaptArg(arg, typeHint=None):
-    from .treeproxies import TupleBaseProxy
     if isinstance(arg, TupleBaseProxy):
         return arg.op
     elif isinstance(arg, TupleOp):

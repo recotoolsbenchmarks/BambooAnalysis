@@ -389,6 +389,12 @@ class CombinationProxy(TupleBaseProxy):
     def __init__(self, cont, parent):
         self.cont = cont
         super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
+    @property
+    def _idx(self):
+        return adaptArg(self._parent)._index ## parent is a GetIndex-proxy
+    @property
+    def index(self):
+        return adaptArg(self._parent).index ## parent is a GetIndex-proxy
     def __getitem__(self, i):
         idx = makeConst(i, SizeType)
         return self.cont.base(i)[self._parent.get(idx)]

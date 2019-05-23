@@ -138,14 +138,14 @@ plotit_plotdefaults = {
         "y-axis"           : "Evt",
         "y-axis-format"    : "%1% / %2$.0f",
         "normalized"       : False,
-        "x-axis-format"    : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
+        "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
         "log-y"            : "both",
         "y-axis-show-zero" : True,
         "save-extensions"  : ["pdf"],
         "show-ratio"       : True,
         "sort-by-yields"   : False,
         }
-def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., era=None):
+def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., era=None, verbose=False):
     ## TODO also pass the correct luminosity numbers
     eras = []
     if era is not None:
@@ -192,8 +192,12 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         os.makedirs(plotsdir)
 
     try:
-        with open(os.path.join(plotsdir, "out.log"), "w") as logFile:
-            subprocess.check_call([plotIt, "-i", workdir, "-o", plotsdir, cfgName], stdout=logFile)
+        plotItArgs = [plotIt, "-i", workdir, "-o", plotsdir, cfgName]
+        plotItLog = os.path.join(plotsdir, "out.log")
+        if verbose:
+            logger.debug("Running command `{0}`, with logfile {1}".format(" ".join(plotItArgs), plotItLog))
+        with open(plotItLog, "w") as logFile:
+            subprocess.check_call(plotItArgs, stdout=logFile)
         logger.info("plotIt output is available in {0}".format(plotsdir))
     except subprocess.CalledProcessError as ex:
         logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))

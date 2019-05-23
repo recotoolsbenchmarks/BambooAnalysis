@@ -207,23 +207,26 @@ class TasksMonitor(object):
                 if stats[self.completedStatus] > prevStats[self.completedStatus]:
                     self._tryFinalize()
 
-def splitInChunks(theList, n):
+def splitInChunks(theList, nChunks=None, chunkLength=None):
+    if ( nChunks is None ) == ( chunkLength is None ):
+        raise ValueError("One and only one of nChunks or chunkLength should be specified, got {0} and {1}".format(nChunks, chunkLength))
     from itertools import islice
-    import math
     N = len(theList)
-    chunkLength = int(math.ceil(1.*N/n))
+    if nChunks is not None:
+        import math
+        chunkLength = int(math.ceil(1.*N/nChunks))
     for iStart, iStop in zip(range(0, len(theList), chunkLength), range(chunkLength, len(theList)+chunkLength, chunkLength)):
         yield islice(theList, iStart, min(iStop,N))
 
 def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
-    nChunks = 1
-    outArg = next(arg for arg in commonArgs if "--output" in arg)
-    ## TODO maybe pass sample name, take configuration for splitting
-    if "DYJetsToLL_M-10to50" in outArg:
-        nChunks = 4
-    elif "TT_Tune" in outArg:
-        nChunks = 3
-    splitSplitArgs = list(list(chunk) for chunk in splitInChunks(toSplitArgs, nChunks))
+    split = 1
+    if config and "split" in config:
+        split = config["split"]
+    if split >= 0: ## at least 1 (no splitting), at most the numer of arguments (one job per input)
+        chunks = splitInChunks(toSplitArgs, nChunks=max(1, min(split, len(toSplitArgs))))
+    else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
+        chunks = splitInChunks(toSplitArgs, chunkLength=max(1, min(-split, len(toSplitArgs))))
+    splitSplitArgs = list(list(chunk) for chunk in chunks)
     assert sum(len(ssa) for ssa in splitSplitArgs) == len(toSplitArgs)
     cmds = [ " ".join(commonArgs+splitArgs) for splitArgs in splitSplitArgs ]
     return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outdir))

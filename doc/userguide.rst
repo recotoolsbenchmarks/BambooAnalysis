@@ -72,6 +72,9 @@ a batch scheduler (currently HTCondor and Slurm are supported) instead of
 running them sequentially, wait for the results to be ready, and combine them
 (the worker tasks will run the same module, but with ``--distributed=worker``
 and the actual input and results file names as input and output arguments).
+By default one batch job is submitted for each input sample, unless there is
+a ``split`` entry different from one for the sample, see
+:ref:`below<uganalysisyml>` for the precise meaning.
 
 .. _ugenvconfig:
 
@@ -147,6 +150,13 @@ method to read the values from the results file - for NanoAOD the former merges
 the `Runs` trees and saves the results, while the latter performs the sum of
 the branch with the name specified under ``generated-events``.
 
+For large samples, a ``split`` property can be specified, such that the input
+files are spread out over different batch jobs.
+A positive number is taken as the number of jobs to divide the inputs over,
+while a negative number gives the number of files per job (e.g. ``split: 3``
+will create three jobs to process the sample, while ``split: -3`` will result
+in jobs that process three files each).
+
 All together, typical data and MC sample entries would look like
 
 .. code-block:: yaml
@@ -166,6 +176,7 @@ All together, typical data and MC sample entries would look like
        group: DY
        cross-section: 5765.4
        generated-events: genEventSumw
+       split: 3
 
 
 .. _uganalysismodule:
@@ -560,8 +571,9 @@ Pileup reweighting to make the pileup distribution in simulation match the one
 in data is very similar to applying a scalefactor, except that the efficiency
 correction is for the whole event or per-object |---| so the same code can be
 used.
-The ``makePUReWeightJSON.py`` script can be used to make a JSON file with
-weights out of a data pileup profile obtained by running ``pileupcalc.py``
+The ``makePUReWeightJSON.py`` script included in bamboo can be used to make
+a JSON file with weights out of a data pileup profile obtainedby running
+``pileupcalc.py``
 (inside CMSSW, see the `pileupcalc documentation`_ for details), e.g. with
 something like
 

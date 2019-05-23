@@ -145,7 +145,8 @@ class AnalysisModule(object):
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
                 analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-                taskArgs = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
+                taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
@@ -169,8 +170,8 @@ class AnalysisModule(object):
                         from .batch import splitTask
                         backend = envConfig["batch"]["backend"]
                         tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=envConfig.get("splitting"))
-                                    for (inputs, output), kwargs in taskArgs ]
+                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=tConfig)
+                                    for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs) ]
                         if backend == "slurm":
                             from . import batch_slurm as batchBackend
                             backendOpts = {
@@ -217,7 +218,7 @@ class AnalysisModule(object):
     def getTasks(self, analysisCfg, **extraOpts):
         """ Get tasks from analysis configs (and args), called in for driver or sequential mode
 
-        Should return a list of ``(inputs, output), kwargs``
+        Should return a list of ``(inputs, output), kwargs, config``
         """
         tasks = []
         for sName, sConfig in analysisCfg["samples"].items():
@@ -229,7 +230,7 @@ class AnalysisModule(object):
             opts["sample"] = sName
             if "era" in sConfig:
                 opts["era"] = sConfig["era"]
-            tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts))
+            tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts, sConfig))
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
@@ -375,9 +376,9 @@ class HistogramsModule(AnalysisModule):
         for eraName, eraCfg in config.get("eras", {}).items():
             if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
                 for cmbCfg in eraCfg:
-                    runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=cmbCfg)
+                    runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=cmbCfg, verbose=self.args.verbose)
             else:
-                runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=eraName)
+                runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=eraName, verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

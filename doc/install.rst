@@ -124,6 +124,10 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
+   # copy and patch some jet-related classes from CMSSW (requires cvmfs) --- temporary
+   pushd bambooclone/ext
+   ./getjetclasses.sh
+   popd
    pip install ./bamboo
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git
    cd plotIt/external
@@ -143,7 +147,7 @@ a file with histograms, with a test module like :py:mod:`examples.nanozmumu`:
 
 .. code-block:: sh
 
-   bambooRun -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu --distributed=worker /path/to/your/bambooclone/tests/data/DY_M50_2016.root -o testh1.root
+   bambooRun -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu --distributed=worker --sample=DY_M50 /path/to/your/bambooclone/tests/data/DY_M50_2016.root -o testh1.root
 
 (``--distributed=worker`` is needed to interpret the positional arguments as
 input file names, in sequential mode (no ``--distributed`` option) and for

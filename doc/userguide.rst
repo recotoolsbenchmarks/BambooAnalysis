@@ -540,7 +540,7 @@ included in an analysis on NanoAOD by defining
 
  # fill in some defaults: myScalefactors and bamboo.scalefactors.binningVariables_nano
  def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=None):
-     return bamboo.scalefactors.get_scalefactor(objType, key, periods=None, combine=None,
+     return bamboo.scalefactors.get_scalefactor(objType, key, periods=periods, combine=combine,
          additionalVariables=(additionalVariables if additionalVariables else dict()),
          sfLib=myScalefactors, paramDefs=bamboo.scalefactors.binningVariables_nano)
 

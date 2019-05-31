@@ -18,7 +18,7 @@ from itertools import chain
 from . import treefunctions as op
 
 #: Integrated luminosity (in 1/pb) per data taking period
-lumiPerPeriod = {
+lumiPerPeriod_default = {
       "Run2016B" : 5785.152 ## averaged 5783.740 (DoubleMuon), 5787.976 (DoubleEG) and 5783.740 (MuonEG) - max dev. from average is 5.e-4 << lumi syst
     , "Run2016C" : 2573.399
     , "Run2016D" : 4248.384
@@ -78,7 +78,7 @@ class ScaleFactor(object):
                )))
         return expr
 
-def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict()):
+def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=lumiPerPeriod_default):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
@@ -87,6 +87,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
     :param combine: combination strategy (``"weight"`` or ``"sample"``)
     :param paramDefs: dictionary of binning variable definitions (name to callable)
     :param additionalVariables: additional binning variable definitions (TODO: remove)
+    :param lumiPerPeriod: alternative definitions and relative weights of run periods
 
     :returns: a callable that takes ``(object, variation="Nominal")`` and returns a floating-point number proxy
     """
@@ -131,7 +132,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
                 ((sum(lumiPerPeriod[ier] for ier in eras if ier in periods),path)
                     for eras,path in config if any(ier in periods for ier in eras))))
             if len(selConfigs) < 1:
-                raise RuntimeError("Zero configs")
+                raise RuntimeError("Zero period configs selected for config {0} with periods {1}".format(", ".join("({0} : {1})".format(list(eras), path) for eras, path in config), list(periods)))
             elif len(selConfigs) == 1:
                 return ScaleFactor(cppDef='const ScaleFactor <<name>>{{"{0}"}};'.format(selConfigs[0][1]),
                         args=(getBinningParameters(getBinningVarNames(selConfigs[0][1]), isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),

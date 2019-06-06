@@ -265,9 +265,58 @@ def makePileupWeight(puWeightsFile, numTrueInteractions, variation="Nominal", na
     :param puWeightsFile: path of the JSON file with weights (binned in NumTrueInteractions)
     :param numTrueInteractions: expression to get the number of true interactions (Poissonian expectation value for an event)
     """
-    from bamboo import treefunctions as op
+    from . import treefunctions as op
     paramVType = "Parameters::value_type::value_type"
     puArgs = op.construct("Parameters", (op.initList("std::initializer_list<{0}>".format(paramVType), paramVType,
         (op.initList(paramVType, "float", (op.extVar("int", "BinningVariable::NumTrueInteractions"), numTrueInteractions)),)),))
     puWFun = op.define("ILeptonScaleFactor", 'const ScaleFactor <<name>>{{"{0}"}};'.format(puWeightsFile), nameHint=nameHint)
     return puWFun.get(puArgs, op.extVar("int", variation))
+
+def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
+    """ Construct a selection that prevents processing multiple times (from different primary datasets)
+
+    If an event is passes triggers for different primary datasets, it will be taken
+    from the first of those (i.e. the selection will be 'passes one of the triggers that
+    select it for this primary dataset, and not for any of those that come before in the
+    input dictionary).
+
+    :param sampleName: sample name
+    :param datasetsAndTriggers: a dictionary ``{primary-dataset, set-of-triggers}``, where
+        the key is either a callable that takes a sample name and returns true in case
+        it originates from the corresponding primary datasets, or a string that is
+        the first part of the sample name in that case. The value (second item) can be
+        a single expression (e.g. a trigger flag, or an OR of them), or a list of those
+        (in which case an OR-expression is constructed from them).
+    :returns: an expression to filter the events in the sample with given name
+
+    :Example:
+
+    >>> if not self.isMC(sample):
+    >>>     trigpdSel = noSel.refine("trigAndPrimaryDataset",
+    >>>         cut=makeMultiPrimaryDatasetTriggerSelection(sample, {
+    >>>               "DoubleMuon" : [ t.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL, t.HLT.Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL ],
+    >>>               "DoubleEG"   : t.HLT.Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ,
+    >>>               "MuonEG"     : [ t.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL, t.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL ]
+    >>>               }))
+    """
+    # python3.6+ dictionaries keep insertion order (implementation detail in cpython 3.6, part of the language spec since 3.7)
+    # see https://docs.python.org/3/library/stdtypes.html#mapping-types-dict
+    from . import treefunctions as op
+    inDSAndTrigSel = [
+            ((sampleName.startswith(dsArg) if isinstance(dsArg, str) else dsArg(sampleName)),
+             (op.OR(*trigArg) if hasattr(trigArg, "__iter__") else trigArg))
+        for dsArg, trigArg in ( datasetsAndTriggers.items() if isinstance(datasetsAndTriggers, dict) else datasetsAndTriggers) ]
+    sels_not = []
+    trigSel = None
+    for inThisDataset, dsTrigSel in inDSAndTrigSel:
+        if not inThisDataset:
+            sels_not.append(dsTrigSel)
+        else:
+            trigSel = dsTrigSel
+            break
+    if trigSel is None:
+        raise RuntimeError("Sample name {0} matched none of the primary datasets")
+    if len(sels_not) == 0: ## first
+        return trigSel
+    else:
+        return op.AND(op.NOT(op.OR(*sels_not)), trigSel)

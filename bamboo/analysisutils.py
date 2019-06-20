@@ -292,11 +292,11 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
     :Example:
 
     >>> if not self.isMC(sample):
-    >>>     trigpdSel = noSel.refine("trigAndPrimaryDataset",
+    >>>     trigSel = noSel.refine("trigAndPrimaryDataset",
     >>>         cut=makeMultiPrimaryDatasetTriggerSelection(sample, {
     >>>               "DoubleMuon" : [ t.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL, t.HLT.Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL ],
     >>>               "DoubleEG"   : t.HLT.Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ,
-    >>>               "MuonEG"     : [ t.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL, t.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL ]
+    >>>               "MuonEG"     : [ t.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL, t.HLT.Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL ]
     >>>               }))
     """
     # python3.6+ dictionaries keep insertion order (implementation detail in cpython 3.6, part of the language spec since 3.7)
@@ -315,7 +315,7 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
             trigSel = dsTrigSel
             break
     if trigSel is None:
-        raise RuntimeError("Sample name {0} matched none of the primary datasets")
+        raise RuntimeError("Sample name {0} matched none of the primary datasets".format(sampleName))
     if len(sels_not) == 0: ## first
         return trigSel
     else:

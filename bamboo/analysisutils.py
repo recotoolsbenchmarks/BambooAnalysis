@@ -52,6 +52,15 @@ def downloadCertifiedLumiFiles(taskArgs, workdir="."):
 
     return taskArgs, set(clf_downloaded.keys())
 
+def _dasLFNtoPFN(lfn, dasConfig):
+    localPFN = os.path.join(dasConfig["storageroot"], lfn.lstrip("/"))
+    if os.path.isfile(localPFN):
+        return localPFN
+    else:
+        xrootdPFN = "root://{redirector}//{lfn}".format(redirector=dasConfig["xrootdredirector"], lfn=lfn)
+        logger.warning("PFN {0} not available, falling back to xrootd with {1}".format(localPFN, xrootdPFN))
+        return xrootdPFN
+
 def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
     with open(anaCfgName) as anaCfgF:
@@ -77,11 +86,11 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
                 if protocol == "das":
                     dasConfig = envConfig["das"]
                     dasQuery = "file dataset={0}".format(dbLoc)
-                    entryFiles = [ os.path.join(dasConfig["storageroot"], fn.lstrip("/")) for fn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(fn) > 0 ]
+                    entryFiles = [ _dasLFNtoPFN(lfn, dasConfig) for lfn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(lfn) > 0 ]
                     files += entryFiles
                     if len(entryFiles) == 0:
                         raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
-                    ## TODO improve: check that files are locally available, possibly fall back to xrootd otherwise; check for grid proxy before querying; maybe do queries in parallel
+                    ## TODO improve: check for grid proxy before querying; maybe do queries in parallel
                 elif protocol == "samadhi":
                     logger.warning("SAMADhi queries are not implemented yet")
                 else:

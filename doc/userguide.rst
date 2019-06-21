@@ -82,8 +82,9 @@ Computing environment configuration file
 ''''''''''''''''''''''''''''''''''''''''
 
 For some features such as automatically converting logical filenames from DAS
-to physical filenames at your local T2 storage, submitting to a batch cluster
-etc., some information about the computing resources and environment is needed.
+to physical filenames at your local T2 storage (or falling back to xrootd),
+submitting to a batch cluster etc., some information about the computing
+resources and environment is needed.
 In order to avoid proliferating the command-line interface of ``bambooRun``,
 these pieces of information are bundled in a file that can be passed in one go
 through the ``--envConfig`` option.

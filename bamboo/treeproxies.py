@@ -226,15 +226,16 @@ class ContainerGroupItemProxy(TupleBaseProxy):
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """
-    def __init__(self, prefix, parent, size, valuetype):
+    def __init__(self, prefix, parent, size, valuetype, offset=None):
         ListBase.__init__(self)
         self._size = size
         self.valuetype = valuetype
+        self.offset = offset
         super(ContainerGroupProxy, self).__init__(prefix, parent)
     def __len__(self):
-        return self._size.result
+        return ( self._size.result-self.offset.result if self.offset is not None else self._size.result )
     def __getitem__(self, index):
-        return self.valuetype(self, index)
+        return ( self.valuetype(self, self.offset.result+index) if self.offset is not None else self.valuetype(self, index) )
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
 

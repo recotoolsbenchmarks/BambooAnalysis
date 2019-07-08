@@ -54,12 +54,15 @@ def downloadCertifiedLumiFiles(taskArgs, workdir="."):
 
 def _dasLFNtoPFN(lfn, dasConfig):
     localPFN = os.path.join(dasConfig["storageroot"], lfn.lstrip("/"))
-    if os.path.isfile(localPFN):
-        return localPFN
+    if dasConfig.get("checklocalfiles", False) and "xrootdredirector" in dasConfig:
+        if os.path.isfile(localPFN):
+            return localPFN
+        else:
+            xrootdPFN = "root://{redirector}//{lfn}".format(redirector=dasConfig["xrootdredirector"], lfn=lfn)
+            logger.warning("PFN {0} not available, falling back to xrootd with {1}".format(localPFN, xrootdPFN))
+            return xrootdPFN
     else:
-        xrootdPFN = "root://{redirector}//{lfn}".format(redirector=dasConfig["xrootdredirector"], lfn=lfn)
-        logger.warning("PFN {0} not available, falling back to xrootd with {1}".format(localPFN, xrootdPFN))
-        return xrootdPFN
+        return localPFN
 
 def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))

@@ -7,13 +7,13 @@ import os
 import os.path
 import requests
 
-class StatusLockedError(Exception):
+class StatusPermissionError(Exception):
     """ Exception for trying to write to locked status file (for internal use) """
     def __init__(self, statusFile, *args, **kwargs):
         self.statusFile = statusFile
-        super(StatusLockedError, self).__init__(*args, **kwargs)
+        super(StatusPermissionError, self).__init__(*args, **kwargs)
     def __str__(self):
-        return "Trying to updated locked status file {0}".format(self.statusFile)
+        return "No permission to update status file {0}".format(self.statusFile)
 
 class JetDatabaseCache(object):
     def __init__(self, name, service="https://api.github.com/repos", repository=None, branch="master", cachedir=None, mayWrite=True):
@@ -34,7 +34,7 @@ class JetDatabaseCache(object):
     @contextmanager
     def _statusLockAndSave(self, expires=None):
         if not self._mayWrite:
-            raise StatusLockedError(self.statusFile)
+            raise StatusPermissionError(self.statusFile)
         import time
         from datetime import datetime
         while True:
@@ -176,7 +176,7 @@ class JetDatabaseCache(object):
     def getPayload(self, tag, what, jets):
         try:
             return self._getPayload(tag, "{0}_{1}_{2}.txt".format(tag, what, jets))
-        except StatusLockedError as ex:
+        except StatusPermissionError as ex:
             name = os.path.basename(self.cachedir)
             cachedir = os.path.dirname(self.cachedir)
             vName = name.lower()
@@ -184,7 +184,7 @@ class JetDatabaseCache(object):
                     '{0} = JetDatabaseCache("{1}", service="{2}", repository="{3}", branch="{4}", cachedir="{5}")'.format(vName, name, self.service, self.repository, self.branch, cachedir),
                     '{0}.getPayload("{1}", "{2}", "{3}")'.format(vName, tag, what, jets)
                    ]
-            raise RuntimeError("\n>>> ".join(["Failed to update {0}, please update the cache by running in non-distributed mode (e.g. with --maxFile=1), or manually with"]+cmds))
+            raise RuntimeError("\n>>> ".join(["Failed to update {0} (no permission).\nPlease update the cache by running in non-distributed mode (e.g. with --maxFile=1), or manually with".format(ex.statusFile)]+cmds))
 
     def _getPayload(self, tag, fName):
         stTags = self._status["textFiles"]["tree"]

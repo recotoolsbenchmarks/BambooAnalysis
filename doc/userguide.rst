@@ -53,6 +53,9 @@ options (and individual modules can add more by implementing the
 * the ``-i`` (``--interactive``) switch will only load one file and launch an
   IPython terminal, where you can have a look at its structure and test
   expressions
+* the ``--maxFiles`` option can be used to specify a maximum number of files
+  to process for each sample, e.g. ``--maxFiles=1`` to check that the module
+  runs correctly in all cases before submitting to a batch system
 
 The usual mode of operation is to parse the analysis configuration file,
 execute some code for every entry in each of the samples, and then perform some

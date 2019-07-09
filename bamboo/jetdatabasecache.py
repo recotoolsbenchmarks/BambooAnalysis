@@ -7,6 +7,14 @@ import os
 import os.path
 import requests
 
+class StatusLockedError(Exception):
+    """ Exception for trying to write to locked status file (for internal use) """
+    def __init__(self, statusFile, *args, **kwargs):
+        self.statusFile = statusFile
+        super(StatusLockedError, self).__init__(*args, **kwargs)
+    def __str__(self):
+        return "Trying to updated locked status file {0}".format(self.statusFile)
+
 class JetDatabaseCache(object):
     def __init__(self, name, service="https://api.github.com/repos", repository=None, branch="master", cachedir=None, mayWrite=True):
         self._mayWrite = mayWrite
@@ -26,7 +34,7 @@ class JetDatabaseCache(object):
     @contextmanager
     def _statusLockAndSave(self, expires=None):
         if not self._mayWrite:
-            raise RuntimeError("Tried to update jet database cache from read-only handle (worker task), please make sure all payloads are there by running locally, e.g. with --maxFiles=1")
+            raise StatusLockedError(self.statusFile)
         import time
         from datetime import datetime
         while True:
@@ -166,7 +174,17 @@ class JetDatabaseCache(object):
         statTag["sha"] = sha
 
     def getPayload(self, tag, what, jets):
-        return self._getPayload(tag, "{0}_{1}_{2}.txt".format(tag, what, jets))
+        try:
+            return self._getPayload(tag, "{0}_{1}_{2}.txt".format(tag, what, jets))
+        except StatusLockedError as ex:
+            name = os.path.basename(self.cachedir)
+            cachedir = os.path.dirname(self.cachedir)
+            vName = name.lower()
+            cmds = ['from bamboo.jetdatabasecache import JetDatabaseCache',
+                    '{0} = JetDatabaseCache("{1}", service="{2}", repository="{3}", branch="{4}", cachedir="{5}")'.format(vName, name, self.service, self.repository, self.branch, cachedir),
+                    '{0}.getPayload("{1}", "{2}", "{3}")'.format(vName, tag, what, jets)
+                   ]
+            raise RuntimeError("\n>>> ".join(["Failed to update {0}, please update the cache by running in non-distributed mode (e.g. with --maxFile=1), or manually with"]+cmds))
 
     def _getPayload(self, tag, fName):
         stTags = self._status["textFiles"]["tree"]

@@ -74,6 +74,7 @@ class AnalysisModule(object):
         parser.add_argument("input", nargs="*", help="Input: analysis description yml file (driver mode) or files to process (worker mode)")
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
+        parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
         driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
@@ -136,8 +137,12 @@ class AnalysisModule(object):
             if self.args.distributed == "worker":
                 if ( not self.args.output.endswith(".root") ) or os.path.isdir(self.args.output):
                     raise RuntimeError("Output for worker processes needs to be a ROOT file")
-                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(self.args.input, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
-                self.processTrees(self.args.input, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
+                inputFiles = self.args.input
+                if self.args.maxFiles > 0 and self.args.maxFiles < len(inputFiles):
+                    logger.warning("Only processing first {0:d} of {1:d} files".format(self.args.maxFiles, len(inputFiles)))
+                    inputFiles = inputFiles[:self.args.maxFiles]
+                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
+                self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
@@ -170,7 +175,7 @@ class AnalysisModule(object):
                         from .batch import splitTask
                         backend = envConfig["batch"]["backend"]
                         tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()], inputs, outdir=resultsdir, config=tConfig)
+                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()]+(["--verbose"] if self.args.verbose else []), inputs, outdir=resultsdir, config=tConfig)
                                     for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs) ]
                         if backend == "slurm":
                             from . import batch_slurm as batchBackend
@@ -230,7 +235,11 @@ class AnalysisModule(object):
             opts["sample"] = sName
             if "era" in sConfig:
                 opts["era"] = sConfig["era"]
-            tasks.append(((sConfig["files"], "{0}.root".format(sName)), opts, sConfig))
+            sInputFiles = sConfig["files"]
+            if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
+                logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
+                sInputFiles = sInputFiles[:self.args.maxFiles]
+            tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):

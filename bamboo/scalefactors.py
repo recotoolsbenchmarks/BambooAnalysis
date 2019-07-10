@@ -154,7 +154,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
                 raise TypeError("Config for dilepton scale factor should be quadruplet of paths or list f weights and triplets, found {0}".format(config))
 
             return ScaleFactor(cppDef="const DiLeptonFromLegsScaleFactor <<name>>{{{0}}};".format(", ".join(
-                        'std::make_unique<LeptonScaleFactor>("{0}")'.format(leplepCfg) for leplepCfg in config)),
+                        'std::make_unique<ScaleFactor>("{0}")'.format(leplepCfg) for leplepCfg in config)),
                     args=[ (lambda bp : (lambda ll : bp(ll[0])))(getBinningParameters(set(chain(getBinningVarNames(config[0]), getBinningVarNames(config[1]))), moreVars=additionalVariables, paramDefs=paramDefs))
                          , (lambda bp : (lambda ll : bp(ll[1])))(getBinningParameters(set(chain(getBinningVarNames(config[2]), getBinningVarNames(config[3]))), moreVars=additionalVariables, paramDefs=paramDefs)) ],
                     iface=iface)

@@ -226,50 +226,43 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                     itm_dict["_{0}".format(att)] = itm_dict[att]
                 itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note too efficient, but only for "original" jet collection ("nominal" should be the default)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
-        if sizeNm == "nJet":
-            jets_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
-            tree_postconstr.append(SetAsParent(jets_orig))
+        if sizeNm in ("nJet", "nMuon"):
+            coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+            addSetParentToPostConstr(coll_orig)
             itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
             itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
-
-            aJet = jets_orig[0]
-            kinj = tuple(comp.op.arg for comp in (aJet.pt, aJet.eta, aJet.phi, aJet.mass))
-            if isMC:
-                ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
-                import copy
-                genkinj = copy.deepcopy(kinj)
-                for it in genkinj:
-                    it.name = it.name.replace("Jet", "GenJet")
-            else:
-                genkinj = tuple(repeat(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
-            ##
-            tree_dict[grpNm] = Variations(None, jets_orig, tuple(chain(kinj, (aJet.rawFactor.op.arg, aJet.area.op.arg),
-                (GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt")), genkinj)),
-                varItemType=varItemType)
-        elif sizeNm == "nMuon":
-            muons_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
-            tree_postconstr.append(SetAsParent(muons_orig))
-            itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
-            itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
-            varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
-
-            aMu = muons_orig[0]
-            args = [ comp.op.arg for comp in (aMu.pt, aMu.eta, aMu.phi, aMu.mass, aMu.charge, aMu.nTrackerLayers) ]
-            if isMC:
-                genpi = aMu.nTrackerLayers.op.arg
-                genpi.name = genpi.name.replace("nTrackerLayers", "genPartIdx")
-                args.append(genpi)
-                genpt = aMu.pt.op.arg
-                genpt.name = genpt.name.replace("Muon", "GenPart")
-                args.append(genpt)
-            else:
-                args.append(ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"))
-                args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
-            grpNm = "_{0}".format(grpNm) ## add variations as '_Muon', nominal as 'Muon'
-            tree_dict[grpNm] = Variations(None, muons_orig, args, varItemType=varItemType,
+            # construct arguments for correction/variation calculator
+            anObj = coll_orig[0]
+            args = [ comp.op.arg for comp in (anObj.pt, anObj.eta, anObj.phi, anObj.mass) ]
+            nameMap = None
+            if sizeNm == "nJet":
+                if isMC:
+                    ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
+                    import copy
+                    genkinj = copy.deepcopy(args)
+                    for it in genkinj:
+                        it.name = it.name.replace("Jet", "GenJet")
+                else:
+                    genkinj = list(repeat(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+                args += [ comp.op.arg for comp in (anObj.rawFactor, anObj.area) ]
+                args += [ GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
+                args += genkinj
+            elif sizeNm == "nMuon":
+                args += [ comp.op.arg for comp in (anObj.charge, anObj.nTrackerLayers) ]
+                if isMC:
+                    genpi = anObj.nTrackerLayers.op.arg
+                    genpi.name = genpi.name.replace("nTrackerLayers", "genPartIdx")
+                    args.append(genpi)
+                    genpt = anObj.pt.op.arg
+                    genpt.name = genpt.name.replace("Muon", "GenPart")
+                    args.append(genpt)
+                else:
+                    args.append(ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"))
+                    args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
+                grpNm = "_{0}".format(grpNm) ## add variations as '_Muon', nominal as 'Muon'
                 nameMap={"nominal": "Muon"}
-                )
+            tree_dict[grpNm] = Variations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

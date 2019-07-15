@@ -343,20 +343,28 @@ class varItemRefProxy(object):
     def __get__(self, inst, cls):
         return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
 
-class JMEVariations(TupleBaseProxy):
-    def __init__(self, parent, orig, args, varItemType=None):
+class Variations(TupleBaseProxy):
+    def __init__(self, parent, orig, args, varItemType=None, nameMap=None):
         self.orig = orig
         self._args = args
         self.varItemType = varItemType if varItemType else orig.valuetype
         self.calc = None
-        self.calcProd = DefinedVar("JMESystematicsCalculator", "JMESystematicsCalculator <<name>>;").result.produceModifiedCollections(*self._args)
+        self.calcProd = None
+        self.nameMap = nameMap
+        super(Variations, self).__init__("Variations", parent=parent)
     def initCalc(self, calcProxy, calcHandle=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produceModifiedCollections(*self._args)
+        if self.nameMap:
+            for k,v in self.nameMap.items():
+                setattr(self._parent, v, self[k])
     def __getitem__(self, key):
+        if not self.calc:
+            raise RuntimeError("Variations calculator first needs to be initialized")
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
         if self.calc and not self.calc.hasProduct(key):
-            raise KeyError("Modified jet collection with name {0!r} will not be produced, please check the configuration".format(key))
-        #res_item = GetItem(self.calcProd, "JMESystematicsCalculator::result_entry_t", makeConst(key, "std::string"), "std::string")
+            raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
         res_item = self.calcProd.at(makeConst(key, "std::string")).op
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 

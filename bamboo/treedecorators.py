@@ -142,18 +142,43 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
     if description is None:
         description = dict()
 
-    def getItemRefCollection(name, me):
-        return getattr(me._parent._parent, name)
-    def getItemRefCollection_var(name, me):
-        return getattr(me._parent.orig._parent, name)
-    def getItemRefCollection_toVar(name, me):
-        return getattr(me._parent._parent, name).orig
+    class GetItemRefCollection:
+        def __init__(self, name):
+            self.name = name
+            self._parent = None
+        def __call__(self, me):
+            return getattr(self._parent, self.name)
+    class GetItemRefCollection_toVar:
+        def __init__(self, name):
+            self.name = name
+            self._parent = None
+        def __call__(self, me):
+            return getattr(self._parent, self.name).orig
+
+    def _translate_to_var(itm_dict, toSkip=None, addToPostConstr=None):
+        ## translate attributes NOTE there may be a more elegant solution to this,
+        ## like moving the logic into ContainerGroupItemProxy
+        ## (similar to ListBase: know about the base collection and the final index there as well)
+        itm_dict_var = dict()
+        for nm,itmAtt in itm_dict.items():
+            if isinstance(itmAtt, itemProxy): ## regular branch, change just index
+                itm_dict_var[nm] = varItemProxy(itmAtt.op)
+            elif isinstance(itmAtt, itemRefProxy):
+                itm_dict_var[nm] = varItemRefProxy(itmAtt.op, itmAtt.getTarget)
+            elif isinstance(itmAtt, funProxy) and toSkip is not None and nm in toSkip:
+                pass ## ok to skip
+            elif isinstance(itmAtt, str): ## __doc__
+                itm_dict_var[nm] = itmAtt
+            else:
+                raise RuntimeError("Cannot translate attribute {0} for variations yet".format(nm))
+        return itm_dict_var
 
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
     ## NOTE first attempt: fill all, take some out later
     tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm))) for lvNm,lv in allTreeLeafs.items()))
     tree_postconstr = []
+    addSetParentToPostConstr = partial(lambda act,obj : act.append(SetAsParent(obj)), tree_postconstr)
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_") ## TODO get this from description?
     for prefix in (chain(simpleGroupPrefixes, ("GenMET_", "Generator_", "LHE_",)) if isMC else simpleGroupPrefixes):
         grpNm = prefix.rstrip("_")
@@ -186,7 +211,12 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             else:
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
-                itm_dict["".join((coll,i))] = itemRefProxy(col, collPrefix)
+                collGetter = (
+                        GetItemRefCollection_toVar(collPrefix) if collPrefix == "Jet" else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix == "Muon" else
+                        GetItemRefCollection(collPrefix))
+                addSetParentToPostConstr(collGetter)
+                itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
             if sizeNm != "nJet":
@@ -196,31 +226,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                     itm_dict["_{0}".format(att)] = itm_dict[att]
                 itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note too efficient, but only for "original" jet collection ("nominal" should be the default)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
-        if sizeNm != "nJet":
-            tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
-            for nm,itmAtt in itm_dict.items():
-                if isinstance(itmAtt, itemRefProxy):
-                    colName = itmAtt.getTarget
-                    itmAtt.getTarget = partial((getItemRefCollection if colName != "Jet" else getItemRefCollection_toVar), colName)
-        else:
+        if sizeNm == "nJet":
             jets_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             tree_postconstr.append(SetAsParent(jets_orig))
-            ## translate attributes NOTE there may be a more elegant solution to this,
-            ## like moving the logic into ContainerGroupItemProxy
-            ## (similar to ListBase: know about the base collection and the final index there as well)
-            itm_dict_var = dict()
-            for nm,itmAtt in itm_dict.items():
-                if isinstance(itmAtt, itemProxy): ## regular branch, change just index
-                    itm_dict_var[nm] = varItemProxy(itmAtt.op)
-                elif isinstance(itmAtt, itemRefProxy):
-                    colName = itmAtt.getTarget
-                    itm_dict_var[nm] = varItemRefProxy(itmAtt.op, partial(getItemRefCollection_var, colName))
-                elif isinstance(itmAtt, funProxy) and ( nm == "p4" ):
-                    pass ## ok to skip, redefined below
-                elif isinstance(itmAtt, str): ## __doc__
-                    itm_dict_var[nm] = itmAtt
-                else:
-                    raise RuntimeError("Cannot translate attribute {0} for jet variations yet".format(nm))
+            itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
             itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
 
@@ -235,9 +244,34 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             else:
                 genkinj = tuple(repeat(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
             ##
-            tree_dict[grpNm] = JMEVariations(None, jets_orig, tuple(chain(kinj, (aJet.rawFactor.op.arg, aJet.area.op.arg),
+            tree_dict[grpNm] = Variations(None, jets_orig, tuple(chain(kinj, (aJet.rawFactor.op.arg, aJet.area.op.arg),
                 (GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt")), genkinj)),
                 varItemType=varItemType)
+        elif sizeNm == "nMuon":
+            muons_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+            tree_postconstr.append(SetAsParent(muons_orig))
+            itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
+            itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
+            varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
+
+            aMu = muons_orig[0]
+            args = [ comp.op.arg for comp in (aMu.pt, aMu.eta, aMu.phi, aMu.mass, aMu.charge, aMu.nTrackerLayers) ]
+            if isMC:
+                genpi = aMu.nTrackerLayers.op.arg
+                genpi.name = genpi.name.replace("nTrackerLayers", "genPartIdx")
+                args.append(genpi)
+                genpt = aMu.pt.op.arg
+                genpt.name = genpt.name.replace("Muon", "GenPart")
+                args.append(genpt)
+            else:
+                args.append(ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"))
+                args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
+            grpNm = "_{0}".format(grpNm) ## add variations as '_Muon', nominal as 'Muon'
+            tree_dict[grpNm] = Variations(None, muons_orig, args, varItemType=varItemType,
+                nameMap={"nominal": "Muon"}
+                )
+        else:
+            tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 
         for lvNm in itm_lvs:
             del tree_dict[lvNm]

@@ -62,7 +62,7 @@ install(TARGETS JMEObjects
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   )
 
-add_library(RoccoR SHARED src/RoccoR.cc)
+add_library(RoccoR SHARED src/RoccoR.cc src/RochesterCorrectionCalculator.cc)
 target_compile_features(RoccoR PRIVATE cxx_std_17)
 target_include_directories(RoccoR PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(RoccoR ${ROOT_LIBRARIES})

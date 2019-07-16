@@ -52,8 +52,12 @@ class NanoZMuMu(NanoAODHistoModule):
     def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
+        from bamboo.analysisutils import forceDefine
 
         plots = []
+
+        ## calculate (corrected) muon 4-momenta before accessing them
+        forceDefine(t._Muon.calcProd, noSel)
 
         muons = op.select(t.Muon, lambda mu : mu.p4.Pt() > 20.)
 
@@ -63,7 +67,6 @@ class NanoZMuMu(NanoAODHistoModule):
 
         ## evaluate jets for all events passing twoMuSel
         ## more optimization will be needed with systematics etc.
-        from bamboo.analysisutils import forceDefine
         forceDefine(t.Jet.calcProd, twoMuSel)
 
         jets = op.select(t.Jet["nominal"], lambda j : j.p4.Pt() > 20.)

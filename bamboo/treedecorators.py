@@ -236,10 +236,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             anObj = coll_orig[0]
             args = [ comp.op.arg for comp in (anObj.pt, anObj.eta, anObj.phi, anObj.mass) ]
             nameMap = None
+            import copy
             if sizeNm == "nJet":
                 if isMC:
                     ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
-                    import copy
                     genkinj = copy.deepcopy(args)
                     for it in genkinj:
                         it.name = it.name.replace("Jet", "GenJet")
@@ -251,10 +251,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             elif sizeNm == "nMuon":
                 args += [ comp.op.arg for comp in (anObj.charge, anObj.nTrackerLayers) ]
                 if isMC:
-                    genpi = anObj.nTrackerLayers.op.arg
+                    genpi = copy.deepcopy(anObj.nTrackerLayers.op.arg)
                     genpi.name = genpi.name.replace("nTrackerLayers", "genPartIdx")
                     args.append(genpi)
-                    genpt = anObj.pt.op.arg
+                    genpt = copy.deepcopy(anObj.pt.op.arg)
                     genpt.name = genpt.name.replace("Muon", "GenPart")
                     args.append(genpt)
                 else:

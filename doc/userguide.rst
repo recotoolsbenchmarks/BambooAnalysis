@@ -702,13 +702,13 @@ corresponding directory and status file from ``~/.bamboo/cache``, they will be
 recreated automatically at the next use).
 
 
-.. _ugrecipejetsystematics:
+.. _ugreciperochester:
 
 Rochester correction for muons
 ''''''''''''''''''''''''''''''
 
 The so-called
-`Rochester correction<https://twiki.cern.ch/twiki/bin/viewauth/CMS/RochcorMuon>`_
+`Rochester correction <https://twiki.cern.ch/twiki/bin/viewauth/CMS/RochcorMuon>`_
 removes a bias in the muon momentum, and improves the agreement between data
 and simulation in the description of the Z boson peak.
 Muons are saved on the NanoAOD without this correction, so if required it needs

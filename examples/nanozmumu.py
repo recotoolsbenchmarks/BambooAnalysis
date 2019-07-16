@@ -42,7 +42,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 elif "2016G" in sample or "2016H" in sample:
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
-            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=(self.args.distributed != "worker"), mayWriteCache=isNotWorker)
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
 
         if era == "2016":
             configureRochesterCorrection(tree._Muon.calc, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))

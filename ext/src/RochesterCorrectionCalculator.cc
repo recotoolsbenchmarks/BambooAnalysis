@@ -37,7 +37,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceMo
       muonGenpt.push_back(muon_genIdx[i] != -1 ? gen_pt[muon_genIdx[i]] : -1.);
     }
   }
-  return produceModifiedCollections(std::move(muons), muon_charge, muon_nlayers, muonGenpt);
+  return produceModifiedCollections(muons, muon_charge, muon_nlayers, muonGenpt);
 }
 
 namespace {
@@ -63,7 +63,7 @@ void sort( std::vector<RochesterCorrectionCalculator::Muon>& muons )
 
 }
 
-RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(std::vector<RochesterCorrectionCalculator::Muon>&& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const
+RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(std::vector<RochesterCorrectionCalculator::Muon>& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const
 {
   LogDebug << "Rochester:: hello from produceModifiedCollections. Got " << muons.size() << " muons" << std::endl;
   result_t out;

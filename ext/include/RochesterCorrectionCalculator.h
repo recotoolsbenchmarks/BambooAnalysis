@@ -39,5 +39,5 @@ private:
   struct roccordeleter { void operator()(RoccoR*) const; };
   std::unique_ptr<RoccoR,roccordeleter> m_roccor;
 
-  result_t produceModifiedCollections(std::vector<Muon>&& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const;
+  result_t produceModifiedCollections(std::vector<Muon>& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const;
 };

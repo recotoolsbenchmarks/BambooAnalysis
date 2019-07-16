@@ -1,12 +1,23 @@
 #include "RochesterCorrectionCalculator.h"
+
 #include "RoccoR.h"
+
+// #define BAMBOO_ROCCOR_DEBUG // uncomment to debug
+
+#ifdef BAMBOO_ROCCOR_DEBUG
+#define LogDebug std::cout
+#else
+#define LogDebug if (false) std::cout
+#endif
 
 RochesterCorrectionCalculator::~RochesterCorrectionCalculator()
 {}
 
 void RochesterCorrectionCalculator::setRochesterCorrection(const std::string& params)
 {
-  m_roccor = std::unique_ptr<RoccoR,roccordeleter>{new RoccoR(params)};
+  if ( ! params.empty() ) {
+    m_roccor = std::unique_ptr<RoccoR,roccordeleter>{new RoccoR(params)};
+  }
 }
 
 void RochesterCorrectionCalculator::roccordeleter::operator() (RoccoR* ptr) const
@@ -26,7 +37,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceMo
       muonGenpt.push_back(muon_genIdx[i] != -1 ? gen_pt[muon_genIdx[i]] : -1.);
     }
   }
-  return produceModifiedCollections(std::move(muons), muon_nlayers, muon_charge, muonGenpt);
+  return produceModifiedCollections(std::move(muons), muon_charge, muon_nlayers, muonGenpt);
 }
 
 namespace {
@@ -54,25 +65,33 @@ void sort( std::vector<RochesterCorrectionCalculator::Muon>& muons )
 
 RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(std::vector<RochesterCorrectionCalculator::Muon>&& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const
 {
+  LogDebug << "Rochester:: hello from produceModifiedCollections. Got " << muons.size() << " muons" << std::endl;
   result_t out;
-  if ( m_roccor ) {
+  if ( ! m_roccor ) {
+    LogDebug << "Rochester:: No correction" << std::endl;
+    out["nominal"] = convertToModifKin(muons);
+  } else {
     if ( muon_genpt.empty() ) { // DATA
       for ( std::size_t i{0}; i < muons.size(); ++i ) {
-        muons[i].p4 *= m_roccor->kScaleDT(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi());
+        const auto sf = m_roccor->kScaleDT(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi());
+        LogDebug << "Rochester:: DATA scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << std::endl;
+        muons[i].p4 *= sf;
       }
     } else { // MC
       for ( std::size_t i{0}; i < muons.size(); ++i ) {
         if ( muon_genpt[i] > -1. ) { // gen muon available
-          muons[i].p4 *= m_roccor->kSpreadMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_genpt[i]);
+          const auto sf = m_roccor->kSpreadMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_genpt[i]);
+          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << " GENPT=" << muon_genpt[i] << " (nLayers=" << muon_nlayers[i] << ")" << std::endl;
+          muons[i].p4 *= sf;
         } else { // gen muon not available
           std::uniform_real_distribution<> d(0., 1.);
-          muons[i].p4 *= m_roccor->kSmearMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_nlayers[i], d(m_random));
+          const auto sf = m_roccor->kSmearMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_nlayers[i], d(m_random));
+          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << " NLayers=" << muon_nlayers[i] << std::endl;
+          muons[i].p4 *= sf;
         }
       }
     }
     sort(muons);
-    out["nominal"] = convertToModifKin(muons);
-  } else {
     out["nominal"] = convertToModifKin(muons);
   }
   return out;

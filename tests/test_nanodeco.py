@@ -15,6 +15,8 @@ def decoNano():
     be, noSel = DataframeBackend.create(tup)
     jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{};", nameHint="bamboo_jmeSystCalc")
     tup.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
+    roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{};", nameHint="bamboo_roccorCalc")
+    tup._Muon.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName))
     yield tup
 
 def test_getSimpleObjects(decoNano):

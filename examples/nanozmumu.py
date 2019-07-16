@@ -12,6 +12,7 @@ class NanoZMuMu(NanoAODHistoModule):
         ## initializes tree.Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
         from bamboo.analysisutils import configureJets, makePileupWeight
+        isNotWorker = (self.args.distributed != "worker")
         if self.isMC(sample):
             jecTag = None
             smearTag = None
@@ -22,7 +23,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 import os.path
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
-            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"])
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
 
             mcWgts = [ tree.genWeight ]
             if puWeightsFile:
@@ -41,7 +42,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 elif "2016G" in sample or "2016H" in sample:
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
-            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag)
+            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=(self.args.distributed != "worker"), mayWriteCache=isNotWorker)
 
         return tree,noSel,be,lumiArgs
 

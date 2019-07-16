@@ -214,7 +214,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     except subprocess.CalledProcessError as ex:
         logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
-def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None):
+def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
 
     :param calc: jet variations calculator to configure (e.g. ``Jet.calc``)
@@ -228,12 +228,13 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
     :param genMatchDPt: maximal relative PT difference (in units of the resolution) between reco and gen jet
     :param jecLevels: list of JEC levels to apply (if left out the recommendations are used: L1FastJet, L2Relative, L3Absolute, and also L2L3Residual for data)
     :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
+    :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
     """
     from .jetdatabasecache import JetDatabaseCache
     if smear is not None:
-        with JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir) as jrDBCache:
-            mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
-            mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
+        jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
+        mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
+        mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
         calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
     if jec is not None:
         if jecLevels == "default":
@@ -245,20 +246,20 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
                 jecLevels = ["L1FastJet", "L2Relative"]
             else:
                 raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed. Please specify the JEC levels explicitly")
-        with JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir) as jecDBCache:
-            from cppyy import gbl
-            if jecLevels:
-                jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
-                for jLev in jecLevels:
-                    plf = jecDBCache.getPayload(jec, jLev, jetType)
-                    params = gbl.JetCorrectorParameters(plf)
-                    jecParams.push_back(params)
-                calc.setJEC(jecParams)
-            if jesUncertaintySources:
-                plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
-                for src in jesUncertaintySources:
-                    params = gbl.JetCorrectorParameters(plf, src)
-                    calc.addJESUncertainty(src, params)
+        jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
+        from cppyy import gbl
+        if jecLevels:
+            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+            for jLev in jecLevels:
+                plf = jecDBCache.getPayload(jec, jLev, jetType)
+                params = gbl.JetCorrectorParameters(plf)
+                jecParams.push_back(params)
+            calc.setJEC(jecParams)
+        if jesUncertaintySources:
+            plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
+            for src in jesUncertaintySources:
+                params = gbl.JetCorrectorParameters(plf, src)
+                calc.addJESUncertainty(src, params)
 
 def forceDefine(arg, selection):
     """ Force the definition of an expression as a column at a selection stage

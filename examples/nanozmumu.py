@@ -2,6 +2,7 @@
 Example analysis module: make a dimuon mass plot from a NanoAOD
 """
 from bamboo.analysismodules import NanoAODHistoModule, NanoAODSkimmerModule
+import os.path
 
 class NanoZMuMu(NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
@@ -11,7 +12,7 @@ class NanoZMuMu(NanoAODHistoModule):
     def prepareTree(self, tree, era=None, sample=None):
         ## initializes tree.Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
-        from bamboo.analysisutils import configureJets, makePileupWeight
+        from bamboo.analysisutils import makePileupWeight, configureJets, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
         if self.isMC(sample):
             jecTag = None
@@ -20,7 +21,6 @@ class NanoZMuMu(NanoAODHistoModule):
             if era == "2016":
                 jecTag = "Summer16_07Aug2017_V20_MC"
                 smearTag = "Summer16_25nsV1_MC"
-                import os.path
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
             configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
@@ -43,6 +43,9 @@ class NanoZMuMu(NanoAODHistoModule):
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
             configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=(self.args.distributed != "worker"), mayWriteCache=isNotWorker)
+
+        if era == "2016":
+            configureRochesterCorrection(tree._Muon.calc, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))
 
         return tree,noSel,be,lumiArgs
 

@@ -333,3 +333,12 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
         return trigSel
     else:
         return op.AND(op.NOT(op.OR(*sels_not)), trigSel)
+
+def configureRochesterCorrection(calc, paramsFile):
+    """ Apply the Rochester correction for muons
+
+    :param paramsFile: path of the text file with correction parameters
+    """
+    if not os.path.exists(paramsFile):
+        raise ValueError("File {0} not found".format(paramsFile))
+    calc.setRochesterCorrection(paramsFile)

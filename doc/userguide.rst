@@ -701,6 +701,37 @@ entirely transparent to the user |---| in case of doubt one can remove the
 corresponding directory and status file from ``~/.bamboo/cache``, they will be
 recreated automatically at the next use).
 
+
+.. _ugreciperochester:
+
+Rochester correction for muons
+''''''''''''''''''''''''''''''
+
+The so-called
+`Rochester correction <https://twiki.cern.ch/twiki/bin/viewauth/CMS/RochcorMuon>`_
+removes a bias in the muon momentum, and improves the agreement between data
+and simulation in the description of the Z boson peak.
+Muons are saved on the NanoAOD without this correction, so if required it needs
+to be applied afterwards.
+This can be done in a way that is very similar to the jet variations above,
+with the difference that the module that applies the correction is attached
+to the ``t._Muon`` branch, such that the corrected muons can be directly
+accessed from the ``t.Muon`` branch |---| therefore the correction is
+configured with
+
+.. code-block:: python
+
+   def prepareTree(self, tree, era=None, sample=None):
+       ## initializes tree.Jet.calc so should be called first (better: use super() instead)
+       tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
+       from bamboo.analysisutils import configureRochesterCorrection
+       if era == "2016":
+           configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
+       return tree,noSel,be,lumiArgs
+
+The original, uncorrected, muon collection can be found in ``t._Muon.orig``.
+
+
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _YAML: https://yaml.org

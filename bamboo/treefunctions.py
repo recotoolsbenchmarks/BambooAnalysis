@@ -23,8 +23,9 @@ def _load_extensions():
     gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))
     gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
     gbl.gSystem.Load(os.path.join(libDir, "libJMEObjects"))
+    gbl.gSystem.Load(os.path.join(libDir, "libRoccoR"))
     ## TODO combine into libBamboo, and "bamboo.h"?
-    for fname in ("bamboohelpers.h", "range.h", "JMESystematicsCalculator.h", "scalefactors.h", "LumiMask.h"):
+    for fname in ("bamboohelpers.h", "range.h", "scalefactors.h", "LumiMask.h", "JMESystematicsCalculator.h", "RochesterCorrectionCalculator.h"):
         gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
     getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
 _load_extensions()

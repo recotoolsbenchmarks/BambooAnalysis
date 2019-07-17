@@ -407,6 +407,8 @@ class NanoAODModule(AnalysisModule):
         from cppyy import gbl
         jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in sample if c.isalnum())))
         t.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
+        roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in sample if c.isalnum())))
+        t._Muon.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """

@@ -247,25 +247,28 @@ class Construct(TupleOp):
         return "{0}{{{1}}}".format(self.typeName, ", ".join(defCache(a) for a in self.args))
 
 def guessReturnType(mp):
-    toks = list(mp.func_doc.split())
-    ## left and right strip const * and &
-    while toks[-1].rstrip("&") in ("", "const"):
-        toks = toks[:-1]
-    while toks[0].rstrip("&") in ("", "const"):
-        toks = toks[1:]
-    while any(tok.endswith("unsigned") for tok in toks):
-        iU = next(i for i,tok in enumerate(toks) if tok.endswith("unsigned"))
-        toks[iU] = " ".join((toks[iU], toks[iU+1]))
-        del toks[iU+1]
-    if len(toks) == 2:
-        return toks[0].rstrip("&")
+    if hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
+        toks = list(mp.func_doc.split())
+        ## left and right strip const * and &
+        while toks[-1].rstrip("&") in ("", "const", "static"):
+            toks = toks[:-1]
+        while toks[0].rstrip("&") in ("", "const", "static"):
+            toks = toks[1:]
+        while any(tok.endswith("unsigned") for tok in toks):
+            iU = next(i for i,tok in enumerate(toks) if tok.endswith("unsigned"))
+            toks[iU] = " ".join((toks[iU], toks[iU+1]))
+            del toks[iU+1]
+        if len(toks) == 2:
+            return toks[0].rstrip("&")
+        else:
+            nOpen = 0
+            i = 0
+            while i < len(toks) and ( i == 0 or nOpen != 0 ):
+                nOpen += ( toks[i].count("<") - toks[i].count(">") )
+                i += 1
+            return " ".join(toks[:i]).rstrip("&")
     else:
-        nOpen = 0
-        i = 0
-        while i < len(toks) and ( i == 0 or nOpen != 0 ):
-            nOpen += ( toks[i].count("<") - toks[i].count(">") )
-            i += 1
-        return " ".join(toks[:i]).rstrip("&")
+        return "Float_t"
 
 class CallMethod(TupleOp):
     """
@@ -298,19 +301,7 @@ class CallMethod(TupleOp):
                 yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
-        retTypeN = "Float_t"
-        if self._mp and hasattr(self._mp, "func_doc") and hasattr(self._mp, "func_name"):
-            fdoc = self._mp.func_doc
-            fnam = self._mp.func_name
-            toks = fdoc.split()
-            if toks[0] == "const":
-                del toks[0]
-            out = ""
-            for tok in toks:
-                if fnam in tok:
-                    break
-                out += " {0}".format(tok)
-            retTypeN = out.strip().strip("*&")
+        retTypeN = guessReturnType(self._mp)
         from .treeproxies import makeProxy
         return makeProxy(retTypeN, self)
     def __eq__(self, other):

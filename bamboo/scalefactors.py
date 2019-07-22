@@ -14,6 +14,7 @@ can be taken into account by weighting or by randomly sampling.
 __all__ = ("get_scalefactor", "lumiPerPeriod")
 
 from itertools import chain
+from functools import partial
 
 from . import treefunctions as op
 
@@ -78,7 +79,7 @@ class ScaleFactor(object):
                )))
         return expr
 
-def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=lumiPerPeriod_default):
+def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=lumiPerPeriod_default, getFlavour=None):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
@@ -114,6 +115,10 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
     if combine is not None:
         combPrefix = { "weight" : "W"
                      , "sample" : "Smp" }.get(combine, "W")
+
+    if getFlavour is None:
+        getFlavour = lambda j : j.hadronFlavor
+    getFlavour = partial(lambda getter, j : op.extMethod("IJetScaleFactor::get_flavour")(getter(j)), getFlavour)
 
     ##
     ## Construct scalefactors
@@ -168,7 +173,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
             else:
                 bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in config))
                 return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in config)),
-                        args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(j.hadronFlavor))),
+                        args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
                         iface=iface)
         else:
             if not ( all((isinstance(iCfg, tuple) and len(iCfg) == 3 and all(isinstance(iPth, str) for iPth in iCfg) ) for iCfg in config) ):
@@ -184,7 +189,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
                 elif len(selConfigs) == 1:
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in selConfigs[0]))
                     return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in selConfigs[0])),
-                            args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(j.hadronFlavor))),
+                            args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
                             iface=iface)
                 else:
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iPth) for iWgt,paths in selConfigs for iPth in paths))
@@ -194,7 +199,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
                                 'const {cmb}ScaleFactor <<name>>{{ {{ {0} }}, '.format(", ".join("{0:e}".format(wgt) for wgt,paths in selConfigs), cmb=combPrefix)+
                                   'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                                 ),
-                            arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(j.hadronFlavor))),
+                            arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
                             iface=iface)
     else:
         raise ValueError("Unknown object type: {0}".format(objType))

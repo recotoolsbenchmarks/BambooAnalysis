@@ -11,6 +11,13 @@ import subprocess
 import urllib.parse
 import yaml
 
+_SAMADhi_found = False
+try:
+    from cp3_llbb.SAMADhi.SAMADhi import Sample, SAMADhiDB
+    _SAMADhi_found = True
+except ImportError as ex:
+    logger.warning("Could not load SAMADhi, please install the SAMADhi library if you want to use the database to locate samples")
+
 bamboo_cachedir = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache")), "bamboo")
 
 def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
@@ -95,7 +102,24 @@ def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelist
                         raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
                     ## TODO improve: check for grid proxy before querying; maybe do queries in parallel
                 elif protocol == "samadhi":
-                    logger.warning("SAMADhi queries are not implemented yet")
+                    if not _SAMADhi_found:
+                        raise RuntimeError("SAMADhi could not be found, cannot resolve '{0}'".format(dbEntry))
+                    samaCred = "~/.samadhi"
+                    if "SAMADhi" in envConfig and "credentials" in envConfig["SAMADhi"]:
+                        samaCred = envConfig["SAMADhi"]["credentials"]
+                    with SAMADhiDB(credentials=samaCred) as db:
+                        if dbLoc.isnumeric():
+                            descr = "id {0}".format(dbLoc)
+                            sample = Sample.get_or_none(Sample.id == int(dbLoc))
+                        else:
+                            descr = "name '{0}'".format(dbLoc)
+                            sample = Sample.get_or_none(Sample.name == dbLoc)
+                        if not sample:
+                            raise RuntimeError("Could not find sample with {0} in SAMADhi".format(descr))
+                        entryFiles = [ f.pfn for f in sample.files ]
+                        if len(entryFiles) == 0:
+                            raise RuntimeError("No files found with SAMADhi {0}".format(descr))
+                    files += entryFiles
                 else:
                     raise RuntimeError("Unsupported protocol in '{0}': {1}".format(dbEntry, protocol))
             smp["files"] = files

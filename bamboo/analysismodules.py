@@ -200,16 +200,16 @@ class AnalysisModule(object):
                         clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
                         for j in clusJobs:
                             j.submit()
-                        logger.info("Batch jobs were submitted. The status will be periodically checked, and the outputs merged if necessary.\n"
-                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually\n"
+                        logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
+                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
                         clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
                         clusMon.collect() ## wait for batch jobs to finish and finalize
                 try:
                     self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
-                    logger.error("Exception in postprocessing (details follow). If the worker job results (e.g. histograms) were correctly produced,\n"
-                            "you do not need to resubmit them, and may recover by running with the --onlypost option instead\nException: {0!s}".format(ex))
+                    logger.exception(ex)
+                    logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 

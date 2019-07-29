@@ -194,14 +194,10 @@ class TasksMonitor(object):
             nJobs = sum( len(j.commandList) for j in self.jobs )
             if wait:
                 time.sleep(wait)
-            for j in self.jobs:
-                j.updateStatuses()
             stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
             while len(self.activetasks) > 0 and sum(stats[sa] for sa in self.activeStatuses) > 0:
                 time.sleep(self.interval)
                 prevStats = stats
-                for j in self.jobs:
-                    j.updateStatuses()
                 stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
                 logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))
                 if stats[self.completedStatus] > prevStats[self.completedStatus]:

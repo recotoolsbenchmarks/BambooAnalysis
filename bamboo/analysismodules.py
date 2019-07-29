@@ -14,7 +14,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os.path
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, readEnvConfig, runPlotIt
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
     # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
@@ -109,11 +109,12 @@ class AnalysisModule(object):
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
             envConfig = readEnvConfig(self.args.envConfig)
-            analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
             from cppyy import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            smpNm,smpCfg = next(itm for itm in analysisCfg["samples"].items())
-            tup.Add(smpCfg["files"][0])
+            tup.Add(fName)
             return tup, {"name": smpNm, "era": smpCfg["era"]}
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")

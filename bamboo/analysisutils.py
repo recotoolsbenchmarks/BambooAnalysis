@@ -11,6 +11,13 @@ import subprocess
 import urllib.parse
 import yaml
 
+_SAMADhi_found = False
+try:
+    from cp3_llbb.SAMADhi.SAMADhi import Sample, SAMADhiDB
+    _SAMADhi_found = True
+except ImportError as ex:
+    logger.warning("Could not load SAMADhi, please install the SAMADhi library if you want to use the database to locate samples")
+
 bamboo_cachedir = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache")), "bamboo")
 
 def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
@@ -64,55 +71,108 @@ def _dasLFNtoPFN(lfn, dasConfig):
     else:
         return localPFN
 
-def parseAnalysisConfig(anaCfgName, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
+def sample_resolveFiles(smpCfg, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
+    smp = copy.deepcopy(smpCfg)
+    ## read cache, if it's there
+    listfile, cachelist = None, []
+    if "files" in smpCfg and str(smpCfg["files"]) == smpCfg["files"]:
+        listfile = smpCfg["files"] if os.path.isabs(smpCfg["files"]) else os.path.join(cfgDir, smpCfg["files"])
+        if os.path.isfile(listfile):
+            with open(listfile) as smpF:
+                cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
+
+    if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or redodbqueries ):
+        files = []
+        for dbEntry in (smpCfg["db"] if str(smpCfg["db"]) != smpCfg["db"] else [smpCfg["db"]]): ## convert to list if string
+            if ":" not in dbEntry:
+                raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
+            protocol, dbLoc = dbEntry.split(":")
+            if protocol == "das":
+                dasConfig = envConfig["das"]
+                dasQuery = "file dataset={0}".format(dbLoc)
+                entryFiles = [ _dasLFNtoPFN(lfn, dasConfig) for lfn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(lfn) > 0 ]
+                files += entryFiles
+                if len(entryFiles) == 0:
+                    raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
+                ## TODO improve: check for grid proxy before querying; maybe do queries in parallel
+            elif protocol == "samadhi":
+                if not _SAMADhi_found:
+                    raise RuntimeError("SAMADhi could not be found, cannot resolve '{0}'".format(dbEntry))
+                samaCred = "~/.samadhi"
+                if "SAMADhi" in envConfig and "credentials" in envConfig["SAMADhi"]:
+                    samaCred = envConfig["SAMADhi"]["credentials"]
+                with SAMADhiDB(credentials=samaCred) as db:
+                    if dbLoc.isnumeric():
+                        descr = "id {0}".format(dbLoc)
+                        sample = Sample.get_or_none(Sample.id == int(dbLoc))
+                    else:
+                        descr = "name '{0}'".format(dbLoc)
+                        sample = Sample.get_or_none(Sample.name == dbLoc)
+                    if not sample:
+                        raise RuntimeError("Could not find sample with {0} in SAMADhi".format(descr))
+                    entryFiles = [ f.pfn for f in sample.files ]
+                    if len(entryFiles) == 0:
+                        raise RuntimeError("No files found with SAMADhi {0}".format(descr))
+                files += entryFiles
+            else:
+                raise RuntimeError("Unsupported protocol in '{0}': {1}".format(dbEntry, protocol))
+        smp["files"] = files
+        if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
+            with open(listfile, "w") as listF:
+                listF.write("\n".join(files))
+    elif "files" not in smpCfg:
+        raise RuntimeError("Cannot load files for {0}: neither 'db' nor 'files' specified".format(smpName))
+    elif listfile:
+        if len(cachelist) == 0:
+            raise RuntimeError("No file names read from {0}".format())
+        smp["files"] = cachelist
+    else: ## list in yml
+        smp["files"] = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
+    return smp
+
+def parseAnalysisConfig(anaCfgName, resolveFiles=True, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
     with open(anaCfgName) as anaCfgF:
         analysisCfg = yaml.load(anaCfgF)
-    ## finish loading samples (file lists)
-    samples = dict()
-    for smpName, smpCfg in analysisCfg["samples"].items():
-        smp = copy.deepcopy(smpCfg)
-        ## read cache, if it's there
-        listfile, cachelist = None, []
-        if "files" in smpCfg and str(smpCfg["files"]) == smpCfg["files"]:
-            listfile = smpCfg["files"] if os.path.isabs(smpCfg["files"]) else os.path.join(cfgDir, smpCfg["files"])
-            if os.path.isfile(listfile):
-                with open(listfile) as smpF:
-                    cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
-
-        if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or redodbqueries ):
-            files = []
-            for dbEntry in (smpCfg["db"] if str(smpCfg["db"]) != smpCfg["db"] else [smpCfg["db"]]): ## convert to list if string
-                if ":" not in dbEntry:
-                    raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
-                protocol, dbLoc = dbEntry.split(":")
-                if protocol == "das":
-                    dasConfig = envConfig["das"]
-                    dasQuery = "file dataset={0}".format(dbLoc)
-                    entryFiles = [ _dasLFNtoPFN(lfn, dasConfig) for lfn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(lfn) > 0 ]
-                    files += entryFiles
-                    if len(entryFiles) == 0:
-                        raise RuntimeError("No files found with DAS query {0}".format(dasQuery))
-                    ## TODO improve: check for grid proxy before querying; maybe do queries in parallel
-                elif protocol == "samadhi":
-                    logger.warning("SAMADhi queries are not implemented yet")
-                else:
-                    raise RuntimeError("Unsupported protocol in '{0}': {1}".format(dbEntry, protocol))
-            smp["files"] = files
-            if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
-                with open(listfile, "w") as listF:
-                    listF.write("\n".join(files))
-        elif "files" not in smpCfg:
-            raise RuntimeError("Cannot load files for {0}: neither 'db' nor 'files' specified".format(smpName))
-        elif listfile:
-            if len(cachelist) == 0:
-                raise RuntimeError("No file names read from {0}".format())
-            smp["files"] = cachelist
-        else: ## list in yml
-            smp["files"] = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
-        samples[smpName] = smp
-    analysisCfg["samples"] = samples
+    if resolveFiles:
+        analysisCfg["samples"] = dict((smpName,
+            sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir))
+            for smpName, smpCfg in analysisCfg["samples"].items())
     return analysisCfg
+
+def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
+    """ Helper method: get a file from any sample (minimizing the risk of errors)
+
+    Tries to find any samples with:
+    - a list of files
+    - a cache file
+    - a SAMADhi path
+    - a DAS path
+
+    If successful, a single read / query is sufficient to retrieve a file
+    """
+    ## list of files -> return 1st
+    for smpNm,smpCfg in samples.items():
+        if ( "files" in smpCfg ) and ( str(smpCfg["files"]) != smpCfg["files"] ):
+            return smpNm,smpCfg,smpCfg["files"][0]
+    ## try to get them from a cache file or database (ordered by less-to-more risky)
+    failed_names = set()
+    for method, condition in [
+            (" from cache file", (lambda smpCfg : "files" in smpCfg and ( str(smpCfg["files"]) == smpCfg["files"] ))),
+            (" from SAMADhi"   , (lambda smpCfg : "db" in smpCfg and smpCfg["db"].startswith("samadhi:"))),
+            (" from DAS"       , (lambda smpCfg : "db" in smpCfg and smpCfg["db"].startswith("das:"))),
+            (""                , (lambda smpCfg : True))
+            ]:
+        for smpNm,smpCfg in samples.items():
+            if smpNm not in failed_names and condition(smpCfg):
+                try:
+                    smpCfg = sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig)
+                    return smpNm,smpCfg,smpCfg["files"][0]
+                except Exception as ex:
+                    failed_names.add(smpNm)
+                    logger.warning("Problem while resolving files for {0}{1}: {2!s}".format(smpNm, method, ex))
+
+    raise RuntimeError("Failed to resolve a file from any sample (see the warnings above for more information)")
 
 def readEnvConfig(explName=None):
     """ Read computing environment config file (batch system, storage site etc.)

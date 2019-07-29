@@ -133,6 +133,15 @@ overridden with the ``--redodbqueries`` option. If in addition the
 (even if the files exist); the cache can also be refreshed by removing the
 cache files.
 
+.. tip::
+
+   Samples in DAS and SAMADhi rarely change, and reading a local file is almost
+   always faster than doing queries (and does not require a grid proxy etc.),
+   so especially when using many samples from these databases it is recommended
+   to cache the file lists resulting from these results, by specifying a path
+   under ``files`` as well as a database path under ``db``
+   (see below for an example).
+
 For data, it is usually necessary to specify a json file to filter the good
 luminosity blocks (and a run range to consider from it, for efficiency).
 If an url is specified for the json file, the file will be downloaded

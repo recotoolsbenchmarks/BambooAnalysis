@@ -112,7 +112,10 @@ class CommandListJob(CommandListJobBase):
     def statuses(self, update=True):
         """ list of subjob statuses (numeric, using indices in SlurmJobStatus) """
         if update:
-            self.updateStatuses()
+            try:
+                self.updateStatuses()
+            except Exception as ex:
+                logger.error("Exception while updating statuses (will reuse previous): {0!s}".format(ex))
         return [ SlurmJobStatus.index(sjst) for sjst in self._statuses ]
 
     @property

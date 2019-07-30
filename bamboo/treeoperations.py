@@ -47,8 +47,29 @@ class CppStrRedir(object):
         decl should contain the code, with <<name>> where the name should go.  Returns the unique name
         """
         print("WARNING: should add defined symbol for '{0}' but that's not supported".format(decl))
+    def _getColName(self, op):
+        return None
 
 cppNoRedir = CppStrRedir()
+
+class ForwardingOp(TupleOp):
+    """ Transparent wrapper (base for marking parts of the tree, e.g. things with systematic variations) """
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+        super(ForwardingOp, self).__init__()
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self.wrapped.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    @property
+    def result(self):
+        return self.wrapped.result
+    def get_cppStr(self, defCache=cppNoRedir):
+        return self.wrapped.get_cppStr(defCache=defCache)
+    def __repr__(self):
+        return "ForwardingOp({0!r})".format(self.wrapped)
+    def __eq__(self, other):
+        return self.wrapped == other
+    def __hash__(self):
+        return hash(self.__repr__())
 
 SizeType = "std::size_t"
 
@@ -276,7 +297,12 @@ class CallMethod(TupleOp):
     """
     def __init__(self, name, args, getFromRoot=True):
         self.name = name ## NOTE can only be a hardcoded string this way
-        self._mp = None
+        self.args = tuple(adaptArg(arg) for arg in args)
+        self._retType = CallMethod._initReturnType(name, getFromRoot=getFromRoot)
+        super(CallMethod, self).__init__()
+    @staticmethod
+    def _initReturnType(name, getFromRoot=True):
+        mp = None
         if getFromRoot:
             try:
                 from cppyy import gbl
@@ -285,14 +311,12 @@ class CallMethod(TupleOp):
                     for tok in name.split("::"):
                         res = getattr(res, tok)
                     if res != gbl:
-                        self._mp = res
+                        mp = res
                 else:
-                    self._mp  = getattr(gbl, name)
+                    mp = getattr(gbl, name)
             except Exception as ex:
                 logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
-                self._mp = None
-        self.args = tuple(adaptArg(arg) for arg in args)
-        super(CallMethod, self).__init__()
+        return guessReturnType(mp)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -301,9 +325,8 @@ class CallMethod(TupleOp):
                 yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
-        retTypeN = guessReturnType(self._mp)
         from .treeproxies import makeProxy
-        return makeProxy(retTypeN, self)
+        return makeProxy(self._retType, self)
     def __eq__(self, other):
         return isinstance(other, CallMethod) and ( self.name == other.name ) and ( len(self.args) == len(other.args) ) and all( ( sa == oa ) for sa, oa in zip(self.args, other.args))
     def __repr__(self):
@@ -326,8 +349,8 @@ class CallMemberMethod(TupleOp):
     def __init__(self, this, name, args):
         self.this = adaptArg(this)
         self.name = name ## NOTE can only be a hardcoded string this way
-        self._mp  = getattr(this._typ, name)
         self.args = tuple(adaptArg(arg) for arg in args)
+        self._retType = guessReturnType(getattr(this._typ, self.name))
         super(CallMemberMethod, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
@@ -337,9 +360,8 @@ class CallMemberMethod(TupleOp):
                 yield from arg.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
-        retTypeN = guessReturnType(self._mp)
         from .treeproxies import makeProxy
-        return makeProxy(retTypeN, self)
+        return makeProxy(self._retType, self)
     def __eq__(self, other):
         return isinstance(other, CallMemberMethod) and ( self.this == other.this ) and ( self.name == other.name ) and ( len(self.args) == len(other.args) ) and all( ( sa == oa ) for sa, oa in zip(self.args, other.args))
     def __repr__(self):
@@ -451,9 +473,11 @@ class InitList(TupleOp):
 
 class LocalVariablePlaceholder(TupleOp):
     """ Placeholder type for a local variable connected to an index (first step in a specific-to-general strategy) """
-    def __init__(self, typeHint, name=None):
+    def __init__(self, typeHint, name=None, parent=None, i=None):
         self.name = name
         self.typeHint = typeHint
+        self._parent = parent
+        self._i = i
         super(LocalVariablePlaceholder, self).__init__()
     @property
     def result(self):
@@ -464,6 +488,20 @@ class LocalVariablePlaceholder(TupleOp):
         if not self.name:
             raise RuntimeError("Using LocalVariablePlaceholder before giving it a name")
         return self.name
+    def __repr__(self):
+        return "LocalVariablePlaceholder({0!r}, i={1!r})".format(self.typeHint, self._i)
+    def __hash__(self):
+        return id(self)
+    def __eq__(self, other):
+        ## NOTE this breaks the infinite recursion, but may not be 100% safe
+        ## what should save the nested case is that the repr(parent) will be different for different levels of nesting
+        return isinstance(other, LocalVariablePlaceholder) and repr(self._parent) == repr(other._parent) and self._i == other._i
+
+def collectNodes(expr, select=(lambda nd : True)):
+    # simple helper
+    if select(expr):
+        yield expr
+    yield from expr.deps(select=select)
 
 def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
     ## first pass (will trigger definitions, if necessary)
@@ -532,7 +570,7 @@ class Select(TupleOp):
     """ Define a selection on a range """
     def __init__(self, rng, pred):
         self.rng = rng ## PROXY
-        self._i = LocalVariablePlaceholder(SizeType)
+        self._i = LocalVariablePlaceholder(SizeType, parent=self, i=0)
         self.predExpr = adaptArg(pred(self.rng._base[self._i.result]))
         super(Select, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -575,7 +613,7 @@ class Sort(TupleOp):
     """ Sort a range (ascendingly) by the value of a function on each element """
     def __init__(self, rng, fun):
         self.rng = rng ## PROXY
-        self._i = LocalVariablePlaceholder(SizeType)
+        self._i = LocalVariablePlaceholder(SizeType, parent=self, i=0)
         self.funExpr = adaptArg(fun(self.rng._base[self._i.result]))
         super(Sort, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -618,7 +656,7 @@ class Map(TupleOp):
     """ Create a list of derived values for a collection (mostly useful for storing on skims) """
     def __init__(self, rng, fun, typeName=None):
         self.rng = rng ## PROXY
-        self._i = LocalVariablePlaceholder(SizeType)
+        self._i = LocalVariablePlaceholder(SizeType, parent=self, i=0)
         res = fun(self.rng._base[self._i.result])
         self.typeName = typeName if typeName is not None else res._typeName
         self.funExpr = adaptArg(res)
@@ -664,7 +702,7 @@ class Next(TupleOp):
     """ Define a search (first matching item, for a version that processes the whole range see Reduce) """
     def __init__(self, rng, pred):
         self.rng = rng ## PROXY
-        self._i = LocalVariablePlaceholder(SizeType)
+        self._i = LocalVariablePlaceholder(SizeType, parent=self, i=0)
         self.predExpr = adaptArg(pred(self.rng._base[self._i.result]))
         super(Next, self).__init__()
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -708,8 +746,8 @@ class Reduce(TupleOp):
         self.rng = rng ## PROXY
         self.resultType = start._typeName
         self.start = adaptArg(start)
-        self._i = LocalVariablePlaceholder(SizeType)
-        self._prevRes = LocalVariablePlaceholder(self.resultType)
+        self._i = LocalVariablePlaceholder(SizeType, parent=self, i=0)
+        self._prevRes = LocalVariablePlaceholder(self.resultType, parent=self, i=1)
         self.accuExpr = adaptArg(accuFun(self._prevRes.result, self.rng._base[self._i.result]))
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
@@ -753,7 +791,7 @@ class Combine(TupleOp):
         self.n = num
         self.ranges = ranges if len(ranges) > 1 else tuple(repeat(ranges[0], self.n))
         self.candPredFun = candPredFun
-        self._i = tuple(LocalVariablePlaceholder(SizeType) for i in range(num))
+        self._i = tuple(LocalVariablePlaceholder(SizeType, parent=self, i=i) for i in range(num))
         from . import treefunctions as op
         areDiff = op.AND(*(sameIdxPred(ia.result, ib.result)
                 for ((ia, ra), (ib, rb)) in combinations(zip(self._i, self.ranges), 2)
@@ -818,3 +856,23 @@ class PsuedoRandom(TupleOp):
     ## deps from xMin, xMax and seed
     ## seed can be event-based or object-based, depending?
     ## TODO implement C++ side as well
+
+
+class ScaleFactorWithSystOp(ForwardingOp):
+    """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
+    def __init__(self, wrapped, systName):
+        self.systName = systName
+        super(ScaleFactorWithSystOp, self).__init__(wrapped)
+    def changeVariation(self, newVariation):
+        """ Assumed to be called on a fresh copy - *will* change the underlying value """
+        newVariation = newVariation.capitalize() ## translate to name in C++
+        if newVariation not in ("Nominal", "Up", "Down"):
+            raise ValueError("Invalid variation: {0}".format(newVariation))
+        if newVariation != self.wrapped.args[1].name:
+            import copy
+            newVar = copy.deepcopy(self.wrapped)
+            newVar.args[1].name = newVariation
+            self.wrapped = newVar
+        return self
+    def __repr__(self):
+        return "ScaleFactorWithSystOp({0!r}, {1!r})".format(self.wrapped, self.systName)

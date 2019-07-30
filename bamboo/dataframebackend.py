@@ -4,14 +4,16 @@ ROOT::RDataFrame backend classes
 import logging
 logger = logging.getLogger(__name__)
 
+import copy
 from itertools import chain, count
+from functools import partial
 
 from .plots import FactoryBackend, Selection
 from . import treefunctions as op
 from . import treeoperations as top
 
 class SelWithDefines(top.CppStrRedir):
-    def __init__(self, parent, df, weights=None, wName=None):
+    def __init__(self, parent, df):
         self.df = df
         self.explDefine = list()
         if isinstance(parent, SelWithDefines):
@@ -22,23 +24,25 @@ class SelWithDefines(top.CppStrRedir):
             self.parent = None
             self.backend = parent
             self._definedColumns = dict()
+        self.wName = dict()
+        top.CppStrRedir.__init__(self)
 
+    def addWeight(self, weights=None, wName=None, variation="nominal"):
+        parentWeight = None
+        if self.parent and self.parent.wName:
+            parentWeight = self.parent.wName.get(variation, self.parent.wName["nominal"])
         if weights:
-            self._initWeights(wName, weights)
-            self.wName = wName
-        elif self.parent and self.parent.wName:
-            self.wName = self.parent.wName
+            weightExpr = Selection._makeExprProduct(
+                ([top.adaptArg(op.extVar("float", parentWeight), typeHint="float")]+weights) if parentWeight
+                else weights
+                )
+            self._define(wName, weightExpr)
+            self.wName[variation] = wName
+        elif parentWeight:
+            self.wName[variation] = parentWeight
         else:
             assert not wName
-            self.wName = None
-        top.CppStrRedir.__init__(self)
-    
-    def _initWeights(self, wName, weights):
-        weightExpr = Selection._makeExprProduct(
-            ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
-            else weights
-            )
-        self._define(wName, weightExpr)
+            self.wName[variation] = None
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -89,7 +93,7 @@ class DataframeBackend(FactoryBackend):
         from cppyy import gbl
         self.rootDF = gbl.RDataFrame(tree)
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
-        self.selDFs = dict()      ## selection name -> SelWithDefines
+        self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.plotResults = dict() ## plot name -> result pointer
         super(DataframeBackend, self).__init__()
         self._iCol = 0
@@ -132,7 +136,7 @@ class DataframeBackend(FactoryBackend):
         rootSel = Selection(inst, "none")
         return inst, rootSel
 
-    def addSelection(self, sele):
+    def addSelection(self, sele): ## TODO selDFs
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
             raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
@@ -149,7 +153,28 @@ class DataframeBackend(FactoryBackend):
             else:
                 selDF = self.rootDF
 
-        self.selDFs[sele.name] = SelWithDefines((parentDF if sele.parent else self), selDF, weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        selnd = SelWithDefines((parentDF if sele.parent else self), selDF)
+        selnd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        for syst in sele.weightSystematics: ## weights-only systematics (do not need a new node, nominal selection)
+            wfToChange = []
+            wfKeep = list(sele._weights)
+            isthissyst = partial((lambda sN,iw : isinstance(iw, top.ScaleFactorWithSystOp) and iw.systName == sN), syst)
+            if syst in sele._wsysts:
+                for wf in sele._weights:
+                    if any(top.collectNodes(wf, select=isthissyst)):
+                        wfToChange.append(wf)
+                        del wfKeep[wfKeep.index(wf)]
+            for vard in ("up", "down"):
+                varn = "{0}{1}".format(syst, vard)
+                wfChanged = []
+                for wf in wfToChange:
+                    newf = copy.deepcopy(wf)
+                    for nd in top.collectNodes(newf, select=isthissyst):
+                        nd.changeVariation(vard)
+                    wfChanged.append(newf)
+                selnd.addWeight(weights=(wfKeep+wfChanged), wName=("w_{0}__{1}".format(sele.name, varn) if sele._weights else None), variation=varn)
+        self.selDFs[sele.name] = selnd
+        ## TODO add non-weightonly systematics (will need new nodes; will be: cuts and/or weights depend on collections)
 
     def addPlot(self, plot):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
@@ -158,7 +183,7 @@ class DataframeBackend(FactoryBackend):
         ## TODO DataFrame might throw (or segfault), but we should catch all possible errors before
         ## NOTE pre/postfixes should already be inside the plot name
         hModel = DataframeBackend.makePlotModel(plot)
-        selND = self.selDFs[plot.selection.name]
+        selND = self.selDFs[plot.selection.name] ## TODO update with variations (later)
         varExprs = dict(("v{0:d}_{1}".format(i, plot.name), selND(var)) for i,var in zip(count(), plot.variables))
         plotDF = selND.df ## after getting the expressions, to pick up columns that were defined on-demand
         for vName, vExpr in varExprs.items():
@@ -166,9 +191,15 @@ class DataframeBackend(FactoryBackend):
             logger.debug("Defining {0} as {1}".format(vName, vExpr))
             plotDF = plotDF.Define(vName, vExpr)
         plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
+        ## TODO for weight-only: essentially fill for all weights (incl. nominal)
+        ## TODO: the other cases will be
+        ## - cut depends but not plotvar -> repeat on different selnd with nomianl
+        ## - cut does not depends but plotvar -> repeat on the same selnd
+        ## - both cut and plotvar depend -> run for matching combinations
+        ## (in all cases, weight *may* depend or not)
         if selND.wName:
-            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName))
-            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName]))
+            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName["nominal"]))
+            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName["nominal"]]))
         else:
             logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
             plotDF = plotFun(hModel, *varExprs.keys())

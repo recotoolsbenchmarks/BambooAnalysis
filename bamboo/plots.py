@@ -5,6 +5,7 @@ and manipulate selections and plots.
 __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection")
 
 from itertools import chain
+from . import treeoperations as top
 
 class FactoryBackend(object):
     """ Interface for factory backend (to separate Plots classes from ROOT::RDataFrame part) """
@@ -210,6 +211,11 @@ class Selection(object):
         self.parent   = None
         self._cuts     = [ adaptArg(cut, "Bool_t") for cut in cuts ] if cuts else []
         self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in weights ] if weights else []
+        self._wsysts   = list(set(sfs.systName for sfs in chain.from_iterable(
+            top.collectNodes(wf, select=(lambda wf : isinstance(wf, top.ScaleFactorWithSystOp)))
+            for wf in self._weights))) ## 'own' weight systematics (excluding parents' - like weights)
+            ## TODO currently all systematics that come in through the weights (may also be non-weight originally, so need to remove collection ones instead of using blindly, make "weight-only")
+
         ## register with backend
         if isinstance(parent, Selection):
             self.parent = parent
@@ -231,6 +237,14 @@ class Selection(object):
             return self.parent.weights + self._weights
         else:
             return self._weights
+    @property
+    def weightSystematics(self):
+        if self.parent:
+            systs = set(self.parent.weightSystematics)
+            systs.update(self._wsysts)
+            return list(systs)
+        else:
+            return list(self._wsysts)
     ## for debugging/monitoring: full cut and weight expression ## TODO review
     @property
     def cut(self):

@@ -94,7 +94,7 @@ class DataframeBackend(FactoryBackend):
         self.rootDF = gbl.RDataFrame(tree)
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
-        self.plotResults = dict() ## plot name -> result pointer
+        self.plotResults = dict() ## plot name -> list of result pointers
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -182,7 +182,6 @@ class DataframeBackend(FactoryBackend):
             raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
         ## TODO DataFrame might throw (or segfault), but we should catch all possible errors before
         ## NOTE pre/postfixes should already be inside the plot name
-        hModel = DataframeBackend.makePlotModel(plot)
         selND = self.selDFs[plot.selection.name] ## TODO update with variations (later)
         varExprs = dict(("v{0:d}_{1}".format(i, plot.name), selND(var)) for i,var in zip(count(), plot.variables))
         plotDF = selND.df ## after getting the expressions, to pick up columns that were defined on-demand
@@ -197,19 +196,25 @@ class DataframeBackend(FactoryBackend):
         ## - cut does not depends but plotvar -> repeat on the same selnd
         ## - both cut and plotvar depend -> run for matching combinations
         ## (in all cases, weight *may* depend or not)
-        if selND.wName:
-            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName["nominal"]))
-            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName["nominal"]]))
+        if selND.wName["nominal"]: ## nontrivial weight
+            logger.debug("Adding plot {0} with variables {1} and weights {2}".format(plot.name, ", ".join(varExprs.keys()), ", ".join(selND.wName.values())))
+            plotDF = [ plotFun( DataframeBackend.makePlotModel(plot, variation=wvarName),
+                                *chain(varExprs.keys(), [ varWeight ]) )
+                        for wvarName, varWeight in selND.wName.items() ]
         else:
             logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
-            plotDF = plotFun(hModel, *varExprs.keys())
+            hModel = DataframeBackend.makePlotModel(plot)
+            plotDF = [ plotFun(hModel, *varExprs.keys()) ]
         self.plotResults[plot.name] = plotDF
 
     @staticmethod
-    def makePlotModel(plot):
+    def makePlotModel(plot, variation="nominal"):
         from cppyy import gbl
         modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
-        return modCls(plot.name, plot.title, *chain.from_iterable(
+        name = plot.name
+        if variation != "nominal":
+            name = "__".join((name, variation))
+        return modCls(name, plot.title, *chain.from_iterable(
             DataframeBackend.makeBinArgs(binning) for binning in plot.binnings))
     @staticmethod
     def makeBinArgs(binning):
@@ -221,7 +226,7 @@ class DataframeBackend(FactoryBackend):
         else:
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
 
-    def getPlotResult(self, plot):
+    def getPlotResults(self, plot):
         return self.plotResults[plot.name]
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):

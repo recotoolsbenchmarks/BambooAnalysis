@@ -868,10 +868,10 @@ class ScaleFactorWithSystOp(ForwardingOp):
         newVariation = newVariation.capitalize() ## translate to name in C++
         if newVariation not in ("Nominal", "Up", "Down"):
             raise ValueError("Invalid variation: {0}".format(newVariation))
-        if newVariation != self.wrapped.args[1].name:
+        if newVariation != self.wrapped.args[-1].name:
             import copy
             newVar = copy.deepcopy(self.wrapped)
-            newVar.args[1].name = newVariation
+            newVar.args[-1].name = newVariation
             self.wrapped = newVar
         return self
     def __repr__(self):

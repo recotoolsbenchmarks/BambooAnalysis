@@ -328,7 +328,8 @@ class HistogramsModule(AnalysisModule):
 
         outF.cd()
         for p in plotList:
-            backend.getPlotResult(p).Write()
+            for h in backend.getPlotResults(p):
+                h.Write()
         self.mergeCounters(outF, inputFiles)
         outF.Close()
     # processTrees customisation points

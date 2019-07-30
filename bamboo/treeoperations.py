@@ -869,10 +869,7 @@ class ScaleFactorWithSystOp(ForwardingOp):
         if newVariation not in ("Nominal", "Up", "Down"):
             raise ValueError("Invalid variation: {0}".format(newVariation))
         if newVariation != self.wrapped.args[-1].name:
-            import copy
-            newVar = copy.deepcopy(self.wrapped)
-            newVar.args[-1].name = newVariation
-            self.wrapped = newVar
+            self.wrapped.args[-1].name = newVariation
         return self
     def __repr__(self):
         return "ScaleFactorWithSystOp({0!r}, {1!r})".format(self.wrapped, self.systName)

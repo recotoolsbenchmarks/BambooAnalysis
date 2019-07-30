@@ -137,8 +137,8 @@ BinnedValues BinnedValuesJSONParser::parse_file(const std::string& file)
     }
 
     values.setRange(
-        ptree.get("maximum", std::numeric_limits<float>::max()),
-        ptree.get("minimum", 0)
+        ptree.get("minimum", 0),
+        ptree.get("maximum", std::numeric_limits<float>::max())
         );
 
     std::string error_type = ptree.get<std::string>("error_type");

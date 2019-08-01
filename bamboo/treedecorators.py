@@ -9,6 +9,8 @@ from functools import partial
 from .treeproxies import *
 from . import treefunctions as op
 
+logger = logging.getLogger(__name__)
+
 def allLeafs(branch):
     """
     Recursively collect TTree leaves (TLeaf and TBranchElement)
@@ -72,9 +74,9 @@ def decorateTTW(aTree, description=None):
                 sizeOp = GetColumn(allTreeLeafs[cntLvNm].GetTypeName(), cntLvNm)
                 if cntLvNm.endswith("_") and cntLvNm.rstrip("_") in itm_lvs_vec:
                     if all(aLvNm[len(cntLvNm):].startswith("fCoordinates.f") for aLvNm in arrLvs) and len(arrLvs) == 4:
-                        print("DEBUG: detected a split LorentzVector array {}".format(cntLvNm.rstrip("_")))
+                        logger.debug("Detected a split LorentzVector array {}".format(cntLvNm.rstrip("_")))
                         atts = [ aLvNm[len(cntLvNm)+len("fCoordinates.f"):] for aLvNm in arrLvs ]
-                        print(" ".join(aLvNm[len(cntLvNm)+len("fCoordinates.f"):] for aLvNm in arrLvs))
+                        logger.debug(" ".join(aLvNm[len(cntLvNm)+len("fCoordinates.f"):] for aLvNm in arrLvs))
                         tpNm = next(allTreeLeafs[aLvNm].GetTypeName() for aLvNm in arrLvs)
                         itm_dict[cntLvNm[len(prefix):].rstrip("_")] = itemObjProxy("ROOT::Math::LorentzVector<ROOT::Math::{0}4D<{1}> >".format("".join(atts), tpNm),
                                 tuple(GetArrayColumn(allTreeLeafs[aLvNm].GetTypeName(), aLvNm, sizeOp).result for aLvNm in arrLvs))
@@ -95,7 +97,7 @@ def decorateTTW(aTree, description=None):
                         del tree_dict[cntLvNm.rstrip("_")]
                         itm_lvs_vec.remove(cntLvNm.rstrip("_"))
                     else:
-                        print("Warning: Detected a split object that's not a LorentzVector. Attributes are: {}".format(", ".join(aLvNm[len(cntLvNm):] for aLvNm in arrLvs)))
+                        logger.warning("Detected a split object that's not a LorentzVector. Attributes are: {}".format(", ".join(aLvNm[len(cntLvNm):] for aLvNm in arrLvs)))
                 else:
                     for arrLv in arrLvs:
                         lvNm_short = arrLv[len(prefix):]
@@ -113,7 +115,7 @@ def decorateTTW(aTree, description=None):
             itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             tree_postconstr.append(SetAsParentOfAtt(grpNm))
-            print("Processed group {0}, remaining description: {1}".format(grpNm, desc_rem))
+            logger.info("Processed group {0}, remaining description: {1}".format(grpNm, desc_rem))
         elif desc["type"] == "group":
             prefix = desc["prefix"]
             desc_rem = dict(desc)
@@ -196,6 +198,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
     containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj")
     containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
     for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
+        if sizeNm not in allTreeLeafs:
+            logger.warning("{} is not a branch in the tree!".format(sizeNm))
+            continue
         grpNm = sizeNm[1:]
         prefix = "{0}_".format(grpNm)
         itm_dict = {

@@ -459,7 +459,7 @@ used to define the same plots for different selection stages, e.g.
 
        plots += self.makeDileptonPlots(twoMuSel, muons, "DiMu")
 
-       jets = op.select(t.Jet["nominal"], lambda j : j.p4.Pt() > 30.)
+       jets = op.select(t.Jet, lambda j : j.p4.Pt() > 30.)
 
        twoMuTwoJetSel = twoMuSel.refine("twoMuonsTwoJets", cut=[ op.rng_len(jets) > 1 ])
 
@@ -476,7 +476,7 @@ an alternative JEC aplied, which is done in a separate C++ module (see below),
 and is probably the slowest operation in most analysis tasks.
 The definition can be added explicitly under a selection by calling the
 :py:meth:`bamboo.analysisutils.forceDefine` method, e.g. with
-``forceDefine(t.Jet.calcProd, mySelection)``.
+``forceDefine(t._Jet.calcProd, mySelection)``.
 
 
 .. _ugrecipes:
@@ -700,8 +700,8 @@ uncertainties to 2016 MC:
 
        return tree,noSel,be,lumiArgs
 
-The jet collections ``t.Jet["nominal"]``, ``t.Jet["jerup"]``,
-``t.Jet["jerdown"]``, ``t.jet["jesTotalUp"]`` and ``t.Jet["jesTotalDown"]``
+The jet collections ``t._Jet["nominal"]``, ``t._Jet["jerup"]``,
+``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]`` and ``t._Jet["jesTotalDown"]``
 will then be available when defining plots.
 
 The necessary txt files will be automatically downloaded (and kept up to date)

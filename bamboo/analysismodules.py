@@ -411,11 +411,11 @@ class NanoAODModule(AnalysisModule):
         t = decorateNanoAOD(tree, isMC=self.isMC(sample))
         be, noSel = DataframeBackend.create(t)
         ## force definition of the jet variations calculator such that
-        ## it can be configured by calling its member methods through t.Jet.calc
+        ## it can be configured by calling its member methods through t._Jet.calc
         from bamboo import treefunctions as op
         from cppyy import gbl
         jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in sample if c.isalnum())))
-        t.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
+        t._Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
         roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in sample if c.isalnum())))
         t._Muon.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName))
         return t, noSel, be, (t.run, t.luminosityBlock)

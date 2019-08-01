@@ -97,9 +97,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceMo
   return out;
 }
 
-bool RochesterCorrectionCalculator::hasProduct(const std::string& name) const
+std::vector<std::string> RochesterCorrectionCalculator::availableProducts() const
 {
-  if ( name == "nominal" )
-    return true;
-  return false;
+  return { "nominal" }; // TODO add systematics
 }

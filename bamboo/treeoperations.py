@@ -854,8 +854,22 @@ class ScaleFactorWithSystOp(ForwardingOp):
         newVariation = newVariation.capitalize() ## translate to name in C++
         if newVariation not in ("Nominal", "Up", "Down"):
             raise ValueError("Invalid variation: {0}".format(newVariation))
-        if newVariation != self.wrapped.args[-1].name:
+        if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
             self.wrapped.args[-1].name = newVariation
         return self
     def __repr__(self):
         return "ScaleFactorWithSystOp({0!r}, {1!r})".format(self.wrapped, self.systName)
+
+class SystModifiedCollectionOp(ForwardingOp):
+    """ modifiedcollections 'at' call, to be modified to get another collection """
+    def __init__(self, wrapped, available):
+        self.available = available
+        super(SystModifiedCollectionOp, self).__init__(wrapped)
+    def changeCollection(self, newCollection):
+        """ Assumed to be called on a fresh copy - *will* change the underlying value """
+        if newCollection not in self.available:
+            raise ValueError("Invalid collection: {0}".format(newCollection))
+        if self.wrapped.args[0].name == '"nominal"' and newCollection != self.wrapped.args[0].name.strip('"'):
+            self.wrapped.args[0].name = '"{0}"'.format(newCollection)
+    def __repr__(self):
+        return "SystModifiedCollectionOp({0!r}, {1!r})".format(self.wrapped, self.available)

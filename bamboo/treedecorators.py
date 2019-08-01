@@ -212,19 +212,18 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
                 collGetter = (
-                        GetItemRefCollection_toVar(collPrefix) if collPrefix == "Jet" else
-                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix == "Muon" else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix in ("Jet", "Muon") else
                         GetItemRefCollection(collPrefix))
                 addSetParentToPostConstr(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
-            if sizeNm != "nJet":
+            if sizeNm not in ("nJet", "nMuon"):
                 itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
             else:
                 for att in p4AttNames:
                     itm_dict["_{0}".format(att)] = itm_dict[att]
-                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note too efficient, but only for "original" jet collection ("nominal" should be the default)
+                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note not too efficient, but only for "original" jet collection ("nominal" should be the default)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
         if sizeNm in ("nJet", "nMuon"):
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
@@ -260,8 +259,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                 else:
                     args.append(ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"))
                     args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
-                grpNm = "_{0}".format(grpNm) ## add variations as '_Muon', nominal as 'Muon'
-                nameMap={"nominal": "Muon"}
+            nameMap={"nominal": grpNm}
+            grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
             tree_dict[grpNm] = Variations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)

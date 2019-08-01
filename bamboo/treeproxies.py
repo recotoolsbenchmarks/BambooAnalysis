@@ -360,6 +360,9 @@ class Variations(TupleBaseProxy):
         self.calcProd = None
         self.nameMap = nameMap
         super(Variations, self).__init__("Variations", parent=parent)
+    @property
+    def available(self):
+        return list(self.calc.availableProducts())
     def initCalc(self, calcProxy, calcHandle=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produceModifiedCollections(*self._args)
@@ -371,7 +374,7 @@ class Variations(TupleBaseProxy):
             raise RuntimeError("Variations calculator first needs to be initialized")
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
-        if self.calc and not self.calc.hasProduct(key):
+        if self.calc and key not in self.available:
             raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
         res_item = self.calcProd.at(makeConst(key, "std::string")).op
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)

@@ -10,7 +10,7 @@ class NanoZMuMu(NanoAODHistoModule):
         super(NanoZMuMu, self).__init__(args)
 
     def prepareTree(self, tree, era=None, sample=None):
-        ## initializes tree.Jet.calc so should be called first (better: use super() instead)
+        ## initializes tree._Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
         from bamboo.analysisutils import makePileupWeight, configureJets, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
@@ -23,7 +23,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 smearTag = "Summer16_25nsV1_MC"
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
-            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
+            configureJets(tree._Jet.calc, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
 
             mcWgts = [ tree.genWeight ]
             if puWeightsFile:
@@ -42,7 +42,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 elif "2016G" in sample or "2016H" in sample:
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
-            configureJets(tree.Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
+            configureJets(tree._Jet.calc, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
 
         if era == "2016":
             configureRochesterCorrection(tree._Muon.calc, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))
@@ -67,9 +67,9 @@ class NanoZMuMu(NanoAODHistoModule):
 
         ## evaluate jets for all events passing twoMuSel
         ## more optimization will be needed with systematics etc.
-        forceDefine(t.Jet.calcProd, twoMuSel)
+        forceDefine(t._Jet.calcProd, twoMuSel)
 
-        jets = op.select(t.Jet["nominal"], lambda j : j.p4.Pt() > 20.)
+        jets = op.select(t.Jet, lambda j : j.p4.Pt() > 20.)
         plots.append(Plot.make1D("nJets", op.rng_len(jets), twoMuSel,
                 EquidistantBinning(10, 0., 10.), title="Number of jets"))
 

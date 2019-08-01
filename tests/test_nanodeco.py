@@ -14,7 +14,7 @@ def decoNano():
     tup = decorateNanoAOD(tree, isMC=True)
     be, noSel = DataframeBackend.create(tup)
     jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{};", nameHint="bamboo_jmeSystCalc")
-    tup.Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
+    tup._Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
     roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{};", nameHint="bamboo_roccorCalc")
     tup._Muon.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName))
     yield tup
@@ -27,7 +27,7 @@ def test_getSimpleObjects(decoNano):
     assert decoNano.FatJet[0]
 
 def test_getJet(decoNano):
-    assert decoNano.Jet["nominal"][0]
+    assert decoNano.Jet[0]
 
 def test_simpleRef(decoNano):
     assert decoNano.Electron[0].photon
@@ -38,7 +38,7 @@ def test_toJetRef(decoNano):
     assert decoNano.Muon[0].jet
 
 def test_fromJetRef(decoNano):
-    jet = decoNano.Jet["nominal"][0]
+    jet = decoNano.Jet[0]
     assert jet.muon1
     assert jet.muon2
     assert jet.electron1

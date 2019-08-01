@@ -20,7 +20,7 @@ public:
 
   void setRochesterCorrection(const std::string& params);
 
-  bool hasProduct(const std::string& name) const;
+  std::vector<std::string> availableProducts() const;
 
   // interface for NanoAOD
   result_t produceModifiedCollections(

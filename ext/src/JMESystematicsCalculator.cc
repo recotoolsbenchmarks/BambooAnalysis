@@ -206,8 +206,8 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
     }
     sort(jJesDown);
     sort(jJesUp);
-    out["jes"+jesUnc.first+"Down"] = convertToModifKin(jJesDown);
-    out["jes"+jesUnc.first+"Up"  ] = convertToModifKin(jJesUp  );
+    out["jes"+jesUnc.first+"down"] = convertToModifKin(jJesDown);
+    out["jes"+jesUnc.first+"up"  ] = convertToModifKin(jJesUp  );
   }
 
 #ifdef BAMBOO_JME_DEBUG
@@ -224,20 +224,16 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   return out;
 }
 
-bool JMESystematicsCalculator::hasProduct(const std::string& name) const
+std::vector<std::string> JMESystematicsCalculator::availableProducts() const
 {
-  if ( name == "nominal" )
-    return true;
-  else if ( m_doSmearing && ( ( name == "jerup" ) || ( name == "jerdown" ) ) )
-    return true;
-  else if ( ( ! m_jesUncSources.empty() ) && ( name.substr(0,3) == "jes" ) ) {
-    std::string jesunc{};
-    if ( name.substr(name.size()-4) == "Down" ) {
-      jesunc = name.substr(3, name.size()-4);
-    } else if ( name.substr(name.size()-2) == "Up" ) {
-      jesunc = name.substr(3, name.size()-2);
-    }
-    return ( ! jesunc.empty() ) && ( std::end(m_jesUncSources) != m_jesUncSources.find(jesunc) );
+  std::vector<std::string> products = { "nominal" };
+  if ( m_doSmearing ) {
+    products.emplace_back("jerup");
+    products.emplace_back("jerdown");
   }
-  return false;
+  for ( const auto& src : m_jesUncSources ) {
+    products.emplace_back("jes"+src.first+"up");
+    products.emplace_back("jes"+src.first+"down");
+  }
+  return products;
 }

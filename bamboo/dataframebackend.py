@@ -13,17 +13,25 @@ from . import treefunctions as op
 from . import treeoperations as top
 
 class SelWithDefines(top.CppStrRedir):
-    def __init__(self, parent, df):
-        self.df = df
+    def __init__(self, parent, variation="nominal"):
         self.explDefine = list()
+        self.var = None ## nodes for related systematic variations (if different by more than the weight)
         if isinstance(parent, SelWithDefines):
             self.parent = parent
             self.backend = parent.backend
+            self.df = parent.df
             self._definedColumns = dict(parent._definedColumns)
-        else:
+            if variation == "nominal":
+                self.var = dict((varNm, SelWithDefines(pvar, pvar.df, variation=varNm)) for varNm, pvar in parent.var.items())
+                ## parent is either nominal (when branching off), or the corresponding variation of the parent of the nominal node
+        elif isinstance(parent, DataframeBackend):
             self.parent = None
             self.backend = parent
+            self.df = parent.rootDF
             self._definedColumns = dict()
+            self.var = dict()
+        else:
+            raise RuntimeError("Can only define SelWithDefines with a DataframeBackend or another SelWithDefines")
         self.wName = dict()
         top.CppStrRedir.__init__(self)
 
@@ -43,6 +51,15 @@ class SelWithDefines(top.CppStrRedir):
         else:
             assert not wName
             self.wName[variation] = None
+
+    def addCut(self, cuts):
+        cutExpr = Selection._makeExprAnd(cuts)
+        cutStr = cutExpr.get_cppStr(defCache=self)
+        self._addFilterStr(cutStr)
+
+    def _addFilterStr(self, filterStr): ## add filter with string already made
+        logger.debug("Filtering with {0}".format(filterStr))
+        self.df = self.df.Filter(filterStr)
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -136,25 +153,28 @@ class DataframeBackend(FactoryBackend):
         rootSel = Selection(inst, "none")
         return inst, rootSel
 
-    def addSelection(self, sele): ## TODO selDFs
+    def addSelection(self, sele):
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
             raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
-        parentDF = self.selDFs[sele.parent.name] if sele.parent else None
+        cutStr = None
         if sele._cuts:
-            assert parentDF ## FIXME if not something went wrong - there *needs* to be a root no-op sel
-            expr = Selection._makeExprAnd(sele._cuts)
-            filterStr = expr.get_cppStr(defCache=parentDF)
-            logger.debug("Filtering with {0}".format(filterStr))
-            selDF = parentDF.df.Filter(filterStr)
-        else:
-            if parentDF:
-                selDF = parentDF.df
-            else:
-                selDF = self.rootDF
-
-        selnd = SelWithDefines((parentDF if sele.parent else self), selDF)
+            assert sele.parent ## FIXME there *needs* to be a root no-op sel
+            ## trick: by passing defCache=parentDF and doing this *before* constructing the nominal node,
+            ## any definitions end up in the node above, and are in principle available for other sub-selections too
+            cutStr = Selection._makeExprAnd(sele._cuts).get_cppStr(defCache=self.selDFs[sele.parent.name])
+        selnd = SelWithDefines(self.selDFs[sele.parent.name] if sele.parent else self)
+        if cutStr:
+            selnd._addFilterStr(cutStr)
         selnd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        ## Next: loop through all systematics that affect the cuts or weights
+        ## - variation is there (i.e. it affected previous cuts) -> add cut and weight to var
+        ## - variation is not there:
+        ##   - only weight -> keep going as before
+        ##   - cut -> create variations
+        ## - with systName and variations, the distinction between collection and scalefactor is irrelevant
+        ## -> make them derive from the same base class that defines this interface
+
         for systN,systVars in sele.weightSystematics.items(): ## weights-only systematics (do not need a new node, nominal selection)
             logger.debug("Adding weight variations {0} for systematic {1}".format(systVars, systN))
             wfToChange = []

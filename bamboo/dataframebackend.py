@@ -155,18 +155,18 @@ class DataframeBackend(FactoryBackend):
 
         selnd = SelWithDefines((parentDF if sele.parent else self), selDF)
         selnd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
-        for syst in sele.weightSystematics: ## weights-only systematics (do not need a new node, nominal selection)
-            logger.debug("Adding weight variations for systematic {0}".format(syst))
+        for systN,systVars in sele.weightSystematics.items(): ## weights-only systematics (do not need a new node, nominal selection)
+            logger.debug("Adding weight variations {0} for systematic {1}".format(systVars, systN))
             wfToChange = []
             wfKeep = list(sele._weights)
-            isthissyst = partial((lambda sN,iw : isinstance(iw, top.ScaleFactorWithSystOp) and iw.systName == sN), syst)
-            if syst in sele._wsysts:
+            isthissyst = partial((lambda sN,iw : isinstance(iw, top.ScaleFactorWithSystOp) and iw.systName == sN), systN)
+            if systN in sele._wSysts:
                 for wf in sele._weights:
                     if any(top.collectNodes(wf, select=isthissyst)):
                         wfToChange.append(wf)
                         del wfKeep[wfKeep.index(wf)]
-            for vard in ("up", "down"):
-                varn = "{0}{1}".format(syst, vard)
+            for vard in systVars:
+                varn = "{0}{1}".format(systN, vard)
                 wfChanged = []
                 for wf in wfToChange:
                     newf = copy.deepcopy(wf)
@@ -181,6 +181,11 @@ class DataframeBackend(FactoryBackend):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
         if plot.name in self.plotResults:
             raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
+        varSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
+            top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.SystModifiedCollectionOp) and nd.systName and len(nd.variations) > 1))
+            for vi in plot.variables))
+        if varSysts:
+            logger.debug("Plot variables are affected by systematics {0!s}".format(varSysts))
         ## TODO DataFrame might throw (or segfault), but we should catch all possible errors before
         ## NOTE pre/postfixes should already be inside the plot name
         selND = self.selDFs[plot.selection.name] ## TODO update with variations (later)

@@ -328,12 +328,13 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
     if jets is not None:
         avail = variations.available
         if enableSystematics is None:
-            enable = avail
+            enable = [ vari for vari in avail if vari != "nominal" ]
         else:
             if str(enableSystematics) == enableSystematics:
                 enableSystematics = [enableSystematics]
-            enable = [ vari for vari in avail if any(vari.startswith(ena) for ena in enableSystematics) ]
+            enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         jets.op.variations = enable
+        jets.op.systName = jetsName
         logger.debug("Enabled systematic variations: {0}".format(" ".join(enable)))
 
 def forceDefine(arg, selection):

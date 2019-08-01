@@ -378,7 +378,7 @@ class Variations(TupleBaseProxy):
             raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
         res_item = self.calcProd.at(makeConst(key, "std::string")).op
         if key == "nominal":
-            res_item = SystModifiedCollectionOp(res_item, self.available)
+            res_item = SystModifiedCollectionOp(res_item, None, self.available)
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class ModifiedCollectionProxy(TupleBaseProxy,ListBase):

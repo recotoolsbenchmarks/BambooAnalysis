@@ -862,14 +862,14 @@ class ScaleFactorWithSystOp(ForwardingOp):
 
 class SystModifiedCollectionOp(ForwardingOp):
     """ modifiedcollections 'at' call, to be modified to get another collection """
-    def __init__(self, wrapped, available):
-        self.available = available
+    def __init__(self, wrapped, variations):
+        self.variations = variations
         super(SystModifiedCollectionOp, self).__init__(wrapped)
     def changeCollection(self, newCollection):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if newCollection not in self.available:
+        if newCollection not in self.variations:
             raise ValueError("Invalid collection: {0}".format(newCollection))
         if self.wrapped.args[0].name == '"nominal"' and newCollection != self.wrapped.args[0].name.strip('"'):
             self.wrapped.args[0].name = '"{0}"'.format(newCollection)
     def __repr__(self):
-        return "SystModifiedCollectionOp({0!r}, {1!r})".format(self.wrapped, self.available)
+        return "SystModifiedCollectionOp({0!r}, {1!r})".format(self.wrapped, self.variations)

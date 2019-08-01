@@ -274,14 +274,16 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     except subprocess.CalledProcessError as ex:
         logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
-def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False):
+def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
 
-    :param calc: jet variations calculator to configure (e.g. ``Jet.calc``)
+    :param tree: tree proxy for which to configure a jet collection
+    :param jetsName: name of the jet branches (``tree.{jetsName}`` is assumed to be the nominal jet collection, and ``tree.{_jetsName}`` the corresponding variations proxy, as in the NanoAOD decorations)
     :param jetType: jet type, e.g. AK4PFchs
     :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
     :param jec: tag of the new JEC to apply, or for the JES uncertainties (pass an empty list to jecLevels to produce only the latter without reapplying the JEC)
     :param jesUncertaintySources: list of jet energy scale uncertainty sources (see `the JECUncertaintySources twiki page <https://twiki.cern.ch/twiki/bin/viewauth/CMS/JECUncertaintySources>`_)
+    :param enableSystematics: systematics variations to enable (default: all that are available; pass an empty set to disable)
 
     :param useGenMatch: use matching to generator-level jets for resolution smearing
     :param genMatchDR: DeltaR for generator-level jet matching (half the cone size is recommended, default is 0.2)
@@ -290,6 +292,8 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
     :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
     :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
     """
+    variations = getattr(tree, "_{0}".format(jetsName))
+    calc = variations.calc
     from .jetdatabasecache import JetDatabaseCache
     if smear is not None:
         jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
@@ -320,6 +324,17 @@ def configureJets(calc, jetType, jec=None, jecLevels="default", smear=None, useG
             for src in jesUncertaintySources:
                 params = gbl.JetCorrectorParameters(plf, src)
                 calc.addJESUncertainty(src, params)
+    jets = getattr(tree, jetsName)
+    if jets is not None:
+        avail = variations.available
+        if enableSystematics is None:
+            enable = avail
+        else:
+            if str(enableSystematics) == enableSystematics:
+                enableSystematics = [enableSystematics]
+            enable = [ vari for vari in avail if any(vari.startswith(ena) for ena in enableSystematics) ]
+        jets.op.variations = enable
+        logger.debug("Enabled systematic variations: {0}".format(" ".join(enable)))
 
 def forceDefine(arg, selection):
     """ Force the definition of an expression as a column at a selection stage

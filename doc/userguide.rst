@@ -687,13 +687,13 @@ uncertainties to 2016 MC:
        from bamboo.analysisutils import configureJets
        if era == "2016":
            if self.isMC(sample): # can be inferred from sample name
-               configureJets(tree.Jet.calc, "AK4PFchs",
+               configureJets(tree, "Jet", "AK4PFchs",
                    jec="Summer16_07Aug2017_V20_MC",
                    smear="Summer16_25nsV1_MC",
                    jesUncertaintySources=["Total"])
            else:
                if "2016G" in sample or "2016H" in sample:
-                   configureJets(tree.Jet.calc, "AK4PFchs",
+                   configureJets(tree, "Jet", "AK4PFchs",
                        jec="Summer16_07Aug2017GH_V11_DATA")
                elif ...: ## other 2016 periods
                    pass

@@ -843,15 +843,22 @@ class PsuedoRandom(TupleOp):
     ## seed can be event-based or object-based, depending?
     ## TODO implement C++ side as well
 
-
-class ScaleFactorWithSystOp(ForwardingOp):
-    """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
+class OpWithSyst(ForwardingOp):
+    """ Interface and base class for nodes that can change the systematic variation of something they wrap """
     def __init__(self, wrapped, systName):
         self.systName = systName
-        super(ScaleFactorWithSystOp, self).__init__(wrapped)
-    @property
-    def variations(self):
-        return ["up", "down"]
+        self.variations = None
+        super(OpWithSyst, self).__init__(wrapped)
+    def changeVariation(self, newVar):
+        pass ## main interface method
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__, self.wrapped, self.variations)
+
+class ScaleFactorWithSystOp(OpWithSyst):
+    """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
+    def __init__(self, wrapped, systName):
+        super(ScaleFactorWithSystOp, self).__init__(wrapped, systName)
+        self.variations = ["up", "down"]
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newVariation not in self.variations:
@@ -859,21 +866,15 @@ class ScaleFactorWithSystOp(ForwardingOp):
         newVariation = newVariation.capitalize() ## translate to name in C++
         if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
             self.wrapped.args[-1].name = newVariation
-        return self
-    def __repr__(self):
-        return "ScaleFactorWithSystOp({0!r}, {1!r})".format(self.wrapped, self.systName)
 
-class SystModifiedCollectionOp(ForwardingOp):
+class SystModifiedCollectionOp(OpWithSyst):
     """ modifiedcollections 'at' call, to be modified to get another collection """
     def __init__(self, wrapped, name, variations):
-        self.systName = name
+        super(SystModifiedCollectionOp, self).__init__(wrapped, name)
         self.variations = variations
-        super(SystModifiedCollectionOp, self).__init__(wrapped)
-    def changeCollection(self, newCollection):
+    def changeVariation(self, newCollection):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newCollection not in self.variations:
             raise ValueError("Invalid collection: {0}".format(newCollection))
         if self.wrapped.args[0].name == '"nominal"' and newCollection != self.wrapped.args[0].name.strip('"'):
             self.wrapped.args[0].name = '"{0}"'.format(newCollection)
-    def __repr__(self):
-        return "SystModifiedCollectionOp({0!r}, {1!r})".format(self.wrapped, self.variations)

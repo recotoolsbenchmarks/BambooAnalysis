@@ -4,6 +4,9 @@ and manipulate selections and plots.
 """
 __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection")
 
+import logging
+logger = logging.getLogger(__name__)
+
 from itertools import chain
 from . import treeoperations as top
 

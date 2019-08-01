@@ -156,6 +156,7 @@ class DataframeBackend(FactoryBackend):
         selnd = SelWithDefines((parentDF if sele.parent else self), selDF)
         selnd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
         for syst in sele.weightSystematics: ## weights-only systematics (do not need a new node, nominal selection)
+            logger.debug("Adding weight variations for systematic {0}".format(syst))
             wfToChange = []
             wfKeep = list(sele._weights)
             isthissyst = partial((lambda sN,iw : isinstance(iw, top.ScaleFactorWithSystOp) and iw.systName == sN), syst)

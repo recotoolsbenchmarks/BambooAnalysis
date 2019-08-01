@@ -196,6 +196,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
     containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj")
     containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
     for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
+        if sizeNm not in allTreeLeafs:
+            print("Warning: {} is not a branch in the tree!".format(sizeNm))
+            continue
         grpNm = sizeNm[1:]
         prefix = "{0}_".format(grpNm)
         itm_dict = {

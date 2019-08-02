@@ -35,10 +35,9 @@ class SelWithDefines(top.CppStrRedir):
         self.wName = dict()
         top.CppStrRedir.__init__(self)
 
-    def addWeight(self, weights=None, wName=None, variation="nominal"):
-        parentWeight = None
-        if self.parent and self.parent.wName:
-            parentWeight = self.parent.wName.get(variation, self.parent.wName["nominal"])
+    def addWeight(self, weights=None, wName=None, parentWeight=None, variation="nominal"):
+        if variation == "nominal" and parentWeight is None and self.parent and self.parent.wName:
+            parentWeight = self.parent.wName["nominal"]
         if weights:
             weightExpr = Selection._makeExprProduct(
                 ([top.adaptArg(op.extVar("float", parentWeight), typeHint="float")]+weights) if parentWeight
@@ -147,6 +146,7 @@ class DataframeBackend(FactoryBackend):
             gbl.gInterpreter.Declare(fullDecl)
             return name
 
+        super(SystModifiedCollectionOp, self).__init__(wrapped, name)
     @staticmethod
     def create(decoTree, outFileName=None):
         inst = DataframeBackend(decoTree._tree, outFileName=None)
@@ -158,15 +158,18 @@ class DataframeBackend(FactoryBackend):
         if sele.name in self.selDFs:
             raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
         cutStr = None
+        nomParentNd = self.selDFs[sele.parent.name] if sele.parent else None
         if sele._cuts:
             assert sele.parent ## FIXME there *needs* to be a root no-op sel
             ## trick: by passing defCache=parentDF and doing this *before* constructing the nominal node,
             ## any definitions end up in the node above, and are in principle available for other sub-selections too
             cutStr = Selection._makeExprAnd(sele._cuts).get_cppStr(defCache=self.selDFs[sele.parent.name])
-        selnd = SelWithDefines(self.selDFs[sele.parent.name] if sele.parent else self)
+        nomNd = SelWithDefines(nomParentNd if nomParentNd else self)
         if cutStr:
-            selnd._addFilterStr(cutStr)
-        selnd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+            nomNd._addFilterStr(cutStr)
+        nomNd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        self.selDFs[sele.name] = nomNd
+
         ## Next: loop through all systematics that affect the cuts or weights
         ## - variation is there (i.e. it affected previous cuts) -> add cut and weight to var
         ## - variation is not there:
@@ -175,27 +178,78 @@ class DataframeBackend(FactoryBackend):
         ## - with systName and variations, the distinction between collection and scalefactor is irrelevant
         ## -> make them derive from the same base class that defines this interface
 
-        for systN,systVars in sele.weightSystematics.items(): ## weights-only systematics (do not need a new node, nominal selection)
+        weightSyst = sele.weightSystematics
+        cutSyst = sele.cutSystematics
+        for systN, systVars in sele.systematics.items(): ## the two above merged
             logger.debug("Adding weight variations {0} for systematic {1}".format(systVars, systN))
+            ## figure out which cuts and weight factors are affected by this systematic
+            isthissyst = partial((lambda sN,iw : isinstance(iw, top.OpWithSyst) and iw.systName == sN), systN)
+            ctToChange = []
+            ctKeep = list(sele._cuts)
             wfToChange = []
             wfKeep = list(sele._weights)
-            isthissyst = partial((lambda sN,iw : isinstance(iw, top.ScaleFactorWithSystOp) and iw.systName == sN), systN)
-            if systN in sele._wSysts:
-                for wf in sele._weights:
+            if systN in cutSyst:
+                nRem = 0
+                for i,ct in enumerate(sele._cuts):
+                    if any(top.collectNodes(ct, select=isthissyst)):
+                        ctToChange.append(ct)
+                        del ctKeep[i-nRem]
+                        nRem += 1
+            if systN in weightSyst:
+                nRem = 0
+                for i,wf in enumerate(sele._weights):
                     if any(top.collectNodes(wf, select=isthissyst)):
                         wfToChange.append(wf)
-                        del wfKeep[wfKeep.index(wf)]
+                        del wfKeep[i-nRem]
+                        nRem += 1
+            ## construct variation nodes (if necessary)
             for vard in systVars:
                 varn = "{0}{1}".format(systN, vard)
-                wfChanged = []
-                for wf in wfToChange:
-                    newf = copy.deepcopy(wf)
-                    for nd in top.collectNodes(newf, select=isthissyst):
-                        nd.changeVariation(vard)
-                    wfChanged.append(newf)
-                selnd.addWeight(weights=(wfKeep+wfChanged), wName=("w_{0}__{1}".format(sele.name, varn) if sele._weights else None), variation=varn)
-        self.selDFs[sele.name] = selnd
-        ## TODO add non-weightonly systematics (will need new nodes; will be: cuts and/or weights depend on collections)
+                ## add cuts to the appropriate node, if affected by systematics (here or up)
+                varParentNd = None ## set parent node if not the nominal one
+                if nomParentNd and varn in nomParentNd.var: ## -> continue on branch
+                    varParentNd = nomParentNd.var[varn]
+                elif ctToChange: ## -> branch off now
+                    varParentNd = nomParentNd
+                if not varParentNd: ## cuts unaffected (here and in parent), can stick with nominal
+                    varNd = nomNd
+                else: ## on branch, so add cuts (if any)
+                    if len(sele._cuts) == 0: ## no cuts, reuse parent
+                        varNd = varParentNd
+                    else:
+                        ctChanged = []
+                        for ct in ctToChange: ## empty if sele._cuts are not affected
+                            newct = copy.deepcopy(ct)
+                            for nd in top.collectNodes(newct, select=isthissyst):
+                                nd.changeVariation(vard)
+                            ctChanged.append(newct)
+                        cutStr = Selection._makeExprAnd(ctKeep+ctChanged).get_cppStr(defCache=varParentNd)
+                        varNd = SelWithDefines(varParentNd)
+                        varNd._addFilterStr(cutStr)
+                    nomNd.var[varn] = varNd
+                ## next: attach weights (modified if needed) to varNd
+                if varParentNd:
+                    parwn = varParentNd.wName.get(varn, varParentNd.wName.get("nominal"))
+                elif nomParentNd:
+                    parwn = nomParentNd.wName.get(varn, nomParentNd.wName.get("nominal"))
+                else:
+                    parwn = None ## no prior weights at all
+                if not sele._weights:
+                    logger.debug("{0} systematic variation {1}: reusing {2}".format(sele.name, varn, parwn))
+                    varNd.addWeight(parentWeight=parwn, variation=varn)
+                else:
+                    if wfToChange or varNd != nomNd or ( nomParentNd and varn in nomParentNd.wName ):
+                        wfChanged = []
+                        for wf in wfToChange:
+                            newf = copy.deepcopy(wf)
+                            for nd in top.collectNodes(newf, select=isthissyst):
+                                nd.changeVariation(vard)
+                            wfChanged.append(newf)
+                        logger.debug("{0} systematic variation {1}: defining new weight based on {2}".format(sele.name, varn, parwn))
+                        varNd.addWeight(weights=(wfKeep+wfChanged), wName=("w_{0}__{1}".format(sele.name, varn) if sele._weights else None), parentWeight=parwn, variation=varn)
+                    else: ## varNd == nomNd, not branched, and parent does not have weight variation
+                        logger.debug("{0} systematic variation {1}: reusing nominal {2}".format(sele.name, varn, varNd.wName["nominal"]))
+                        varNd.addWeight(parentWeight=varNd.wName["nominal"], variation=varn)
 
     def addPlot(self, plot):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """

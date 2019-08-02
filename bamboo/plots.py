@@ -214,16 +214,12 @@ class Selection(object):
         self.parent   = None
         self._cuts     = [ adaptArg(cut, "Bool_t") for cut in cuts ] if cuts else []
         self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in weights ] if weights else []
-        self._ccSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.SystModifiedCollectionOp) and nd.systName and len(nd.variations) > 1))
-            for wf in self._cuts)) ## variations of collections affecting _cuts
-        self._cwSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.SystModifiedCollectionOp) and nd.systName and len(nd.variations) > 1))
-            for wf in self._weights)) ## variations of collections affecting _weights
+        self._cSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
+            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
+            for wf in self._cuts))
         self._wSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.ScaleFactorWithSystOp)))
-            for wf in self._weights)) ## 'own' weight systematics (excluding parents' - like weights)
-        ## assumption: scalefactor systematics can only affect weight (not selection). Cut systematics can affect both
+            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
+            for wf in self._weights))
 
         ## register with backend
         if isinstance(parent, Selection):
@@ -255,16 +251,18 @@ class Selection(object):
         else:
             return dict(self._wSysts)
     @property
-    def collectionSystematics(self):
+    def cutSystematics(self):
         if self.parent:
-            systs = self.parent.collectionSystematics
-            systs.update(self._ccSysts)
-            systs.update(self._cwSysts)
+            systs = self.parent.cutSystematics
+            systs.update(self._cSysts)
             return systs
         else:
-            systs = dict(self._ccSysts)
-            systs.update(set(self._cwSysts))
-            return systs
+            return dict(self._cSysts)
+    @property
+    def systematics(self):
+        allSyst = self.weightSystematics
+        allSyst.update(self.cutSystematics)
+        return allSyst
     ## for debugging/monitoring: full cut and weight expression ## TODO review
     @property
     def cut(self):

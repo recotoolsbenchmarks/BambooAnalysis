@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import copy
-from itertools import chain, count
+from itertools import chain
 from functools import partial
 
 from .plots import FactoryBackend, Selection
@@ -256,36 +256,79 @@ class DataframeBackend(FactoryBackend):
         if plot.name in self.plotResults:
             raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
         varSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.SystModifiedCollectionOp) and nd.systName and len(nd.variations) > 1))
+            top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
             for vi in plot.variables))
         if varSysts:
             logger.debug("Plot variables are affected by systematics {0!s}".format(varSysts))
-        ## TODO DataFrame might throw (or segfault), but we should catch all possible errors before
-        ## NOTE pre/postfixes should already be inside the plot name
-        selND = self.selDFs[plot.selection.name] ## TODO update with variations (later)
-        varExprs = dict(("v{0:d}_{1}".format(i, plot.name), selND(var)) for i,var in zip(count(), plot.variables))
-        plotDF = selND.df ## after getting the expressions, to pick up columns that were defined on-demand
-        for vName, vExpr in varExprs.items():
-            #logger.debug("Defining {0} as {1} (defined for {2}: {3})".format(vName, vExpr, plotDF, ", ".join(plotDF.GetDefinedColumnNames()))) ## needs 6.16
+        selSysts = plot.selection.systematics
+        allSysts = dict(plot.selection.systematics)
+        allSysts.update(varSysts)
+        if allSysts:
+            logger.debug("Plot is affected by systematics {0!s} through selection or variable(s)".format(allSysts))
+
+        nomNd = self.selDFs[plot.selection.name]
+        plotRes = []
+        ## Add nominal plot
+        nomVarExprs = dict(("v{0:d}_{1}".format(i, plot.name), nomNd(var)) for i,var in enumerate(plot.variables))
+        nomPlotDF = nomNd.df
+        for vName, vExpr in nomVarExprs.items():
             logger.debug("Defining {0} as {1}".format(vName, vExpr))
-            plotDF = plotDF.Define(vName, vExpr)
-        plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
-        ## TODO for weight-only: essentially fill for all weights (incl. nominal)
-        ## TODO: the other cases will be
-        ## - cut depends but not plotvar -> repeat on different selnd with nomianl
-        ## - cut does not depends but plotvar -> repeat on the same selnd
-        ## - both cut and plotvar depend -> run for matching combinations
-        ## (in all cases, weight *may* depend or not)
-        if selND.wName["nominal"]: ## nontrivial weight
-            logger.debug("Adding plot {0} with variables {1} and weights {2}".format(plot.name, ", ".join(varExprs.keys()), ", ".join(selND.wName.values())))
-            plotDF = [ plotFun( DataframeBackend.makePlotModel(plot, variation=wvarName),
-                                *chain(varExprs.keys(), [ varWeight ]) )
-                        for wvarName, varWeight in selND.wName.items() ]
-        else:
-            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
-            hModel = DataframeBackend.makePlotModel(plot)
-            plotDF = [ plotFun(hModel, *varExprs.keys()) ]
-        self.plotResults[plot.name] = plotDF
+            nomPlotDF = nomPlotDF.Define(vName, vExpr)
+        nomPlotFun = getattr(nomPlotDF, "Histo{0:d}D".format(len(plot.variables)))
+        plotModel = DataframeBackend.makePlotModel(plot)
+        if nomNd.wName["nominal"]: ## nontrivial weight
+            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(nomVarExprs.keys()), nomNd.wName["nominal"]))
+            plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ nomNd.wName["nominal"] ]) ))
+        else: # no weight
+            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(nomVarExprs.keys())))
+            plotRes.append(nomPlotFun(plotModel, *nomVarExprs.keys()))
+
+        ## Same for all the systematics
+        for systN, systVars in allSysts.items():
+            isthissyst = partial((lambda sN,iw : isinstance(iw, top.OpWithSyst) and iw.systName == sN), systN)
+            idxVarsToChange = []
+            for i,xvar in enumerate(plot.variables):
+                if any(top.collectNodes(xvar, select=isthissyst)):
+                    idxVarsToChange.append(i)
+            for vard in systVars:
+                varn = "{0}{1}".format(systN, vard)
+                if systN in varSysts or varn in nomNd.var:
+                    varNd = nomNd.var.get(varn, nomNd)
+                    varExprs = {}
+                    for i,xvar in enumerate(plot.variables):
+                        if i in idxVarsToChange:
+                            varVar = copy.deepcopy(xvar)
+                            for nd in top.collectNodes(varVar, select=isthissyst):
+                                nd.changeVariation(vard)
+                        else:
+                            varVar = xvar
+                        varExprs["v{0:d}_{1}__{2}".format(i, plot.name, varn)] = varNd(varVar)
+                    plotDF = varNd.df
+                    for vName, vExpr in varExprs.items():
+                        logger.debug("Defining {0} as {1}".format(vName, vExpr))
+                        plotDF = plotDF.Define(vName, vExpr)
+                    plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
+                    plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
+                    if varn not in varNd.wName:
+                        logger.error("{0} not in {1!s}".format(varn, varNd.wName.keys()))
+                    wN = varNd.wName[varn] if systN in selSysts else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
+                    if wN is not None: ## nontrivial weight
+                        logger.debug("Adding variation {0} plot {1} with variables {2} and weight {3}".format(varn, plot.name, ", ".join(varExprs.keys()), wN))
+                        plotRes.append(plotFun(plotModel, *chain(varExprs.keys(), [ wN ]) ))
+                    else: ## no weight
+                        logger.debug("Adding variation {0} plot {1} with variables {2}".format(varn, plot.name, ", ".join(varExprs.keys())))
+                        plotRes.append(plotFun(plotModel, *varExprs.keys()))
+                else: ## can reuse variables, but may need to take care of weight
+                    wN = nomNd.wName[varn]
+                    if wN is not None:
+                        logger.debug("Adding variation {0} plot {1} with variables {2} and weight {3}".format(varn, plot.name, ", ".join(nomVarExprs.keys()), wN))
+                        plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ wN ]) ))
+                    else: ## no weight
+                        logger.error("A systematic that doesn't affect cuts, variables, or a weight... this is weird ")
+                        logger.debug("Adding variation {0} plot {1} with variables {2}".format(varn, plot.name, ", ".join(nomVarExprs.keys())))
+                        plotRes.append(nomPlotFun(plotModel, *nomVarExprs.keys()))
+        ## at the end
+        self.plotResults[plot.name] = plotRes
 
     @staticmethod
     def makePlotModel(plot, variation="nominal"):

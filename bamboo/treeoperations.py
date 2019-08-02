@@ -876,5 +876,5 @@ class SystModifiedCollectionOp(OpWithSyst):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newCollection not in self.variations:
             raise ValueError("Invalid collection: {0}".format(newCollection))
-        if self.wrapped.args[0].name == '"nominal"' and newCollection != self.wrapped.args[0].name.strip('"'):
-            self.wrapped.args[0].name = '"{0}"'.format(newCollection)
+        if self.wrapped.args[0].value == '"nominal"' and newCollection != self.wrapped.args[0].value.strip('"'):
+            self.wrapped.args[0].value = '"{0}"'.format(newCollection)

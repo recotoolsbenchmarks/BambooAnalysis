@@ -328,7 +328,8 @@ class HistogramsModule(AnalysisModule):
                         varn = varn[:-len(suff)]
                 if varn not in systNuis:
                     systNuis.append(varn)
-        logger.info("Systematic shape variations impacting any plots: {0}".format(", ".join(systNuis)))
+        if systNuis:
+            logger.info("Systematic shape variations impacting any plots: {0}".format(", ".join(systNuis)))
 
         outF.cd()
         for p in self.plotList:

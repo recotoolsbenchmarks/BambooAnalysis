@@ -315,6 +315,7 @@ class DataframeBackend(FactoryBackend):
                 else: ## can reuse variables, but may need to take care of weight
                     wN = nomNd.wName[varn]
                     if wN is not None:
+                        plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
                         logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}".format(plot.name, varn, ", ".join(nomVarExprs.keys()), wN))
                         plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ wN ]) ))
                     else: ## no weight

@@ -335,7 +335,8 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
             enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         jets.op.variations = enable
         jets.op.systName = jetsName
-        logger.info("Enabled systematic variations for {0}: {1}".format(jetsName, " ".join(enable)))
+        if enable:
+            logger.info("Enabled systematic variations for {0} collection: {1}".format(jetsName, " ".join(enable)))
 
 def forceDefine(arg, selection):
     """ Force the definition of an expression as a column at a selection stage

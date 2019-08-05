@@ -257,13 +257,9 @@ class DataframeBackend(FactoryBackend):
         varSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
             top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
             for vi in plot.variables))
-        if varSysts:
-            logger.debug("Plot variables are affected by systematics {0!s}".format(varSysts))
         selSysts = plot.selection.systematics
         allSysts = dict(plot.selection.systematics)
         allSysts.update(varSysts)
-        if allSysts:
-            logger.debug("Plot is affected by systematics {0!s} through selection or variable(s)".format(allSysts))
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
@@ -307,24 +303,20 @@ class DataframeBackend(FactoryBackend):
                         plotDF = plotDF.Define(vName, vExpr)
                     plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
                     plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
-                    if varn not in varNd.wName:
-                        logger.error("{0} not in {1!s}".format(varn, varNd.wName.keys()))
                     wN = varNd.wName[varn] if systN in selSysts else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
                     if wN is not None: ## nontrivial weight
-                        logger.debug("Adding variation {0} plot {1} with variables {2} and weight {3}".format(varn, plot.name, ", ".join(varExprs.keys()), wN))
+                        logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}".format(plot.name, varn, ", ".join(varExprs.keys()), wN))
                         plotRes.append(plotFun(plotModel, *chain(varExprs.keys(), [ wN ]) ))
                     else: ## no weight
-                        logger.debug("Adding variation {0} plot {1} with variables {2}".format(varn, plot.name, ", ".join(varExprs.keys())))
+                        logger.debug("Adding plot {0} variation {1} with variables {2}".format(varn, plot.name, ", ".join(varExprs.keys())))
                         plotRes.append(plotFun(plotModel, *varExprs.keys()))
                 else: ## can reuse variables, but may need to take care of weight
                     wN = nomNd.wName[varn]
                     if wN is not None:
-                        logger.debug("Adding variation {0} plot {1} with variables {2} and weight {3}".format(varn, plot.name, ", ".join(nomVarExprs.keys()), wN))
+                        logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}".format(plot.name, varn, ", ".join(nomVarExprs.keys()), wN))
                         plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ wN ]) ))
                     else: ## no weight
-                        logger.error("A systematic that doesn't affect cuts, variables, or a weight... this is weird ")
-                        logger.debug("Adding variation {0} plot {1} with variables {2}".format(varn, plot.name, ", ".join(nomVarExprs.keys())))
-                        plotRes.append(nomPlotFun(plotModel, *nomVarExprs.keys()))
+                        raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
         ## at the end
         self.plotResults[plot.name] = plotRes
 

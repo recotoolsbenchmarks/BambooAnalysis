@@ -525,6 +525,11 @@ and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
 respectively, instead of a single path.
 
+Histogram variations representing the shape systematic uncertainty due to an
+uncertainty on the scalefactor values can be automatically produced by passing
+a name to the ``systName`` keyword argument of the
+:py:meth:`~bamboo.scalefactors.get_scalefactor` method.
+
 As an example, some basic lepton ID and jet tagging scalefactors could be
 included in an analysis on NanoAOD by defining
 
@@ -552,10 +557,10 @@ included in an analysis on NanoAOD by defining
      }
 
  # fill in some defaults: myScalefactors and bamboo.scalefactors.binningVariables_nano
- def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=None):
+ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=None, systName=None):
      return bamboo.scalefactors.get_scalefactor(objType, key, periods=periods, combine=combine,
          additionalVariables=(additionalVariables if additionalVariables else dict()),
-         sfLib=myScalefactors, paramDefs=bamboo.scalefactors.binningVariables_nano)
+         sfLib=myScalefactors, paramDefs=bamboo.scalefactors.binningVariables_nano, systName=systName)
 
 and adding the weights to the appropriate :py:class:`~bamboo.plots.Selection`
 instances with
@@ -563,17 +568,16 @@ instances with
 .. code-block:: python
 
  electrons = op.select(t.Electron, lambda ele : op.AND(ele.cutBased >= 2, ele.p4.Pt() > 20., op.abs(ele.p4.Eta()) < 2.5))
- elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_loose"))
+ elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_loose"), systName="elID")
  hasTwoEl = noSel.refine("hasTwoEl", cut=[ op.rng_len(electrons) > 1 ],
                weight=[ elLooseIDSF(electrons[0]), elLooseIDSF(electrons[1]) ])
 
  jets = op.select(t.Jet, lambda j : j.p4.Pt() > 30.)
  bJets = op.select(jets, lambda j : j.btagDeepFlavB > 0.2217) ## DeepFlavour loose b-tag working point
  deepFlavB_discriVar = { "BTagDiscri": lambda j : j.btagDeepFlavB }
- deepBLooseSF = get_scalefactor("jet", ("btag_2016_94", "DeepJet_loose"), additionalVariables=deepFlavB_discriVar)
+ deepBLooseSF = get_scalefactor("jet", ("btag_2016_94", "DeepJet_loose"), additionalVariables=deepFlavB_discriVar, systName="bTag")
  hasTwoElTwoB = hasTwoEl.refine("hasTwoElTwoB", cut=[ op.rng_len(bJets) > 1 ],
                   weight=[ deepBLooseSF(bJets[0]), deepBLooseSF(bJets[1]) ])
-
 
 .. _ugrecipepureweighting:
 
@@ -668,10 +672,10 @@ For efficiency and consistency, this is done by a single C++ module
 that produces a set of jet collections (technically, only lists with the sorted
 new momenta and the corresponding indices of the original jets are stored, and
 the python decorations take care of redirecting to those if necessary).
-The base jet collection proxy (e.g. ``Jet`` for NanoAOD) has a member ``calc``
+The base jet collection proxy (e.g. ``_Jet`` for NanoAOD) has a member ``calc``
 that can be used to store a reference to the module instance, and serves as a
 handle to configure it.
-By default, only the nominal jet collection (``Jet["nominal"]`` for NanoAOD) is
+By default, only the nominal jet collection (``Jet`` for NanoAOD) is
 available. The :py:meth:`bamboo.analysisutils.configureJets` provides a
 convenient way to correct the jet resolution in MC, apply a different JEC, and
 add variations due to different sources of uncertainty in the jet energy scale.
@@ -702,7 +706,11 @@ uncertainties to 2016 MC:
 
 The jet collections ``t._Jet["nominal"]``, ``t._Jet["jerup"]``,
 ``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]`` and ``t._Jet["jesTotalDown"]``
-will then be available when defining plots.
+will then be available when defining plots, but they are generally not needed
+directly, because by default the jet variations compatible with the
+configuration will be propagated to the histograms (this can be disabled by
+passing ``enableSystematics=[]`` to
+:py:meth:`bamboo.analysisutils.configureJets`).
 
 The necessary txt files will be automatically downloaded (and kept up to date)
 from the repositories on github, and stored in a local cache (this should be

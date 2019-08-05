@@ -33,6 +33,8 @@ which allow to construct such expression with high-level code, similar to the
 language that is commonly used to discuss and describe them. By constructing
 an object representation of the expression, a few powerful operations can be
 used to compose complex expressions.
+This also allows to automate the construction of derived expressions, e.g. for
+shape systematic variation histograms.
 
 Building selections, plots etc. with such expressions is analysis-specific, but
 the mechanics of loading data samples, processing them locally or on a batch

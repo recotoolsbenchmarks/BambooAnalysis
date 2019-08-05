@@ -111,6 +111,7 @@ class DataframeBackend(FactoryBackend):
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.plotResults = dict() ## plot name -> list of result pointers
+        self.allSysts = dict()    ## all systematic uncertainties and variations impacting any plot
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -260,6 +261,7 @@ class DataframeBackend(FactoryBackend):
         selSysts = plot.selection.systematics
         allSysts = dict(plot.selection.systematics)
         allSysts.update(varSysts)
+        self.allSysts.update(allSysts)
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []

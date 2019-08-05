@@ -319,6 +319,16 @@ class HistogramsModule(AnalysisModule):
 
         outF = gbl.TFile.Open(outputFile, "RECREATE")
         self.plotList = self.definePlots(tree, noSel, era=era, sample=sample)
+        ## make a list of suggested nuisance parameters
+        systNuis = []
+        for systN, systVars in backend.allSysts.items():
+            for varn in systVars:
+                for suff in ("up", "down"):
+                    if varn.endswith(suff):
+                        varn = varn[:-len(suff)]
+                if varn not in systNuis:
+                    systNuis.append(varn)
+        logger.info("Systematic shape variations impacting any plots: {0}".format(", ".join(systNuis)))
 
         outF.cd()
         for p in self.plotList:

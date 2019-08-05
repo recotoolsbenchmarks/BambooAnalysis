@@ -49,7 +49,7 @@ class NanoZMuMu(NanoAODHistoModule):
 
         return tree,noSel,be,lumiArgs
 
-    def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
+    def definePlots(self, t, noSel, era=None, sample=None):
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine

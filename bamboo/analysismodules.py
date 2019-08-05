@@ -273,13 +273,12 @@ class HistogramsModule(AnalysisModule):
     def __init__(self, args):
         """ Constructor
 
-        Defines ``plotList`` and ``systVars`` member variables. The former will store a list of plots
-        (only nominal), the second can be used by concrete classes to pass a list of systematic variations
+        Defines a ``plotList`` member variable, which will store a list of plots,
         (:py:meth:`~bamboo.analysismodules.HistogramsModule.processTrees` will call
-        :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` with each of them to produce all histograms)
+        :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`, store the result there,
+        and retrieve their results afterwards to trigger the actual processing of the files)
         """
         super(HistogramsModule, self).__init__(args)
-        self.systVars = []
         self.plotList = []
 
     def addArgs(self, parser):
@@ -307,8 +306,7 @@ class HistogramsModule(AnalysisModule):
         """ Worker sequence: produce histograms from the input files
 
         More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`,
-        add a lumi mask if requested, call :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`
-        (with ``systVar="nominal"`` and each of the variations defined in ``self.systVars``),
+        add a lumi mask if requested, call :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`,
         run over all files, and write the produced histograms to the output file.
         """
         from cppyy import gbl
@@ -320,14 +318,10 @@ class HistogramsModule(AnalysisModule):
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
         outF = gbl.TFile.Open(outputFile, "RECREATE")
-        plotList = self.definePlots(tree, noSel, systVar="nominal", era=era, sample=sample)
-        if not self.plotList:
-            self.plotList = list(plotList) ## shallow copy
-        for systVar in self.systVars:
-            plotList += self.definePlots(tree, noSel, systVar=systVar, era=era, sample=sample)
+        self.plotList = self.definePlots(tree, noSel, era=era, sample=sample)
 
         outF.cd()
-        for p in plotList:
+        for p in self.plotList:
             for h in backend.getPlotResults(p):
                 h.Write()
         self.mergeCounters(outF, inputFiles)
@@ -343,20 +337,19 @@ class HistogramsModule(AnalysisModule):
         :param sample: sample name (as in the samples section of the analysis configuration file)
         """
         return tree, None, None, None
-    def definePlots(self, tree, noSel, systVar="nominal", era=None, sample=None):
+    def definePlots(self, tree, noSel, era=None, sample=None):
         """ Main method: define plots on the trees (for a give systematic variation)
 
         should be implemented by concrete modules, and return a list of
         :py:class:`bamboo.plots.Plot` objects.
         The structure (name, binning) of the histograms should not depend on the sample, era,
-        or the systematic variation, and the list should be the same for all values, with
-        one exception: for ``systVar`` different from ``"nominal"`` some histograms may
-        be left out for some samples (e.g. for data none should be filled, and certain
-        systematic effects may only affect some of the MC samples).
+        and the list should be the same for all values
+        (the weights and systematic variations associated with weights or collections
+        may differ for data and different MC samples, so the actual set of histograms
+        will not be identical).
 
         :param tree: decorated tree
         :param noSel: base selection
-        :param systVar: ``"nominal"``, or the name of a systematic variation
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
         """
@@ -390,7 +383,7 @@ class HistogramsModule(AnalysisModule):
         if not self.plotList:
             tup, tupInfo = self.getATree()
             tree, noSel, backend, runAndLS = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
-            self.plotList = self.definePlots(tree, noSel, systVar="nominal", era=tupInfo.get("era"), sample=tupInfo.get("name"))
+            self.plotList = self.definePlots(tree, noSel, era=tupInfo.get("era"), sample=tupInfo.get("name"))
         for eraName, eraCfg in config.get("eras", {}).items():
             if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
                 for cmbCfg in eraCfg:

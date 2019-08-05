@@ -858,12 +858,12 @@ class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
     def __init__(self, wrapped, systName):
         super(ScaleFactorWithSystOp, self).__init__(wrapped, systName)
-        self.variations = ["up", "down"]
+        self.variations = [ "{0}{1}".format(systName, vard) for vard in ["up", "down"] ]
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newVariation not in self.variations:
             raise ValueError("Invalid variation: {0}".format(newVariation))
-        newVariation = newVariation.capitalize() ## translate to name in C++
+        newVariation = (newVariation[len(self.systName):] if newVariation.startswith(self.systName) else newVariation).capitalize() ## translate to name in C++
         if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
             self.wrapped.args[-1].name = newVariation
 

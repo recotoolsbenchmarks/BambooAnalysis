@@ -203,8 +203,7 @@ class DataframeBackend(FactoryBackend):
                         del wfKeep[i-nRem]
                         nRem += 1
             ## construct variation nodes (if necessary)
-            for vard in systVars:
-                varn = "{0}{1}".format(systN, vard)
+            for varn in systVars:
                 ## add cuts to the appropriate node, if affected by systematics (here or up)
                 varParentNd = None ## set parent node if not the nominal one
                 if nomParentNd and varn in nomParentNd.var: ## -> continue on branch
@@ -221,7 +220,7 @@ class DataframeBackend(FactoryBackend):
                         for ct in ctToChange: ## empty if sele._cuts are not affected
                             newct = copy.deepcopy(ct)
                             for nd in top.collectNodes(newct, select=isthissyst):
-                                nd.changeVariation(vard)
+                                nd.changeVariation(varn)
                             ctChanged.append(newct)
                         cutStr = Selection._makeExprAnd(ctKeep+ctChanged).get_cppStr(defCache=varParentNd)
                         varNd = SelWithDefines(varParentNd)
@@ -243,7 +242,7 @@ class DataframeBackend(FactoryBackend):
                         for wf in wfToChange:
                             newf = copy.deepcopy(wf)
                             for nd in top.collectNodes(newf, select=isthissyst):
-                                nd.changeVariation(vard)
+                                nd.changeVariation(varn)
                             wfChanged.append(newf)
                         logger.debug("{0} systematic variation {1}: defining new weight based on {2}".format(sele.name, varn, parwn))
                         varNd.addWeight(weights=(wfKeep+wfChanged), wName=("w_{0}__{1}".format(sele.name, varn) if sele._weights else None), parentWeight=parwn, variation=varn)
@@ -290,8 +289,7 @@ class DataframeBackend(FactoryBackend):
             for i,xvar in enumerate(plot.variables):
                 if any(top.collectNodes(xvar, select=isthissyst)):
                     idxVarsToChange.append(i)
-            for vard in systVars:
-                varn = "{0}{1}".format(systN, vard)
+            for varn in systVars:
                 if systN in varSysts or varn in nomNd.var:
                     varNd = nomNd.var.get(varn, nomNd)
                     varExprs = {}
@@ -299,7 +297,7 @@ class DataframeBackend(FactoryBackend):
                         if i in idxVarsToChange:
                             varVar = copy.deepcopy(xvar)
                             for nd in top.collectNodes(varVar, select=isthissyst):
-                                nd.changeVariation(vard)
+                                nd.changeVariation(varn)
                         else:
                             varVar = xvar
                         varExprs["v{0:d}_{1}__{2}".format(i, plot.name, varn)] = varNd(varVar)

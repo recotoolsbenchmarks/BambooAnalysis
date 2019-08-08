@@ -86,7 +86,7 @@ setup(
 
     keywords='ROOT DataFrame',
 
-    packages=["bamboo"],
+    packages=find_packages(".", exclude=["ext", "tests", "examples"]),
 
     setup_requires=["pytest-runner"],
     install_requires=["PyYAML", "numpy"],
@@ -95,8 +95,8 @@ setup(
 
     entry_points={
         'console_scripts': [
-            "bambooRun=bamboo.bin.bambooRun:main",
-            "makePUReWeightJSON=bamboo.bin.makePUReWeightJSON:main"
+            "bambooRun=bamboo.scripts.bambooRun:main",
+            "makePUReWeightJSON=bamboo.scripts.makePUReWeightJSON:main"
             ]
         },
 

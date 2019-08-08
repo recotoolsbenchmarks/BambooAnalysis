@@ -288,7 +288,7 @@ class Selection(object):
         :param name: unique name of the new selection
         :param cut: expression (or list of expressions) with additional selection criteria
         :param weight: expression (or list of expressions) with additional weight factors
-        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
+        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off; note that this would also turn off automatic systematic variations for any selections and plots that derive from the one created by this method)
 
         :returns: the new :py:class:`~bamboo.plots.Selection`
         """

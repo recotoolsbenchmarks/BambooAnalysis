@@ -231,7 +231,7 @@ For the code inside the module, the example is also very instructive:
 
 .. code-block:: python
 
-       def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
+       def definePlots(self, t, noSel, era=None, sample=None):
            from bamboo.plots import Plot, EquidistantBinning
            from bamboo import treefunctions as op
 
@@ -251,11 +251,23 @@ weight factors (e.g. to apply corrections). Selections are defined by refining
 a "root selection" with additional cuts and weights, and each should have a
 unique name (an exception is raised at construction otherwise).
 The root selection allows to do some customisation upfront, e.g. the applying
-the JSON luminosity block mask for data. A plot object refers to a selection,
-and specifies which variable(s) to plot, with which binning(s), labels, options
-etc. (the ``plotOpts`` dictionary is copied directly into the plot section of the
-plotIt configuration file).
+the JSON luminosity block mask for data.
+A plot object refers to a selection, and specifies which variable(s) to plot,
+with which binning(s), labels, options etc. (the ``plotOpts`` dictionary is
+copied directly into the plot section of the plotIt configuration file).
 
+Histograms corresponding to systematic variations (of scalefactors, collections
+etc. |---| see below) are by default generated automatically alongside the
+nominal one.
+This can however easily be disabled at the level of a
+:py:class:`~bamboo.plots.Selection` (and, consequently, all
+:py:class:`~bamboo.plots.Selection` instances deriving from it, and all
+:py:class:`~bamboo.plots.Plot` instances using it) or a single plot, by passing
+``autoSyst=False`` to the :py:func:`~bamboo.plots.Selection.refine` or
+:py:func:`~bamboo.plots.Plot.make1D` (or related) method, respectively,
+when constructing them; so setting ``noSel.autoSyst = False`` right after
+retrieving the decorated tree and root selection would turn disable all
+automatic systematic variations.
 
 .. _ugexpressions:
 
@@ -448,7 +460,7 @@ used to define the same plots for different selection stages, e.g.
        ]
        return plots
 
-   def definePlots(self, t, noSel, systVar="nominal", era=None, sample=None):
+   def definePlots(self, t, noSel, era=None, sample=None):
        from bamboo import treefunctions as op
 
        plots = []

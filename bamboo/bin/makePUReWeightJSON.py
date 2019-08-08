@@ -92,7 +92,7 @@ def getRatio(numBins, numCont, denBins, denCont):
     bR[-1] = numBins[-1]
     return bR, ratio
 
-if __name__ == "__main__":
+def main():
     import argparse
     parser = argparse.ArgumentParser(description="Produce a BinnedValues-JSON file for pileup reweighting, using data pileup distributions obtained with `pileupCalc.py -i analysis-lumi-json.txt --inputLumiJSON pileup-json.txt --calcMode true --minBiasXsec MBXSECINNB --maxPileupBin NMAX --numPileupBins N outname.root` (see also https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData#Pileup_JSON_Files_For_Run_II)")
     parser.add_argument("-o", "--output", default="puweights.json", type=str, help="Output file name")
@@ -182,3 +182,6 @@ if __name__ == "__main__":
             ax.legend()
             rax.set_ylim(.1, 2.)
             plt.show()
+
+if __name__ == "__main__":
+    main()

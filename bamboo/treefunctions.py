@@ -5,8 +5,9 @@ from . import treeproxies as _tp
 def _load_extensions():
     """Add extension libraries and necessary header files to the ROOT interpreter"""
     import sys
+    import pkg_resources
     import os.path
-    pkgRoot = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pkgRoot = pkg_resources.get_distribution("bamboo").location
     from cppyy import gbl
     gbl.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
     instPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
@@ -17,7 +18,7 @@ def _load_extensions():
     else: ## non-installed mode
         libDir = os.path.join(pkgRoot, "build", "lib")
         if not os.path.isdir(libDir):
-            raise RuntimeError("No directory {0} so running in local mode, but then build/lib need to be present. Did you run 'python setup.py build'?")
+            raise RuntimeError("No directory {0} so running in local mode, but then build/lib need to be present. Did you run 'python setup.py build'?".format(libDir))
         gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "build", "include"))
         gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
     gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))

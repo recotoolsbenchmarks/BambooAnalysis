@@ -77,7 +77,7 @@ class Plot(object):
         The constructor will raise an exception if an existing name is used.
     """
     __slots__ = ("__weakref__", "name", "variables", "selection", "binnings", "title", "axisTitles", "axisBinLabels", "plotopts", "df")
-    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None):
+    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None, autoSyst=True):
         """ Generic constructor. Please use the static :py:meth:`~bamboo.plots.Plot.make1D`,
         :py:meth:`~bamboo.plots.Plot.make2D` and :py:meth:`~bamboo.plots.Plot.make3D` methods,
         which provide a more convenient interface to construct histograms
@@ -94,7 +94,7 @@ class Plot(object):
         self.axisBinLabels = axisBinLabels
         self.plotopts = plotopts if plotopts else dict()
         ## register with backend
-        selection._fbe.addPlot(self)
+        selection._fbe.addPlot(self, autoSyst=autoSyst)
 
     def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None):
         """ Helper method: create a copy with optional re-setting of attributes """
@@ -134,6 +134,7 @@ class Plot(object):
         :param xTitle: x-axis title (optional, empty by default)
         :param xBinLabels: x-axis bin labels (optional)
         :param plotopts: dictionary of options to pass directly to plotIt (optional)
+        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
 
         :returns: the new :py:class:`~bamboo.plots.Plot` instance with a 1-dimensional histogram
 
@@ -159,6 +160,7 @@ class Plot(object):
         :param xBinLabels: x-axis bin labels (optional)
         :param yBinLabels: y-axis bin labels (optional)
         :param plotopts: dictionary of options to pass directly to plotIt (optional)
+        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
 
         :returns: the new :py:class:`~bamboo.plots.Plot` instance with a 2-dimensional histogram
         """
@@ -181,6 +183,7 @@ class Plot(object):
         :param yBinLabels: y-axis bin labels (optional)
         :param zBinLabels: z-axis bin labels (optional)
         :param plotopts: dictionary of options to pass directly to plotIt (optional)
+        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
 
         :returns: the new :py:class:`~bamboo.plots.Plot` instance with a 3-dimensional histogram
         """
@@ -202,7 +205,7 @@ class Selection(object):
         with readable names.
         The constructor will raise an exception if an existing name is used.
     """
-    def __init__(self, parent, name, cuts=None, weights=None):
+    def __init__(self, parent, name, cuts=None, weights=None, autoSyst=True):
         """ Constructor. Prefer using :py:meth:`~bamboo.plots.Selection.refine` instead (except for the 'root' selection)
 
         :param parent: backend or parent selection
@@ -223,9 +226,11 @@ class Selection(object):
 
         ## register with backend
         if isinstance(parent, Selection):
+            self.autoSyst = parent.autoSyst and autoSyst
             self.parent = parent
             self._fbe = parent._fbe
         else:
+            self.autoSyst = autoSyst
             assert isinstance(parent, FactoryBackend)
             self._fbe = parent
         self._fbe.addSelection(self)
@@ -277,18 +282,20 @@ class Selection(object):
         return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in izip(self.cuts, other.cuts) )
              and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in izip(self.weights, other.weights) ) )
 
-    def refine(self, name, cut=None, weight=None):
+    def refine(self, name, cut=None, weight=None, autoSyst=True):
         """ Create a new selection by adding a cuts and/or weight factors
 
         :param name: unique name of the new selection
         :param cut: expression (or list of expressions) with additional selection criteria
         :param weight: expression (or list of expressions) with additional weight factors
+        :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
 
         :returns: the new :py:class:`~bamboo.plots.Selection`
         """
         return Selection(self, name,
                 cuts   =( ( adaptArg(ct, "Bool_t") for ct in (cut    if hasattr(cut   , "__len__") else [cut   ]) ) if cut    else None ),
-                weights=( ( adaptArg(wt, "Bool_t") for wt in (weight if hasattr(weight, "__len__") else [weight]) ) if weight else None )
+                weights=( ( adaptArg(wt, "Bool_t") for wt in (weight if hasattr(weight, "__len__") else [weight]) ) if weight else None ),
+                autoSyst=autoSyst
                 )
 
     @staticmethod

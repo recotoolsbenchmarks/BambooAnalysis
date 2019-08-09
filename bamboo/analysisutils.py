@@ -288,6 +288,30 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     except subprocess.CalledProcessError as ex:
         logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
+def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
+    """ Declare and add a JME systematic variations calculator
+
+    :param be: backend pointer
+    :param variProxy: CalcVariations proxy (t._Jet)
+    :param uName: unique name (sample name is a safe choice)
+    :param isMC: MC or not
+    """
+    from . import treeoperations as _top
+    from itertools import repeat
+    aJet = variProxy.orig[0]
+    args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
+    args += [ _top.GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
+    if isMC:
+        aGJet = variProxy._parent.GenJet[0]
+        args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
+    else:
+        args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+    ## args are complete, add calculator and initiliaze
+    from . import treefunctions as op
+    from cppyy import gbl
+    jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
+
 def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
 
@@ -433,9 +457,32 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
     else:
         return op.AND(op.NOT(op.OR(*sels_not)), trigSel)
 
+def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
+    """ Declare and add a Rochester correction calculator
+
+    :param be: backend pointer
+    :param variProxy: CalcVariations proxy (t._Muon)
+    :param uName: unique name (sample name is a safe choice)
+    :param isMC: MC or not
+    """
+    from . import treeoperations as _top
+    aMu = variProxy.orig[0]
+    args = [ getattr(aMu, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "charge", "nTrackerLayers") ]
+    if isMC:
+        args += [ aMu.genPart._idx.arg, variProxy._parent.GenPart[0].pt.op.arg ]
+    else:
+        args += [ _top.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
+                  _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") ]
+    ## args are complete, add calculator and initiliaze
+    from . import treefunctions as op
+    from cppyy import gbl
+    roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
+
 def configureRochesterCorrection(calc, paramsFile):
     """ Apply the Rochester correction for muons
 
+    :param calc: calculator (t._Muon.calc for NanoAOD)
     :param paramsFile: path of the text file with correction parameters
     """
     if not os.path.exists(paramsFile):

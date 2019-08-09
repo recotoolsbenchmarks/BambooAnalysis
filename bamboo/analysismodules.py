@@ -406,22 +406,31 @@ class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODModule, self).__init__(args)
+        self.calcToAdd = [] ## names of the length leaves (e.g. nJet, nMuon) of the collections for which calculators should be added
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
     def prepareTree(self, tree, era=None, sample=None):
-        """ Add NanoAOD decorations, and create an RDataFrame backend """
+        """ Add NanoAOD decorations, and create an RDataFrame backend
+
+        The ``calcToAdd`` member is passed to
+        :py:meth:`bamboo.treedecorators.decorateNanoAOD`, so deriving classes
+        can request jet systematics and Rochester correction calculators
+        to be added by appending to it prior to calling this method (i.e. in
+        the constructor or
+        :py:meth:`~bamboo.analysismodules.AnalysisModule.initialize` method).
+        """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree, isMC=self.isMC(sample))
+        t = decorateNanoAOD(tree, isMC=self.isMC(sample), addCalculators=self.calcToAdd)
         be, noSel = DataframeBackend.create(t)
-        ## force definition of the jet variations calculator such that
-        ## it can be configured by calling its member methods through t._Jet.calc
-        from bamboo import treefunctions as op
-        from cppyy import gbl
-        jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in sample if c.isalnum())))
-        t._Jet.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName))
-        roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(sample), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in sample if c.isalnum())))
-        t._Muon.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName))
+        ## Define correction/variation calculators if requested
+        ## (to be configured later on by the user as needed)
+        if "nJet" in self.calcToAdd:
+            from bamboo.analysisutils import addJMESystematicsCalculator
+            addJMESystematicsCalculator(be, t._Jet, uname=sample, isMC=self.isMC(sample))
+        if "nMuon" in self.calcToAdd:
+            from bamboo.analysisutils import addRochesterCorrectionCalculator
+            addRochesterCorrectionCalculator(be, t._Muon, uname=sample, isMC=self.isMC(sample))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """

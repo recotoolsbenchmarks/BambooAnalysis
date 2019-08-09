@@ -203,6 +203,17 @@ def decorateTTW(aTree, description=None):
     return treeProxy
 
 def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
+    """ Decorate a CMS NanoAOD Events tree
+
+    Variation branches following the NanoAODTools conventions (e.g. Jet_pt_nom)
+    are automatically used (but calculators for the same collection take
+    precendence, if requested).
+
+    :param aTree: TTree to decorate
+    :param description: reserved for future version/flavour-dependence
+    :param isMC: simulation or not
+    :param addCalculators: list of length-branch names for whose collections proxies for a variations calculators should be added
+    """
     if description is None:
         description = dict()
 
@@ -259,10 +270,23 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     ## SOA, nanoAOD style (LeafCount, shared)
     containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj")
     containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
+    ## check which are there, and for which we need to read variations
+    cnt_found = []
+    cnt_readVar = []
     for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
         if sizeNm not in allTreeLeafs:
-            logger.warning("{} is not a branch in the tree!".format(sizeNm))
-            continue
+            logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
+        else:
+            cnt_found.append(sizeNm)
+            if not ( addCalculators and sizeNm in addCalculators ):
+                if sizeNm == "nJet" and "Jet_pt_nom" in allTreeLeafs:
+                    logger.debug("Will read Jet variations from branches")
+                    cnt_readVar.append(sizeNm)
+                if sizeNm == "nMuon" and "Muon_corrected_pt" in allTreeLeafs:
+                    logger.debug("Will read Muon variations from branches")
+                    cnt_readVar.append(sizeNm)
+
+    for sizeNm in cnt_found:
         grpNm = sizeNm[1:]
         prefix = "{0}_".format(grpNm)
         itm_dict = {
@@ -279,7 +303,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
                 collGetter = (
-                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix in ("Jet", "Muon") else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix in cnt_readVar or ( addCalculators and collPrefix in addCalculators ) else
                         GetItemRefCollection(collPrefix))
                 addSetParentToPostConstr(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
@@ -287,57 +311,19 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
             itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
-        readVarFromBranches, needKinCalc = False, False
-        # check if postprocessing branches exist
-        if sizeNm == "nJet":
-            readVarFromBranches = ("pt_nom" in itm_dict)
-        elif sizeNm == "nMuon":
-            readVarFromBranches = ("corrected_pt" in itm_dict)
-        # calculators (as specified) take precedence in any case
-        if addCalculators is not None and sizeNm in addCalculators:
-            readVarFromBranches, needKinCalc = False, True
-        if readVarFromBranches:
-            logger.debug("Will read {0} variations from branches (if present)".format(sizeNm))
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
         ## insert variations using kinematic calculator, from branches, or not
-        if needKinCalc:
+        if addCalculators and sizeNm in addCalculators:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
             itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
             itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
             # construct arguments for correction/variation calculator
-            anObj = coll_orig[0]
-            args = [ comp.op.arg for comp in (anObj.pt, anObj.eta, anObj.phi, anObj.mass) ]
-            nameMap = None
-            import copy
-            if sizeNm == "nJet":
-                if isMC:
-                    ## not the most elegant solution, but we can't make assumptions on the relative order with respect to and MET
-                    genkinj = copy.deepcopy(args)
-                    for it in genkinj:
-                        it.name = it.name.replace("Jet", "GenJet")
-                else:
-                    genkinj = list(repeat(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
-                args += [ comp.op.arg for comp in (anObj.rawFactor, anObj.area) ]
-                args += [ GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
-                args += genkinj
-            elif sizeNm == "nMuon":
-                args += [ comp.op.arg for comp in (anObj.charge, anObj.nTrackerLayers) ]
-                if isMC:
-                    genpi = copy.deepcopy(anObj.nTrackerLayers.op.arg)
-                    genpi.name = genpi.name.replace("nTrackerLayers", "genPartIdx")
-                    args.append(genpi)
-                    genpt = copy.deepcopy(anObj.pt.op.arg)
-                    genpt.name = genpt.name.replace("Muon", "GenPart")
-                    args.append(genpt)
-                else:
-                    args.append(ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"))
-                    args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
             nameMap={"nominal": grpNm}
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
-            tree_dict[grpNm] = CalcVariations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
-        elif readVarFromBranches:
+            tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, nameMap=nameMap)
+        elif sizeNm in cnt_readVar:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
             if sizeNm == "nJet":

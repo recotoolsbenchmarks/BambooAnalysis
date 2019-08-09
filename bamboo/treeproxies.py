@@ -290,9 +290,8 @@ class SelectionProxy(TupleBaseProxy,ListBase):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
 class CalcVariations(TupleBaseProxy):
-    def __init__(self, parent, orig, args, varItemType=None, nameMap=None):
+    def __init__(self, parent, orig, varItemType=None, nameMap=None):
         self.orig = orig
-        self._args = args
         self.varItemType = varItemType if varItemType else orig.valuetype
         self.calc = None
         self.calcProd = None
@@ -301,9 +300,9 @@ class CalcVariations(TupleBaseProxy):
     @property
     def available(self):
         return list(self.calc.availableProducts())
-    def initCalc(self, calcProxy, calcHandle=None):
+    def initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
-        self.calcProd = calcProxy.produceModifiedCollections(*self._args)
+        self.calcProd = calcProxy.produceModifiedCollections(*args)
         if self.nameMap:
             for k,v in self.nameMap.items():
                 setattr(self._parent, v, self[k])

@@ -289,52 +289,6 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
-## Attribute classes (like property) to customize the above base classes
-
-class proxy(object): ## the default one
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op.result
-
-class funProxy(object): ## the generic one
-    def __init__(self, fun):
-        self.fun = fun
-    def __get__(self, inst, cls):
-        return self.fun(inst)
-
-class itemProxy(object):
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op[inst._idx]
-
-class itemRefProxy(object):
-    def __init__(self, op, getTarget):
-        self.op = op
-        self.getTarget = getTarget
-    def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._idx]]
-
-class itemObjProxy(object): ## re-construct an object that was split in arrays
-    def __init__(self, typeName, args):
-        self.typeName = typeName
-        self.args = args
-    def __get__(self, inst, cls):
-        return Construct(self.typeName, tuple(arg[inst._idx] for arg in self.args)).result
-
-class varItemProxy(object):
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op[inst._parent._parent.result.indices()[inst._idx]]
-class varItemRefProxy(object):
-    def __init__(self, op, getTarget):
-        self.op = op
-        self.getTarget = getTarget
-    def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
-
 class Variations(TupleBaseProxy):
     def __init__(self, parent, orig, args, varItemType=None, nameMap=None):
         self.orig = orig

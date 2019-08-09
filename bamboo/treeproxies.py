@@ -320,7 +320,7 @@ class CalcVariations(TupleBaseProxy):
         return CalcCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class CalcCollectionProxy(TupleBaseProxy,ListBase):
-    ## TODO make jet-specific, maybe add a bit of MET deco
+    ## TODO make a jet specialisation (add MET deco)
     """ Collection with a selection and modified branches """
     def __init__(self, parent, base, itemType=None):
         ## parent has a member indices() and one for each of modBranches
@@ -335,6 +335,42 @@ class CalcCollectionProxy(TupleBaseProxy,ListBase):
         return self.itemType(self, index)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
+
+class AltVariations(TupleBaseProxy):
+    def __init__(self, parent, orig, brMapMap, altItemType=None):
+        self.orig = orig
+        self.brMapMap = brMapMap
+        self.altItemType = altItemType if altItemType else orig.valuetype
+        super(AltVariations, self).__init__("AltVariations", parent=parent)
+    @property
+    def available(self):
+        return list(self.brMapMap.keys())
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMapMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return AltCollectionProxy(self._parent, self.orig, self.brMapMap[key], itemType=self.altItemType)
+
+class AltCollectionProxy(TupleBaseProxy, ListBase):
+    ## TODO make a jet specialisation (add MET deco)
+    """ Collection with alternative names for some branches """
+    def __init__(self, parent, base, brMap, itemType=None):
+        ListBase.__init__(self)
+        self.orig = base
+        self.valueType = base.valueType ## for ListBase
+        self.itemType = itemType ## for actual items
+        self.brMap = brMap
+        super(AltCollectionProxy, self).__init__(self.valueType, parent=parent)
+    def __getitem__(self, index):
+        return self.itemType(self, index)
+    def __repr__(self):
+        return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
+    ##
+    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        yield from self.orig.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType ) and ( self.brMap == other.brMap )
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination

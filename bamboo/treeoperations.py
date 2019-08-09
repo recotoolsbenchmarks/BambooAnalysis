@@ -1044,3 +1044,16 @@ class SystModifiedCollectionOp(OpWithSyst):
             raise ValueError("Invalid collection: {0}".format(newCollection))
         if self.wrapped.args[0].value == '"nominal"' and newCollection != self.wrapped.args[0].value.strip('"'):
             self.wrapped.args[0].value = '"{0}"'.format(newCollection)
+
+class SystAltColumnOp(OpWithSyst):
+    """ Change the column name """
+    def __init__(self, wrapped, name, nameMap, valid=None):
+        super(SystAltColumnOp, self).__init__(wrapped, name)
+        self.variations = valid if valid else list(nameMap.keys())
+        self.nameMap = nameMap
+    def changeVariation(self, newVariation):
+        """ Assumed to be called on a fresh copy - *will* change the underlying value """
+        if newVariation not in self.variations:
+            raise ValueError("Invalid branch name: {0}".format(newVariation))
+        if newVariation in self.nameMap:
+            self.wrapped.name = self.nameMap[newVariation]

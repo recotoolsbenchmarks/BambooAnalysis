@@ -35,6 +35,15 @@ class SetAsParent(object):
     def __call__(self, inst):
         self.obj._parent = inst
 
+def normVarName(varName):
+    """ Normalize variation name: if ending in up or down, make sure this part has no capitals (for plotIt) """
+    if len(varName) >= 2 and varName[-2:].upper() == "UP":
+        return "{0}up".format(varName[:-2])
+    elif len(varName) >= 4 and varName[-4:].upper() == "DOWN":
+        return "{0}down".format(varName[:-4])
+    else:
+        return varName
+
 ## Attribute classes (like property) to customize the proxy classes
 
 class proxy(object): ## the default one
@@ -81,6 +90,12 @@ class varItemRefProxy(object):
     def __get__(self, inst, cls):
         return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
 
+class altItemProxy(object):
+    def __init__(self, name, op):
+        self.name = name
+        self.op = op
+    def __get__(self, inst, cls):
+        return inst._parent.brMap.get(self.name, op)[inst._idx]
 
 def decorateTTW(aTree, description=None):
     ## NOTE: WORK IN PROGRESS
@@ -187,7 +202,7 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
-def decorateNanoAOD(aTree, description=None, isMC=False):
+def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     if description is None:
         description = dict()
 
@@ -268,16 +283,24 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                         GetItemRefCollection(collPrefix))
                 addSetParentToPostConstr(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
+        ## create p4 branches (naive, but will be reused for variation case)
         p4AttNames = ("pt", "eta", "phi", "mass")
         if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
-            if sizeNm not in ("nJet", "nMuon"):
-                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
-            else:
-                for att in p4AttNames:
-                    itm_dict["_{0}".format(att)] = itm_dict[att]
-                itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst._pt, inst._eta, inst._phi, inst._mass)).result) # note not too efficient, but only for "original" jet collection ("nominal" should be the default)
+            itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
+        readVarFromBranches, needKinCalc = False, False
+        # check if postprocessing branches exist
+        if sizeNm == "nJet":
+            readVarFromBranches = ("pt_nom" in itm_dict)
+        elif sizeNm == "nMuon":
+            readVarFromBranches = ("corrected_pt" in itm_dict)
+        # calculators (as specified) take precedence in any case
+        if addCalculators is not None and sizeNm in addCalculators:
+            readVarFromBranches, needKinCalc = False, True
+        if readVarFromBranches:
+            logger.debug("Will read {0} variations from branches (if present)".format(sizeNm))
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
-        if sizeNm in ("nJet", "nMuon"):
+        ## insert variations using kinematic calculator, from branches, or not
+        if needKinCalc:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
             itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
@@ -314,6 +337,47 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
             nameMap={"nominal": grpNm}
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
             tree_dict[grpNm] = CalcVariations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
+        elif readVarFromBranches:
+            coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+            addSetParentToPostConstr(coll_orig)
+            if sizeNm == "nJet":
+                ## collect ops of kinematic variables that change (nominal as well as varied)
+                pt_atts = dict((nm, att.op) for nm,att in itm_dict.items() if nm.startswith("pt_"))
+                mass_atts  = dict((nm, att.op) for nm,att in itm_dict.items() if nm.startswith("mass_"))
+                ## redirect in altItemproxy
+                itm_dict_alt = dict(itm_dict)
+                itm_dict_alt["pt"] = altItemProxy("pt", itm_dict["pt"].op)
+                itm_dict_alt["mass"] = altItemProxy("mass", itm_dict["mass"].op)
+                for nm in chain(pt_atts.keys(), mass_atts.keys()):
+                    del itm_dict_alt[nm]
+                pt_atts = dict((normVarName(nm[3:]), att) for nm,att in pt_atts.items())
+                mass_atts = dict((normVarName(nm[5:]), att) for nm,att in mass_atts.items())
+
+                altItemType = type("Alt{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_alt)
+                ## construct the map of maps of redirections { variation : { varName : op } }
+                brMapMap = {}
+                for var,vop in pt_atts.items():
+                    if var != "nom":
+                        if var not in brMapMap:
+                            brMapMap[var] = {}
+                        brMapMap[var]["pt"] = vop
+                for var,vop in mass_atts.items():
+                    if var != "nom":
+                        if var not in brMapMap:
+                            brMapMap[var] = {}
+                        brMapMap[var]["mass"] = vop
+                ## nominal: with systematic variations (all are valid, but not all need to modify)
+                allVars = list(k for k in brMapMap.keys() if k != "raw")
+                brMapMap["nominal"] = {
+                    "pt" : SystAltColumnOp(pt_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in pt_atts.items() if var != "raw"), valid=allVars).result,
+                    "mass"  : SystAltColumnOp(mass_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in mass_atts.items() if var != "raw"), valid=allVars).result
+                    }
+                ## add _Jet which holds the variations, and Jet which is the nominal
+                grpNm = "_{0}".format(grpNm)
+                tree_dict[grpNm] = AltVariations(None, coll_orig, brMapMap, altItemType=altItemType)
+                nominalProxy = tree_dict[grpNm]["nominal"]
+                tree_postconstr.append(SetAsParent(nominalProxy))
+                tree_dict[grpNm[1:]] = nominalProxy
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

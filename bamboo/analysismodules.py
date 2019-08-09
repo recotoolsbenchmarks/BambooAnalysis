@@ -412,9 +412,9 @@ class NanoAODModule(AnalysisModule):
     def prepareTree(self, tree, era=None, sample=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
-        The ``calcToAdd`` member is passed to
-        :py:meth:`bamboo.treedecorators.decorateNanoAOD`, so deriving classes
-        can request jet systematics and Rochester correction calculators
+        The :py:attr:`~bamboo.analysismodules.NanoAODModlecalcToAdd`` member is
+        passed to :py:meth:`bamboo.treedecorators.decorateNanoAOD`, so deriving
+        classes can request jet systematics and Rochester correction calculators
         to be added by appending to it prior to calling this method (i.e. in
         the constructor or
         :py:meth:`~bamboo.analysismodules.AnalysisModule.initialize` method).
@@ -427,10 +427,10 @@ class NanoAODModule(AnalysisModule):
         ## (to be configured later on by the user as needed)
         if "nJet" in self.calcToAdd:
             from bamboo.analysisutils import addJMESystematicsCalculator
-            addJMESystematicsCalculator(be, t._Jet, uname=sample, isMC=self.isMC(sample))
+            addJMESystematicsCalculator(be, t._Jet, uName=sample, isMC=self.isMC(sample))
         if "nMuon" in self.calcToAdd:
             from bamboo.analysisutils import addRochesterCorrectionCalculator
-            addRochesterCorrectionCalculator(be, t._Muon, uname=sample, isMC=self.isMC(sample))
+            addRochesterCorrectionCalculator(be, t._Muon, uName=sample, isMC=self.isMC(sample))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames):
         """ Merge the ``Runs`` trees """

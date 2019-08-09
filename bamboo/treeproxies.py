@@ -289,7 +289,7 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
-class Variations(TupleBaseProxy):
+class CalcVariations(TupleBaseProxy):
     def __init__(self, parent, orig, args, varItemType=None, nameMap=None):
         self.orig = orig
         self._args = args
@@ -297,7 +297,7 @@ class Variations(TupleBaseProxy):
         self.calc = None
         self.calcProd = None
         self.nameMap = nameMap
-        super(Variations, self).__init__("Variations", parent=parent)
+        super(CalcVariations, self).__init__("CalcVariations", parent=parent)
     @property
     def available(self):
         return list(self.calc.availableProducts())
@@ -309,7 +309,7 @@ class Variations(TupleBaseProxy):
                 setattr(self._parent, v, self[k])
     def __getitem__(self, key):
         if not self.calc:
-            raise RuntimeError("Variations calculator first needs to be initialized")
+            raise RuntimeError("CalcVariations calculator first needs to be initialized")
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
         if self.calc and key not in self.available:
@@ -317,9 +317,9 @@ class Variations(TupleBaseProxy):
         res_item = self.calcProd.at(makeConst(key, "std::string")).op
         if key == "nominal":
             res_item = SystModifiedCollectionOp(res_item, None, self.available)
-        return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
+        return CalcCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
-class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
+class CalcCollectionProxy(TupleBaseProxy,ListBase):
     ## TODO make jet-specific, maybe add a bit of MET deco
     """ Collection with a selection and modified branches """
     def __init__(self, parent, base, itemType=None):
@@ -328,7 +328,7 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
         self.orig = base
         self.valueType = base.valueType ## for ListBase
         self.itemType = itemType ## for actual items
-        super(ModifiedCollectionProxy, self).__init__(self.valueType, parent=parent)
+        super(CalcCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __len__(self):
         return self._parent.result.indices().__len__()
     def __getitem__(self, index):

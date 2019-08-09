@@ -313,7 +313,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False):
                     args.append(ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"))
             nameMap={"nominal": grpNm}
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
-            tree_dict[grpNm] = Variations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
+            tree_dict[grpNm] = CalcVariations(None, coll_orig, args, varItemType=varItemType, nameMap=nameMap)
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

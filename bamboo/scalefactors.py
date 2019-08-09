@@ -79,7 +79,7 @@ class ScaleFactor(object):
                    list(a(obj) for a in self._args)
                  , (op.extVar("int", variation),)
                )))
-        if self._systName: ## wrap
+        if self._systName and variation == "Nominal": ## wrap
             expr._parent = ScaleFactorWithSystOp(expr._parent, self._systName)
         return expr
 
@@ -93,6 +93,7 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
     :param paramDefs: dictionary of binning variable definitions (name to callable)
     :param additionalVariables: additional binning variable definitions (TODO: remove)
     :param lumiPerPeriod: alternative definitions and relative weights of run periods
+    :param systName: name of the associated systematic nuisance parameter
 
     :returns: a callable that takes ``(object, variation="Nominal")`` and returns a floating-point number proxy
     """

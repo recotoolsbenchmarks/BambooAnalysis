@@ -86,15 +86,19 @@ setup(
 
     keywords='ROOT DataFrame',
 
-    packages=["bamboo"],
-    scripts=[ os.path.join(root, item) for root, subFolder, files in os.walk("scripts") for item in files ],
+    packages=find_packages(".", exclude=["ext", "tests", "examples"]),
 
     setup_requires=["pytest-runner"],
     install_requires=["PyYAML", "numpy"],
     extras_require={"Interactive mode" : ["IPython"]},
     tests_require=["pytest"],
 
-    entry_points={},
+    entry_points={
+        'console_scripts': [
+            "bambooRun=bamboo.scripts.bambooRun:main",
+            "makePUReWeightJSON=bamboo.scripts.makePUReWeightJSON:main"
+            ]
+        },
 
     libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
     cmdclass={

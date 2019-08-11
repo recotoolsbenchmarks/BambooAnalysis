@@ -210,6 +210,40 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
+def _makeAltClassAndMaps(name, dict_orig, varAttNames, attCls=None, altBases=None, exclVars=None, getCol=lambda op : op, nomName="nom", systName=None):
+    ## collect ops of kinematic variables that change (nominal as well as varied)
+    var_atts = dict((attNm,
+        dict((nm, att.op) for nm,att in dict_orig.items() if nm.startswith("{0}_".format(attNm))))
+        for attNm in varAttNames)
+    ## redirect in altProxy
+    dict_alt = dict(dict_orig)
+    for attNm in varAttNames:
+        dict_alt[attNm] = attCls(attNm, dict_orig[attNm].op)
+    for nm in chain.from_iterable(atts.keys() for atts in var_atts.values()):
+        del dict_alt[nm]
+    var_atts = dict((attNm,
+        dict((normVarName(nm[len(attNm)+1:]), att) for nm,att in atts.items()))
+        for attNm, atts in var_atts.items())
+    cls_alt = type("Alt{0}Proxy".format(name), altBases, dict_alt)
+    ## construct the map of maps of redirections { variation : { varName : op } }
+    brMapMap = {}
+    for attNm,vAtts in var_atts.items():
+        for var,vop in vAtts.items():
+            if var not in brMapMap:
+                brMapMap[var] = {}
+            brMapMap[var][attNm] = vop
+    ## nominal: with systematic variations (all are valid, but not all need to modify)
+    allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
+    logger.debug("All {0} variations: {1}".format(name, allVars))
+    brMapMap["nomWithSyst"] = dict((attNm,
+        SystAltColumnOp(
+            getCol(vAtts[nomName]), systName,
+            dict((var, getCol(vop).name) for var,vop in vAtts.items() if var not in exclVars),
+            valid=allVars
+            ).result)
+        for attNm,vAtts in var_atts.items())
+    return cls_alt, brMapMap
+
 def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     """ Decorate a CMS NanoAOD Events tree
 
@@ -296,39 +330,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             grp_orig = grp_proxy
             ###
         elif prefix in grp_readVar:
-            grp_orig = grp_proxy
             if prefix == "MET_":
-                ## collect ops of kinematic variables that change (nominal as well as varied)
-                pt_atts = dict((nm, att.op) for nm,att in grp_dict.items() if nm.startswith("pt_"))
-                phi_atts = dict((nm, att.op) for nm,att in grp_dict.items() if nm.startswith("phi_"))
-                ## redirect in altProxy
-                grp_dict_alt = dict(grp_dict)
-                grp_dict_alt["pt"] = altProxy("pt", grp_dict["pt"].op)
-                grp_dict_alt["phi"] = altProxy("phi", grp_dict["phi"].op)
-                for nm in chain(pt_atts.keys(), phi_atts.keys()):
-                    del grp_dict_alt[nm]
-                pt_atts = dict((normVarName(nm[3:]), att) for nm,att in pt_atts.items())
-                phi_atts = dict((normVarName(nm[4:]), att) for nm,att in phi_atts.items())
-                grpcls_alt = type("Alt{0}Proxy".format(grpNm), (AltLeafGroupProxy,), grp_dict_alt)
-                ## construct the map of maps of redirections { variation : { varName : op } }
-                brMapMap = {}
-                for var,vop in pt_atts.items():
-                    if var not in brMapMap:
-                        brMapMap[var] = {}
-                    brMapMap[var]["pt"] = vop
-                for var,vop in phi_atts.items():
-                    if var not in brMapMap:
-                        brMapMap[var] = {}
-                    brMapMap[var]["phi"] = vop
-                ## nominal: with systematic variations (all are valid, but not all need to modify)
-                allVars = list(k for k in brMapMap.keys() if k not in ("raw", "nom"))
-                print("All MET variations: {0}".format(allVars))
-                brMapMap["nomWithSyst"] = {
-                    "pt" : SystAltColumnOp(pt_atts["nom"], "jet", dict((var, vop.name) for var,vop in pt_atts.items() if var != "raw"), valid=allVars).result,
-                    "phi"  : SystAltColumnOp(phi_atts["nom"], "jet", dict((var, vop.name) for var,vop in phi_atts.items() if var != "raw"), valid=allVars).result
-                    }
+                grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, ("pt", "phi"), attCls=altProxy, altBases=(AltLeafGroupProxy,), exclVars=("raw",), systName="jet")
             grpNm = "_{0}".format(grpNm)
-            tree_dict[grpNm] = AltLeafGroupVariations(None, grp_orig, brMapMap, grpcls_alt)
+            tree_dict[grpNm] = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
             nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
             addSetParentToPostConstr(nomSystProxy)
             tree_dict[grpNm[1:]] = nomSystProxy
@@ -395,42 +400,14 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
             if sizeNm == "nJet":
-                ## collect ops of kinematic variables that change (nominal as well as varied)
-                pt_atts = dict((nm, att.op) for nm,att in itm_dict.items() if nm.startswith("pt_"))
-                mass_atts  = dict((nm, att.op) for nm,att in itm_dict.items() if nm.startswith("mass_"))
-                ## redirect in altItemproxy
-                itm_dict_alt = dict(itm_dict)
-                itm_dict_alt["pt"] = altItemProxy("pt", itm_dict["pt"].op)
-                itm_dict_alt["mass"] = altItemProxy("mass", itm_dict["mass"].op)
-                for nm in chain(pt_atts.keys(), mass_atts.keys()):
-                    del itm_dict_alt[nm]
-                pt_atts = dict((normVarName(nm[3:]), att) for nm,att in pt_atts.items())
-                mass_atts = dict((normVarName(nm[5:]), att) for nm,att in mass_atts.items())
+                altItemType, brMapMap = _makeAltClassAndMaps(grpNm, itm_dict, ("pt", "mass"), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,), exclVars=("raw",), getCol=(lambda att : att.op), systName="jet")
 
-                altItemType = type("Alt{0}Proxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_alt)
-                ## construct the map of maps of redirections { variation : { varName : op } }
-                brMapMap = {}
-                for var,vop in pt_atts.items():
-                    if var not in brMapMap:
-                        brMapMap[var] = {}
-                    brMapMap[var]["pt"] = vop
-                for var,vop in mass_atts.items():
-                    if var not in brMapMap:
-                        brMapMap[var] = {}
-                    brMapMap[var]["mass"] = vop
-                ## nominal: with systematic variations (all are valid, but not all need to modify)
-                allVars = list(k for k in brMapMap.keys() if k not in ("raw", "nom"))
-                print("All Jet variations: {0}".format(allVars))
-                brMapMap["nomWithSyst"] = {
-                    "pt" : SystAltColumnOp(pt_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in pt_atts.items() if var != "raw"), valid=allVars).result,
-                    "mass"  : SystAltColumnOp(mass_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in mass_atts.items() if var != "raw"), valid=allVars).result
-                    }
-                ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
-                grpNm = "_{0}".format(grpNm)
-                tree_dict[grpNm] = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-                nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
-                addSetParentToPostConstr(nomSystProxy)
-                tree_dict[grpNm[1:]] = nomSystProxy
+            ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
+            grpNm = "_{0}".format(grpNm)
+            tree_dict[grpNm] = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
+            nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
+            addSetParentToPostConstr(nomSystProxy)
+            tree_dict[grpNm[1:]] = nomSystProxy
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

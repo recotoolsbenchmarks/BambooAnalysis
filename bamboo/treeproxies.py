@@ -335,12 +335,37 @@ class CalcCollectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
 
-class AltVariations(TupleBaseProxy):
+class AltLeafGroupVariations(TupleBaseProxy):
+    """ Set of groups with alternative names for some branches """
+    def __init__(self, parent, orig, brMapMap, altProxyType):
+        self.orig = orig
+        self.brMapMap = brMapMap
+        self.altProxyType = altProxyType
+        super(AltLeafGroupVariations, self).__init__("AltLeafGroupVariations", parent=parent)
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMapMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return self.altProxyType(self._parent, self.orig, self.brMapMap[key])
+
+class AltLeafGroupProxy(TupleBaseProxy):
+    """ Group with alternative names for some branches """
+    ## base class like LeafGroupProxy, but with a brMap
+    def __init__(self, parent, orig, brMap):
+        self.orig = orig
+        self.brMap = brMap
+        super(AltLeafGroupProxy, self).__init__("struct", parent=parent)
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.brMap)
+
+class AltCollectionVariations(TupleBaseProxy):
+    """ Set of collections with alternative names for some branches """
     def __init__(self, parent, orig, brMapMap, altItemType=None):
         self.orig = orig
         self.brMapMap = brMapMap
         self.altItemType = altItemType if altItemType else orig.valuetype
-        super(AltVariations, self).__init__("AltVariations", parent=parent)
+        super(AltCollectionVariations, self).__init__("AltCollectionVariations", parent=parent)
     def __getitem__(self, key):
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
@@ -349,12 +374,11 @@ class AltVariations(TupleBaseProxy):
         return AltCollectionProxy(self._parent, self.orig, self.brMapMap[key], itemType=self.altItemType)
 
 class AltCollectionProxy(TupleBaseProxy, ListBase):
-    ## TODO make a jet specialisation (add MET deco)
     """ Collection with alternative names for some branches """
-    def __init__(self, parent, base, brMap, itemType=None):
+    def __init__(self, parent, orig, brMap, itemType=None):
         ListBase.__init__(self)
-        self.orig = base
-        self.valueType = base.valueType ## for ListBase
+        self.orig = orig
+        self.valueType = orig.valueType ## for ListBase
         self.itemType = itemType ## for actual items
         self.brMap = brMap
         super(AltCollectionProxy, self).__init__(self.valueType, parent=parent)

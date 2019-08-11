@@ -9,6 +9,7 @@ from functools import partial
 from .treeproxies import *
 from . import treefunctions as op
 
+import logging
 logger = logging.getLogger(__name__)
 
 def allLeafs(branch):
@@ -278,7 +279,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
         else:
             cnt_found.append(sizeNm)
-            if not ( addCalculators and sizeNm in addCalculators ):
+            if ( addCalculators and sizeNm in addCalculators ):
+                logger.debug("Will calculate correction/variatoins for the {0} collection on the fly".format(sizeNm[1:]))
+            else:
                 if sizeNm == "nJet" and "Jet_pt_nom" in allTreeLeafs:
                     logger.debug("Will read Jet variations from branches")
                     cnt_readVar.append(sizeNm)
@@ -319,10 +322,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
             itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
-            # construct arguments for correction/variation calculator
-            nameMap={"nominal": grpNm}
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
-            tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, nameMap=nameMap)
+            tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, withSystName=grpNm[1:])
         elif sizeNm in cnt_readVar:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)

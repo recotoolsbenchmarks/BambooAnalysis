@@ -290,12 +290,12 @@ class SelectionProxy(TupleBaseProxy,ListBase):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
 class CalcVariations(TupleBaseProxy):
-    def __init__(self, parent, orig, varItemType=None, nameMap=None):
+    def __init__(self, parent, orig, varItemType=None, withSystName=None):
         self.orig = orig
         self.varItemType = varItemType if varItemType else orig.valuetype
         self.calc = None
         self.calcProd = None
-        self.nameMap = nameMap
+        self.withSystName = withSystName
         super(CalcVariations, self).__init__("CalcVariations", parent=parent)
     @property
     def available(self):
@@ -303,9 +303,12 @@ class CalcVariations(TupleBaseProxy):
     def initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produceModifiedCollections(*args)
-        if self.nameMap:
-            for k,v in self.nameMap.items():
-                setattr(self._parent, v, self[k])
+        setattr(self._parent, self.withSystName,
+            CalcCollectionProxy(
+                SystModifiedCollectionOp(
+                    self.calcProd.at(makeConst("nominal", "std::string")).op,
+                    None, self.available),
+                self.orig, itemType=self.varItemType))
     def __getitem__(self, key):
         if not self.calc:
             raise RuntimeError("CalcVariations calculator first needs to be initialized")
@@ -313,10 +316,7 @@ class CalcVariations(TupleBaseProxy):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
         if self.calc and key not in self.available:
             raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
-        res_item = self.calcProd.at(makeConst(key, "std::string")).op
-        if key == "nominal":
-            res_item = SystModifiedCollectionOp(res_item, None, self.available)
-        return CalcCollectionProxy(res_item, self.orig, itemType=self.varItemType)
+        return CalcCollectionProxy(self.calcProd.at(makeConst(key, "std::string")).op, self.orig, itemType=self.varItemType)
 
 class CalcCollectionProxy(TupleBaseProxy,ListBase):
     ## TODO make a jet specialisation (add MET deco)

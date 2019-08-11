@@ -740,13 +740,19 @@ uncertainties to 2016 MC:
            return tree,noSel,be,lumiArgs
 
 Both with variations read from a postprocessed NanoAOD and calculated on the
-fly, the modified jet collections are available as ``t._Jet["nominal"]``,
+fly, the different jet collections are available from ``t._Jet``, e.g.
+``t._Jet["nom"]`` (postprocessed) or ``t._Jet["nominal"]`` (calculated),
 ``t._Jet["jerup"]``, ``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]``,
 ``t._Jet["jesTotalDown"]`` etc. depending on the configured variations.
-They will also be automatically picked up for systematic variations if they
-affect a plot (for on the fly calculation, this can be disabled by passing
-``enableSystematics=[]`` to :py:meth:`bamboo.analysisutils.configureJets`).
-The jet collection as stored on the NanoAOD are acessible as ``t._Jet.orig``.
+``t.Jet`` will be changed for one of these for each systematic variation,
+if it affects a plot, in case automatically producing the systematic variations
+is enabled (the collections from ``t._Jet`` will not be changed).
+The automatic calculation of systematic variations can be disabled globally
+or on a per-selection basis (sse above), and for on the fly calculation also by
+passing ``enableSystematics=[]`` to
+:py:meth:`bamboo.analysisutils.configureJets`).
+The jet collection as stored on the input file, finally, can be retrieved as
+``t._Jet.orig``.
 
 .. note:: Isn't it slow to calculate jet corrections on the fly?
    It does take a bit of time, but the calculation is done in one C++ module,

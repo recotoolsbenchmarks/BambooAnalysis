@@ -341,9 +341,6 @@ class AltVariations(TupleBaseProxy):
         self.brMapMap = brMapMap
         self.altItemType = altItemType if altItemType else orig.valuetype
         super(AltVariations, self).__init__("AltVariations", parent=parent)
-    @property
-    def available(self):
-        return list(self.brMapMap.keys())
     def __getitem__(self, key):
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))

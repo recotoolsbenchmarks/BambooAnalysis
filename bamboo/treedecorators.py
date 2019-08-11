@@ -343,27 +343,25 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 ## construct the map of maps of redirections { variation : { varName : op } }
                 brMapMap = {}
                 for var,vop in pt_atts.items():
-                    if var != "nom":
-                        if var not in brMapMap:
-                            brMapMap[var] = {}
-                        brMapMap[var]["pt"] = vop
+                    if var not in brMapMap:
+                        brMapMap[var] = {}
+                    brMapMap[var]["pt"] = vop
                 for var,vop in mass_atts.items():
-                    if var != "nom":
-                        if var not in brMapMap:
-                            brMapMap[var] = {}
-                        brMapMap[var]["mass"] = vop
+                    if var not in brMapMap:
+                        brMapMap[var] = {}
+                    brMapMap[var]["mass"] = vop
                 ## nominal: with systematic variations (all are valid, but not all need to modify)
-                allVars = list(k for k in brMapMap.keys() if k != "raw")
-                brMapMap["nominal"] = {
+                allVars = list(k for k in brMapMap.keys() if k not in ("raw", "nom"))
+                brMapMap["nomWithSyst"] = {
                     "pt" : SystAltColumnOp(pt_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in pt_atts.items() if var != "raw"), valid=allVars).result,
                     "mass"  : SystAltColumnOp(mass_atts["nom"].op, "jet", dict((var, vop.op.name) for var,vop in mass_atts.items() if var != "raw"), valid=allVars).result
                     }
-                ## add _Jet which holds the variations, and Jet which is the nominal
+                ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
                 grpNm = "_{0}".format(grpNm)
                 tree_dict[grpNm] = AltVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-                nominalProxy = tree_dict[grpNm]["nominal"]
-                tree_postconstr.append(SetAsParent(nominalProxy))
-                tree_dict[grpNm[1:]] = nominalProxy
+                nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
+                tree_postconstr.append(SetAsParent(nomSystProxy))
+                tree_dict[grpNm[1:]] = nomSystProxy
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

@@ -1057,3 +1057,24 @@ class SystAltColumnOp(OpWithSyst):
             raise ValueError("Invalid branch name: {0}".format(newVariation))
         if newVariation in self.nameMap:
             self.wrapped.name = self.nameMap[newVariation]
+
+def collectSystVars(exprs):
+    systVars = {}
+    for sfs in chain.from_iterable(collectNodes(expr, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations)) for expr in exprs):
+        if sfs.systName not in systVars:
+            systVars[sfs.systName] = list(sfs.variations)
+        else:
+            for sv in sfs.variations:
+                if sv not in systVars[sfs.systName]:
+                    systVars[sfs.systName].append(sv)
+    return systVars
+def mergeSystVars(svA, svB):
+    ## returns A updated with B
+    for systName, variations in svB:
+        if systName not in svA:
+            svA[systName] = list(variations)
+        else:
+            for sv in variations:
+                if sv not in svA[systName]:
+                    svA[systName].append(sv)
+    return svA

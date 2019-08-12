@@ -341,8 +341,8 @@ class CallMethod(TupleOp):
             depList = _collectDeps(self.args, [], defCache=defCache)
             captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
             expr = "{name}({args})\n".format(name=self.name, args=", ".join(defCache(arg) for arg in self.args))
-            funName = defCache.symbol(expr, resultType=self.result._typeName, args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType=self.result._typeName, args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class CallMemberMethod(TupleOp):
     """ Call a member method """
@@ -519,35 +519,49 @@ def _collectDeps(exprs, ownLocal, defCache=cppNoRedir):
             for expr in exprs2))
 
 def _convertFunArgs(deps, defCache=cppNoRedir):
-    captures, paramDecl, paramCall = [], [], []
+    capDeclCall = []
     for ld in deps:
         if isinstance(ld, GetArrayColumn):
-            captures.append("&{0}".format(ld.name))
-            paramDecl.append("const ROOT::VecOps::RVec<{0}>& {1}".format(ld.typeName, ld.name))
-            paramCall.append(ld.name)
+            capDeclCall.append((
+                "&{0}".format(ld.name),
+                "const ROOT::VecOps::RVec<{0}>& {1}".format(ld.typeName, ld.name),
+                ld.name))
         elif isinstance(ld, GetColumn):
-            captures.append("&{0}".format(ld.name))
-            paramDecl.append("const {0}& {1}".format(ld.typeName, ld.name))
-            paramCall.append(ld.name)
+            capDeclCall.append((
+                "&{0}".format(ld.name),
+                "const {0}& {1}".format(ld.typeName, ld.name),
+                ld.name))
         elif isinstance(ld, LocalVariablePlaceholder):
             if not ld.name:
                 print("ERROR: no name for local {0}".format(ld))
-            captures.append(ld.name)
-            paramDecl.append("{0} {1}".format(ld.typeHint, ld.name))
-            paramCall.append(ld.name)
+            capDeclCall.append((
+                ld.name,
+                "{0} {1}".format(ld.typeHint, ld.name),
+                ld.name))
         elif defCache.shouldDefine(ld):
             nm = defCache._getColName(ld)
             if not nm:
                 print("ERROR: no column name for {0}".format(ld))
-            if "&{0}".format(nm) not in captures:
-                captures.append("&{0}".format(nm))
-                paramDecl.append("const {0}& {1}".format(ld.result._typeName, nm))
-                paramCall.append(nm)
+            if not any("&{0}".format(nm) == icap for icap,idecl,icall in capDeclCall):
+                capDeclCall.append((
+                    "&{0}".format(nm),
+                    "const {0}& {1}".format(ld.result._typeName, nm),
+                    nm))
             else:
                 print("WARNING: dependency {0} is there twice".format(nm))
         else:
             raise AssertionError("Dependency with unknown type: {0}".format(ld))
-    return ",".join(captures), ", ".join(paramDecl), ", ".join(paramCall)
+    return zip(*sorted(capDeclCall, key=(lambda elm : elm[1]))) ## sort by declaration (alphabetic for the same type)
+
+def _normFunArgs(expr, args, argNames):
+    newExpr = expr
+    newArgs = args
+    for i,argN in sorted(list(enumerate(argNames)), key=(lambda elm : len(elm[1])), reverse=True):
+        newName = "myArg{0:d}".format(i, argN)
+        assert sum(1 for ia in newArgs if argN in ia) == 1 ## should be in one and only one argument
+        newArgs = [ (ia.replace(argN, newName) if argN in ia else ia) for ia in newArgs ]
+        newExpr = newExpr.replace(argN, newName)
+    return newExpr, newArgs
 
 class Select(TupleOp):
     """ Define a selection on a range """
@@ -582,15 +596,16 @@ class Select(TupleOp):
         captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
         expr = "rdfhelpers::select({idxs},\n    [{captures}] ( {i} ) {{ return {predExpr}; }})".format(
                 idxs=defCache(self.rng._idxs.op),
-                captures=captures,
+                captures=", ".join(captures),
                 i="{0} {1}".format(self._i.typeHint, self._i.name),
                 predExpr=defCache(self.predExpr)
                 )
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            expr_n, args_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(args_n))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Sort(TupleOp):
     """ Sort a range (ascendingly) by the value of a function on each element """
@@ -625,15 +640,15 @@ class Sort(TupleOp):
         captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
         expr = "rdfhelpers::sort({idxs},\n    [{captures}] ( {i} ) {{ return {funExpr}; }})".format(
                 idxs=defCache(self.rng._idxs.op),
-                captures=captures,
+                captures=", ".join(captures),
                 i="{0} {1}".format(self._i.typeHint, self._i.name),
                 funExpr=defCache(self.funExpr)
                 )
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Map(TupleOp):
     """ Create a list of derived values for a collection (mostly useful for storing on skims) """
@@ -671,15 +686,15 @@ class Map(TupleOp):
         expr = "rdfhelpers::map<{valueType}>({idxs},\n    [{captures}] ( {i} ) {{ return {funExpr}; }})".format(
                 valueType=self.typeName,
                 idxs=defCache(self.rng._idxs.op),
-                captures=captures,
+                captures=", ".join(captures),
                 i="{0} {1}".format(self._i.typeHint, self._i.name),
                 funExpr=defCache(self.funExpr)
                 )
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Next(TupleOp):
     """ Define a search (first matching item, for a version that processes the whole range see Reduce) """
@@ -713,15 +728,15 @@ class Next(TupleOp):
         captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
         expr = "rdfhelpers::next({idxs},\n     [{captures}] ( {i} ) {{ return {predexpr}; }}, -1)".format(
                 idxs=defCache(self.rng._idxs.op),
-                captures=captures,
+                captures=", ".join(captures),
                 i="{0} {1}".format(self._i.typeHint, self._i.name),
                 predexpr=defCache(self.predExpr),
                 )
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=SizeType, args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType=SizeType, args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Reduce(TupleOp):
     """ Reduce a range to a value (could be a transformation, index...) """
@@ -760,7 +775,7 @@ class Reduce(TupleOp):
         expr = "rdfhelpers::reduce({idxs}, {start},\n     [{captures}] ( {prevRes}, {i} ) {{ return {accuexpr}; }})".format(
                 idxs=defCache(self.rng._idxs.op),
                 start=defCache(self.start),
-                captures=captures,
+                captures=", ".join(captures),
                 prevRes="{0} {1}".format(self._prevRes.typeHint, self._prevRes.name),
                 i="{0} {1}".format(self._i.typeHint, self._i.name),
                 accuexpr=defCache(self.accuExpr)
@@ -768,8 +783,8 @@ class Reduce(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=self.resultType, args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType=self.resultType, args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Combine(TupleOp):
     def __init__(self, num, ranges, candPredFun, sameIdxPred=lambda i1,i2: i1 < i2):
@@ -818,7 +833,7 @@ class Combine(TupleOp):
             "     [{captures}] ( {predIdxArgs} ) {{ return {predExpr}; }},\n"
             "     {ranges})").format(
                 num=self.n,
-                captures=captures,
+                captures=", ".join(captures),
                 predIdxArgs=", ".join("{0} {1}".format(i.typeHint, i.name) for i in self._i),
                 predExpr = defCache(self.predExpr),
                 ranges=", ".join(defCache(rng._idxs.op) for rng in self.ranges)
@@ -826,8 +841,8 @@ class Combine(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=self.resultType, args=paramDecl)
-            return "{0}({1})".format(funName, paramCall)
+            funName = defCache.symbol(expr, resultType=self.resultType, args=", ".join(paramDecl))
+            return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class PsuedoRandom(TupleOp):
     """ Pseudorandom number (integer or float) within range """

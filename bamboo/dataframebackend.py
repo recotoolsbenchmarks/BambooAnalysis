@@ -22,7 +22,7 @@ class SelWithDefines(top.CppStrRedir):
             self.df = parent.df
             self._definedColumns = dict(parent._definedColumns)
             if variation == "nominal":
-                self.var = dict((varNm, SelWithDefines(pvar, pvar.df, variation=varNm)) for varNm, pvar in parent.var.items())
+                self.var = dict((varNm, SelWithDefines(pvar, variation=varNm)) for varNm, pvar in parent.var.items())
                 ## parent is either nominal (when branching off), or the corresponding variation of the parent of the nominal node
         elif isinstance(parent, DataframeBackend):
             self.parent = None

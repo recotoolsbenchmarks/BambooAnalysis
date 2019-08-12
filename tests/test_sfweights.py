@@ -34,6 +34,8 @@ def puWeight():
 def test_lepSingle_constructEval(sf_leptonSingle):
     from cppyy import gbl
     assert isclose_float(sf_leptonSingle.get(makeParameters(Pt=20., Eta=1.5), gbl.Nominal), 0.9901639223098755)
+    assert isclose_float(sf_leptonSingle.get(makeParameters(Pt=20., Eta=1.5), gbl.Up), 0.9901639223098755+0.19609383660010074)
+    assert isclose_float(sf_leptonSingle.get(makeParameters(Pt=20., Eta=1.5), gbl.Down), 0.9901639223098755-0.19609383660010074)
 
 def test_puWeight_constructEvalInRange(puWeight):
     from cppyy import gbl

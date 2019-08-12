@@ -4,41 +4,61 @@ ROOT::RDataFrame backend classes
 import logging
 logger = logging.getLogger(__name__)
 
-from itertools import chain, count
+import copy
+from itertools import chain
+from functools import partial
 
 from .plots import FactoryBackend, Selection
 from . import treefunctions as op
 from . import treeoperations as top
 
 class SelWithDefines(top.CppStrRedir):
-    def __init__(self, parent, df, weights=None, wName=None):
-        self.df = df
+    def __init__(self, parent, variation="nominal"):
         self.explDefine = list()
+        self.var = None ## nodes for related systematic variations (if different by more than the weight)
         if isinstance(parent, SelWithDefines):
             self.parent = parent
             self.backend = parent.backend
+            self.df = parent.df
             self._definedColumns = dict(parent._definedColumns)
-        else:
+            if variation == "nominal":
+                self.var = dict((varNm, SelWithDefines(pvar, pvar.df, variation=varNm)) for varNm, pvar in parent.var.items())
+                ## parent is either nominal (when branching off), or the corresponding variation of the parent of the nominal node
+        elif isinstance(parent, DataframeBackend):
             self.parent = None
             self.backend = parent
+            self.df = parent.rootDF
             self._definedColumns = dict()
+            self.var = dict()
+        else:
+            raise RuntimeError("Can only define SelWithDefines with a DataframeBackend or another SelWithDefines")
+        self.wName = dict()
+        top.CppStrRedir.__init__(self)
 
+    def addWeight(self, weights=None, wName=None, parentWeight=None, variation="nominal"):
+        if variation == "nominal" and parentWeight is None and self.parent and self.parent.wName:
+            parentWeight = self.parent.wName["nominal"]
         if weights:
-            self._initWeights(wName, weights)
-            self.wName = wName
-        elif self.parent and self.parent.wName:
-            self.wName = self.parent.wName
+            weightExpr = Selection._makeExprProduct(
+                ([top.adaptArg(op.extVar("float", parentWeight), typeHint="float")]+weights) if parentWeight
+                else weights
+                )
+            self._define(wName, weightExpr)
+            self.wName[variation] = wName
+        elif parentWeight:
+            self.wName[variation] = parentWeight
         else:
             assert not wName
-            self.wName = None
-        top.CppStrRedir.__init__(self)
-    
-    def _initWeights(self, wName, weights):
-        weightExpr = Selection._makeExprProduct(
-            ([top.adaptArg(op.extVar("float", self.parent.wName), typeHint="float")]+weights) if self.parent.wName
-            else weights
-            )
-        self._define(wName, weightExpr)
+            self.wName[variation] = None
+
+    def addCut(self, cuts):
+        cutExpr = Selection._makeExprAnd(cuts)
+        cutStr = cutExpr.get_cppStr(defCache=self)
+        self._addFilterStr(cutStr)
+
+    def _addFilterStr(self, filterStr): ## add filter with string already made
+        logger.debug("Filtering with {0}".format(filterStr))
+        self.df = self.df.Filter(filterStr)
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -89,8 +109,9 @@ class DataframeBackend(FactoryBackend):
         from cppyy import gbl
         self.rootDF = gbl.RDataFrame(tree)
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
-        self.selDFs = dict()      ## selection name -> SelWithDefines
-        self.plotResults = dict() ## plot name -> result pointer
+        self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
+        self.plotResults = dict() ## plot name -> list of result pointers
+        self.allSysts = dict()    ## all systematic uncertainties and variations impacting any plot
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -126,6 +147,7 @@ class DataframeBackend(FactoryBackend):
             gbl.gInterpreter.Declare(fullDecl)
             return name
 
+        super(SystModifiedCollectionOp, self).__init__(wrapped, name)
     @staticmethod
     def create(decoTree, outFileName=None):
         inst = DataframeBackend(decoTree._tree, outFileName=None)
@@ -136,49 +158,173 @@ class DataframeBackend(FactoryBackend):
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
             raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
-        parentDF = self.selDFs[sele.parent.name] if sele.parent else None
+        cutStr = None
+        nomParentNd = self.selDFs[sele.parent.name] if sele.parent else None
         if sele._cuts:
-            assert parentDF ## FIXME if not something went wrong - there *needs* to be a root no-op sel
-            expr = Selection._makeExprAnd(sele._cuts)
-            filterStr = expr.get_cppStr(defCache=parentDF)
-            logger.debug("Filtering with {0}".format(filterStr))
-            selDF = parentDF.df.Filter(filterStr)
-        else:
-            if parentDF:
-                selDF = parentDF.df
-            else:
-                selDF = self.rootDF
+            assert sele.parent ## there *needs* to be a root no-op sel, so this is an assertion
+            ## trick: by passing defCache=parentDF and doing this *before* constructing the nominal node,
+            ## any definitions end up in the node above, and are in principle available for other sub-selections too
+            cutStr = Selection._makeExprAnd(sele._cuts).get_cppStr(defCache=self.selDFs[sele.parent.name])
+        nomNd = SelWithDefines(nomParentNd if nomParentNd else self)
+        if cutStr:
+            nomNd._addFilterStr(cutStr)
+        nomNd.addWeight(weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        self.selDFs[sele.name] = nomNd
 
-        self.selDFs[sele.name] = SelWithDefines((parentDF if sele.parent else self), selDF, weights=sele._weights, wName=("w_{0}".format(sele.name) if sele._weights else None))
+        if sele.autoSyst:
+            weightSyst = sele.weightSystematics
+            cutSyst = sele.cutSystematics
+            for systN, systVars in sele.systematics.items(): ## the two above merged
+                logger.debug("Adding weight variations {0} for systematic {1}".format(systVars, systN))
+                ## figure out which cuts and weight factors are affected by this systematic
+                isthissyst = partial((lambda sN,iw : isinstance(iw, top.OpWithSyst) and iw.systName == sN), systN)
+                ctToChange = []
+                ctKeep = list(sele._cuts)
+                wfToChange = []
+                wfKeep = list(sele._weights)
+                if systN in cutSyst:
+                    nRem = 0
+                    for i,ct in enumerate(sele._cuts):
+                        if any(top.collectNodes(ct, select=isthissyst)):
+                            ctToChange.append(ct)
+                            del ctKeep[i-nRem]
+                            nRem += 1
+                if systN in weightSyst:
+                    nRem = 0
+                    for i,wf in enumerate(sele._weights):
+                        if any(top.collectNodes(wf, select=isthissyst)):
+                            wfToChange.append(wf)
+                            del wfKeep[i-nRem]
+                            nRem += 1
+                ## construct variation nodes (if necessary)
+                for varn in systVars:
+                    ## add cuts to the appropriate node, if affected by systematics (here or up)
+                    varParentNd = None ## set parent node if not the nominal one
+                    if nomParentNd and varn in nomParentNd.var: ## -> continue on branch
+                        varParentNd = nomParentNd.var[varn]
+                    elif ctToChange: ## -> branch off now
+                        varParentNd = nomParentNd
+                    if not varParentNd: ## cuts unaffected (here and in parent), can stick with nominal
+                        varNd = nomNd
+                    else: ## on branch, so add cuts (if any)
+                        if len(sele._cuts) == 0: ## no cuts, reuse parent
+                            varNd = varParentNd
+                        else:
+                            ctChanged = []
+                            for ct in ctToChange: ## empty if sele._cuts are not affected
+                                newct = copy.deepcopy(ct)
+                                for nd in top.collectNodes(newct, select=isthissyst):
+                                    nd.changeVariation(varn)
+                                ctChanged.append(newct)
+                            cutStr = Selection._makeExprAnd(ctKeep+ctChanged).get_cppStr(defCache=varParentNd)
+                            varNd = SelWithDefines(varParentNd)
+                            varNd._addFilterStr(cutStr)
+                        nomNd.var[varn] = varNd
+                    ## next: attach weights (modified if needed) to varNd
+                    if varParentNd:
+                        parwn = varParentNd.wName.get(varn, varParentNd.wName.get("nominal"))
+                    elif nomParentNd:
+                        parwn = nomParentNd.wName.get(varn, nomParentNd.wName.get("nominal"))
+                    else:
+                        parwn = None ## no prior weights at all
+                    if not sele._weights:
+                        logger.debug("{0} systematic variation {1}: reusing {2}".format(sele.name, varn, parwn))
+                        varNd.addWeight(parentWeight=parwn, variation=varn)
+                    else:
+                        if wfToChange or varNd != nomNd or ( nomParentNd and varn in nomParentNd.wName ):
+                            wfChanged = []
+                            for wf in wfToChange:
+                                newf = copy.deepcopy(wf)
+                                for nd in top.collectNodes(newf, select=isthissyst):
+                                    nd.changeVariation(varn)
+                                wfChanged.append(newf)
+                            logger.debug("{0} systematic variation {1}: defining new weight based on {2}".format(sele.name, varn, parwn))
+                            varNd.addWeight(weights=(wfKeep+wfChanged), wName=("w_{0}__{1}".format(sele.name, varn) if sele._weights else None), parentWeight=parwn, variation=varn)
+                        else: ## varNd == nomNd, not branched, and parent does not have weight variation
+                            logger.debug("{0} systematic variation {1}: reusing nominal {2}".format(sele.name, varn, varNd.wName["nominal"]))
+                            varNd.addWeight(parentWeight=varNd.wName["nominal"], variation=varn)
 
-    def addPlot(self, plot):
+    def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
         if plot.name in self.plotResults:
             raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
-        ## TODO DataFrame might throw (or segfault), but we should catch all possible errors before
-        ## NOTE pre/postfixes should already be inside the plot name
-        hModel = DataframeBackend.makePlotModel(plot)
-        selND = self.selDFs[plot.selection.name]
-        varExprs = dict(("v{0:d}_{1}".format(i, plot.name), selND(var)) for i,var in zip(count(), plot.variables))
-        plotDF = selND.df ## after getting the expressions, to pick up columns that were defined on-demand
-        for vName, vExpr in varExprs.items():
-            #logger.debug("Defining {0} as {1} (defined for {2}: {3})".format(vName, vExpr, plotDF, ", ".join(plotDF.GetDefinedColumnNames()))) ## needs 6.16
+
+        nomNd = self.selDFs[plot.selection.name]
+        plotRes = []
+        ## Add nominal plot
+        nomVarExprs = dict(("v{0:d}_{1}".format(i, plot.name), nomNd(var)) for i,var in enumerate(plot.variables))
+        nomPlotDF = nomNd.df
+        for vName, vExpr in nomVarExprs.items():
             logger.debug("Defining {0} as {1}".format(vName, vExpr))
-            plotDF = plotDF.Define(vName, vExpr)
-        plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
-        if selND.wName:
-            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(varExprs.keys()), selND.wName))
-            plotDF = plotFun(hModel, *chain(varExprs.keys(), [selND.wName]))
-        else:
-            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(varExprs.keys())))
-            plotDF = plotFun(hModel, *varExprs.keys())
-        self.plotResults[plot.name] = plotDF
+            nomPlotDF = nomPlotDF.Define(vName, vExpr)
+        nomPlotFun = getattr(nomPlotDF, "Histo{0:d}D".format(len(plot.variables)))
+        plotModel = DataframeBackend.makePlotModel(plot)
+        if nomNd.wName["nominal"]: ## nontrivial weight
+            logger.debug("Adding plot {0} with variables {1} and weight {2}".format(plot.name, ", ".join(nomVarExprs.keys()), nomNd.wName["nominal"]))
+            plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ nomNd.wName["nominal"] ]) ))
+        else: # no weight
+            logger.debug("Adding plot {0} with variables {1}".format(plot.name, ", ".join(nomVarExprs.keys())))
+            plotRes.append(nomPlotFun(plotModel, *nomVarExprs.keys()))
+
+        if plot.selection.autoSyst and autoSyst:
+            ## Same for all the systematics
+            varSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
+                top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
+                for vi in plot.variables))
+            selSysts = plot.selection.systematics
+            allSysts = dict(plot.selection.systematics)
+            allSysts.update(varSysts)
+            self.allSysts.update(allSysts)
+            for systN, systVars in allSysts.items():
+                isthissyst = partial((lambda sN,iw : isinstance(iw, top.OpWithSyst) and iw.systName == sN), systN)
+                idxVarsToChange = []
+                for i,xvar in enumerate(plot.variables):
+                    if any(top.collectNodes(xvar, select=isthissyst)):
+                        idxVarsToChange.append(i)
+                for varn in systVars:
+                    if systN in varSysts or varn in nomNd.var:
+                        varNd = nomNd.var.get(varn, nomNd)
+                        varExprs = {}
+                        for i,xvar in enumerate(plot.variables):
+                            if i in idxVarsToChange:
+                                varVar = copy.deepcopy(xvar)
+                                for nd in top.collectNodes(varVar, select=isthissyst):
+                                    nd.changeVariation(varn)
+                            else:
+                                varVar = xvar
+                            varExprs["v{0:d}_{1}__{2}".format(i, plot.name, varn)] = varNd(varVar)
+                        plotDF = varNd.df
+                        for vName, vExpr in varExprs.items():
+                            logger.debug("Defining {0} as {1}".format(vName, vExpr))
+                            plotDF = plotDF.Define(vName, vExpr)
+                        plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
+                        plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
+                        wN = varNd.wName[varn] if systN in selSysts else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
+                        if wN is not None: ## nontrivial weight
+                            logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}".format(plot.name, varn, ", ".join(varExprs.keys()), wN))
+                            plotRes.append(plotFun(plotModel, *chain(varExprs.keys(), [ wN ]) ))
+                        else: ## no weight
+                            logger.debug("Adding plot {0} variation {1} with variables {2}".format(varn, plot.name, ", ".join(varExprs.keys())))
+                            plotRes.append(plotFun(plotModel, *varExprs.keys()))
+                    else: ## can reuse variables, but may need to take care of weight
+                        wN = nomNd.wName[varn]
+                        if wN is not None:
+                            plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
+                            logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}".format(plot.name, varn, ", ".join(nomVarExprs.keys()), wN))
+                            plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ wN ]) ))
+                        else: ## no weight
+                            raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
+
+        self.plotResults[plot.name] = plotRes
 
     @staticmethod
-    def makePlotModel(plot):
+    def makePlotModel(plot, variation="nominal"):
         from cppyy import gbl
         modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
-        return modCls(plot.name, plot.title, *chain.from_iterable(
+        name = plot.name
+        if variation != "nominal":
+            name = "__".join((name, variation))
+        return modCls(name, plot.title, *chain.from_iterable(
             DataframeBackend.makeBinArgs(binning) for binning in plot.binnings))
     @staticmethod
     def makeBinArgs(binning):
@@ -190,7 +336,7 @@ class DataframeBackend(FactoryBackend):
         else:
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
 
-    def getPlotResult(self, plot):
+    def getPlotResults(self, plot):
         return self.plotResults[plot.name]
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):

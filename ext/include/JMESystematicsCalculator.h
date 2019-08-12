@@ -48,7 +48,7 @@ public:
         std::forward_as_tuple(JetCorrectorParameters(fileName, ( section != "__default__" ? section : name ))));
   }
 
-  bool hasProduct(const std::string& name) const;
+  std::vector<std::string> availableProducts() const;
 
   // interface for NanoAOD
   result_t produceModifiedCollections(

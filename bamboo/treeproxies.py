@@ -144,6 +144,11 @@ class TreeBaseProxy(LeafGroupProxy):
         return "{0}({1!r})".format(self.__class__.__name__, self._tree)
     def deps(self, defCache=None, select=(lambda x : True), includeLocal=False):
         yield from []
+    def __eq__(self, other):
+        return self._tree == other._tree
+    def __deepcopy__(self, memo):
+        ## *never* copy the TTree, although copying proxies is fine
+        return self.__class__(self._tree)
 
 class ListBase(object):
     """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering)
@@ -198,16 +203,19 @@ class ObjectProxy(NumberProxy):
     """
     Imitate an object
     """
-    __slots__ = ("_typ",)
+    __slots__ = tuple()
     def __init__(self, parent, typeName):
-        from cppyy import gbl
-        self._typ = getattr(gbl, typeName) ## NOTE could also use TClass machinery
         super(ObjectProxy, self).__init__(parent, typeName)
+    @property
+    def _typ(self):
+        from cppyy import gbl
+        return getattr(gbl, self._typeName)
     def __getattr__(self, name):
-        if name not in dir(self._typ):
+        typ = self._typ
+        if name not in dir(typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
         from cppyy import gbl
-        if hasattr(self._typ, name) and isinstance(getattr(self._typ, name), gbl.MethodProxy):
+        if hasattr(typ, name) and isinstance(getattr(typ, name), gbl.MethodProxy):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result
@@ -352,6 +360,9 @@ class Variations(TupleBaseProxy):
         self.calcProd = None
         self.nameMap = nameMap
         super(Variations, self).__init__("Variations", parent=parent)
+    @property
+    def available(self):
+        return list(self.calc.availableProducts())
     def initCalc(self, calcProxy, calcHandle=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produceModifiedCollections(*self._args)
@@ -363,9 +374,11 @@ class Variations(TupleBaseProxy):
             raise RuntimeError("Variations calculator first needs to be initialized")
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
-        if self.calc and not self.calc.hasProduct(key):
+        if self.calc and key not in self.available:
             raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
         res_item = self.calcProd.at(makeConst(key, "std::string")).op
+        if key == "nominal":
+            res_item = SystModifiedCollectionOp(res_item, None, self.available)
         return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
 
 class ModifiedCollectionProxy(TupleBaseProxy,ListBase):

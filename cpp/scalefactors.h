@@ -48,7 +48,15 @@ public:
   virtual ~ScaleFactor() {}
 
   virtual float get(const Parameters& parameters, SystVariation variation) const override final {
-    return m_values.get(parameters)[static_cast<std::size_t>(variation)];
+    const auto valForBin = m_values.get(parameters);
+    switch (variation) {
+      case Nominal:
+        return valForBin[Nominal];
+      case Up:
+        return valForBin[Nominal]+valForBin[Up];
+      case Down:
+        return valForBin[Nominal]-valForBin[Down];
+    }
   }
 private:
   BinnedValues m_values;
@@ -86,19 +94,19 @@ public:
       const float nom_eff_lep2_leg1 = m_l2_leg1->get(l2Param, Nominal);
       const float nom_eff_lep2_leg2 = m_l2_leg2->get(l2Param, Nominal);
 
-      const float nominal = -(eff_lep1_leg1 * eff_lep2_leg1) +
-          (1 - (1 - eff_lep1_leg2)) * eff_lep2_leg1 +
-          eff_lep1_leg1 * (1 - (1 - eff_lep2_leg2)) ;
+      const float nominal = -(nom_eff_lep1_leg1 * nom_eff_lep2_leg1) +
+          (1 - (1 - nom_eff_lep1_leg2)) * nom_eff_lep2_leg1 +
+          nom_eff_lep1_leg1 * (1 - (1 - nom_eff_lep2_leg2)) ;
 
       const float error_squared =
           std::pow(1 - nom_eff_lep2_leg1 - (1 - nom_eff_lep2_leg2), 2) *
-          std::pow(eff_lep1_leg1, 2) +
+          std::pow(nom_eff_lep1_leg1-eff_lep1_leg1, 2) +
           std::pow(nom_eff_lep2_leg1, 2) *
-          std::pow(eff_lep1_leg2, 2) +
+          std::pow(nom_eff_lep1_leg2-eff_lep1_leg2, 2) +
           std::pow(1 - nom_eff_lep1_leg1 - (1 - nom_eff_lep1_leg2), 2) *
-          std::pow(eff_lep2_leg1, 2) +
+          std::pow(nom_eff_lep2_leg1-eff_lep2_leg1, 2) +
           std::pow(nom_eff_lep1_leg1, 2) *
-          std::pow(eff_lep2_leg2, 2);
+          std::pow(nom_eff_lep2_leg2-eff_lep2_leg2, 2);
 
       if ( variation == Up ) {
         return std::min(nominal+std::sqrt(error_squared), 1.f);

@@ -67,7 +67,7 @@ class ForwardingOp(TupleOp):
     def __repr__(self):
         return "ForwardingOp({0!r})".format(self.wrapped)
     def __eq__(self, other):
-        return self.wrapped == other
+        return isinstance(other, self.__class__) and self.wrapped == other.wrapped
     def __hash__(self):
         return hash(self.__repr__())
 
@@ -867,7 +867,11 @@ class OpWithSyst(ForwardingOp):
     def changeVariation(self, newVar):
         pass ## main interface method
     def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__, self.wrapped, self.variations)
+        return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
+    def __hash__(self):
+        return hash(self.__repr__())
+    def __eq__(self, other):
+        return super(OpWithSyst, self).__eq__(other) and self.systName == other.systName and self.variations == other.variations
 
 class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """

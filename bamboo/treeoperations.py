@@ -1060,7 +1060,7 @@ class SystAltColumnOp(OpWithSyst):
 
 def collectSystVars(exprs):
     systVars = {}
-    for sfs in chain.from_iterable(collectNodes(expr, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations)) for expr in exprs):
+    for sfs in chain.from_iterable(collectNodes(expr, select=(lambda nd : isinstance(nd, OpWithSyst) and nd.systName and nd.variations)) for expr in exprs):
         if sfs.systName not in systVars:
             systVars[sfs.systName] = list(sfs.variations)
         else:
@@ -1070,7 +1070,7 @@ def collectSystVars(exprs):
     return systVars
 def mergeSystVars(svA, svB):
     ## returns A updated with B
-    for systName, variations in svB:
+    for systName, variations in svB.items():
         if systName not in svA:
             svA[systName] = list(variations)
         else:

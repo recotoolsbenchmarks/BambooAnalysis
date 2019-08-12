@@ -269,7 +269,7 @@ class DataframeBackend(FactoryBackend):
 
         if plot.selection.autoSyst and autoSyst:
             ## Same for all the systematics
-            varSysts = collectSystVars(plot.variables)
+            varSysts = top.collectSystVars(plot.variables)
             selSysts = plot.selection.systematics
             allSysts = top.mergeSystVars(dict(plot.selection.systematics), varSysts)
             top.mergeSystVars(self.allSysts, allSysts)

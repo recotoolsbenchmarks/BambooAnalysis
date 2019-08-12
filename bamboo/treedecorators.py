@@ -234,7 +234,7 @@ def _makeAltClassAndMaps(name, dict_orig, varAttNames, attCls=None, altBases=Non
             brMapMap[var][attNm] = vop
     ## nominal: with systematic variations (all are valid, but not all need to modify)
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
-    logger.debug("All {0} variations: {1}".format(name, allVars))
+    logger.debug("{0} variations read from branches: {1} (nominal: {2!r})".format(name, allVars, nomName))
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltColumnOp(
             getCol(vAtts[nomName]), systName,
@@ -312,7 +312,6 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 if addCalculators and "nJet" in addCalculators:
                     logger.debug("Will calculate correction/variations for the MET collection on the fly")
                 elif "MET_pt_nom" in allTreeLeafs:
-                    logger.debug("Will read MET variations from branches")
                     grp_readVar.append(prefix)
     for prefix in grp_found:
         grpNm = prefix.rstrip("_")
@@ -351,14 +350,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
         else:
             cnt_found.append(sizeNm)
-            if addCalculators and sizeNm in addCalculators:
-                logger.debug("Will calculate correction/variations for the {0} collection on the fly".format(sizeNm[1:]))
-            else:
+            if not ( addCalculators and sizeNm in addCalculators ):
                 if sizeNm == "nJet" and "Jet_pt_nom" in allTreeLeafs:
-                    logger.debug("Will read Jet variations from branches")
                     cnt_readVar.append(sizeNm)
                 if sizeNm == "nMuon" and "Muon_corrected_pt" in allTreeLeafs:
-                    logger.debug("Will read Muon variations from branches")
                     cnt_readVar.append(sizeNm)
 
     for sizeNm in cnt_found:

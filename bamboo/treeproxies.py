@@ -384,6 +384,8 @@ class AltCollectionProxy(TupleBaseProxy, ListBase):
         super(AltCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __getitem__(self, index):
         return self.itemType(self, index)
+    def __len__(self):
+        return self.orig.__len__()
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
     ##

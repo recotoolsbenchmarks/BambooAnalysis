@@ -130,10 +130,24 @@ def sample_resolveFiles(smpCfg, redodbqueries=False, overwritesamplefilelists=Fa
         smp["files"] = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
     return smp
 
+class YMLIncludeLoader(yaml.SafeLoader):
+    """Custom yaml loading to support including config files. Use `!include (file)` to insert content of `file` at that position."""
+    
+    def __init__(self, stream):
+        super(YMLIncludeLoader, self).__init__(stream)
+        self._root = os.path.split(stream.name)[0]
+
+    def include(self, node):
+        filename = os.path.join(self._root, self.construct_scalar(node))
+        with open(filename, 'r') as f:
+            return yaml.load(f, YMLIncludeLoader)
+
+YMLIncludeLoader.add_constructor('!include', YMLIncludeLoader.include)
+
 def parseAnalysisConfig(anaCfgName, resolveFiles=True, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
     cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
     with open(anaCfgName) as anaCfgF:
-        analysisCfg = yaml.load(anaCfgF)
+        analysisCfg = yaml.load(anaCfgF, YMLIncludeLoader)
     if resolveFiles:
         analysisCfg["samples"] = dict((smpName,
             sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir))

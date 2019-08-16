@@ -192,6 +192,11 @@ All together, typical data and MC sample entries would look like
        split: 3
 
 
+.. tip::
+    
+    It is possible to insert the content of a configuration file into another, e.g. to separate or reuse the plot- and samples-related setings: simply use the syntax ``!include file.yml`` in the exact place where you would like to insert the content of ``file.yml``.
+
+
 .. _uganalysismodule:
 
 Analysis module

@@ -146,7 +146,6 @@ class TreeBaseProxy(LeafGroupProxy):
         yield from []
     def __eq__(self, other):
         return self._tree == other._tree
-    @simpletrace
     def __deepcopy__(self, memo):
         ## *never* copy the TTree, although copying proxies is fine
         return self.__class__(self._tree)
@@ -190,7 +189,6 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
         return self._size.result
     def __getitem__(self, index):
         return self.valuetype(self, index)
-    @simpletrace
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
 
@@ -270,7 +268,6 @@ class VectorProxy(ObjectProxy,ListBase):
         return GetItem(self, self.valueType, index).result
     def __len__(self):
         return self.size()
-    @simpletrace
     def __repr__(self):
         return "VectorProxy({0!r}, {1!r})".format(self._parent, self._typeName)
 

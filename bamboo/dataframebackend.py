@@ -4,7 +4,6 @@ ROOT::RDataFrame backend classes
 import bamboo.logging
 logger = bamboo.logging.getLogger(__name__)
 
-import copy
 from itertools import chain
 from functools import partial
 
@@ -212,7 +211,7 @@ class DataframeBackend(FactoryBackend):
                         else:
                             ctChanged = []
                             for ct in ctToChange: ## empty if sele._cuts are not affected
-                                newct = copy.deepcopy(ct)
+                                newct = ct.clone()
                                 for nd in top.collectNodes(newct, select=isthissyst):
                                     nd.changeVariation(varn)
                                 ctChanged.append(newct)
@@ -234,7 +233,7 @@ class DataframeBackend(FactoryBackend):
                         if wfToChange or varNd != nomNd or ( nomParentNd and varn in nomParentNd.wName ):
                             wfChanged = []
                             for wf in wfToChange:
-                                newf = copy.deepcopy(wf)
+                                newf = wf.clone()
                                 for nd in top.collectNodes(newf, select=isthissyst):
                                     nd.changeVariation(varn)
                                 wfChanged.append(newf)
@@ -287,7 +286,7 @@ class DataframeBackend(FactoryBackend):
                         varExprs = {}
                         for i,xvar in enumerate(plot.variables):
                             if i in idxVarsToChange:
-                                varVar = copy.deepcopy(xvar)
+                                varVar = xvar.clone()
                                 for nd in top.collectNodes(varVar, select=isthissyst):
                                     nd.changeVariation(varn)
                             else:

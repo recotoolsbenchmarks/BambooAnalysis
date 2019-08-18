@@ -36,7 +36,7 @@ def makeProxy(typeName, parent, length=None):
     else:
         m = vecPat.match(typeName)
         if m:
-            return VectorProxy(parent, typeName)
+            return VectorProxy(parent, typeName=typeName)
         else:
             return ObjectProxy(parent, typeName)
 def makeConst(value, typeHint):
@@ -146,6 +146,7 @@ class TreeBaseProxy(LeafGroupProxy):
         yield from []
     def __eq__(self, other):
         return self._tree == other._tree
+    @simpletrace
     def __deepcopy__(self, memo):
         ## *never* copy the TTree, although copying proxies is fine
         return self.__class__(self._tree)
@@ -171,6 +172,13 @@ class ListBase(object):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         yield from []
+    def clone(self, memo=None):
+        if id(self) in memo:
+            return memo[id(self)]
+        else:
+            cp = self._clone(memo)
+            memo[id(self)] = cp
+            return cp
 
 class ContainerGroupItemProxy(TupleBaseProxy):
     """ Proxy for an item in a structure of arrays """
@@ -191,13 +199,19 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
         return self._size.result
     def __getitem__(self, index):
         return self.valuetype(self, index)
+    @simpletrace
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
     ##
+    @simpletrace
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         yield from self._size.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    def __eq__(self, other):
+    @simpletrace
+    def __eq__(self, other): ## TODO check if we even need this - these should be singletons
         return isinstance(other, ContainerGroupProxy) and ( self._size == other._size ) and ( self.valuetype == other.valuetype ) and ( self._parent == other._parent ) and ( self._prefix == other._prefix )
+    @simpletrace
+    def _clone(self, memo):
+        return self ## can stop here
 
 class ObjectProxy(NumberProxy):
     """
@@ -253,32 +267,41 @@ class MethodProxy(TupleBaseProxy):
 
 class VectorProxy(ObjectProxy,ListBase):
     """ Vector-as-array (maybe to be eliminated with var-array branches / generalised into object) """
-    def __init__(self, parent, typeName):
+    def __init__(self, parent, typeName=None, itemType=None):
         ListBase.__init__(self)
-        from cppyy import gbl
-        vecClass = getattr(gbl, typeName)
-        if hasattr(vecClass, "value_type"):
-            value = getattr(vecClass, "value_type")
-            if hasattr(value, "__cppname__"):
-                self.valueType = value.__cppname__
-            elif str(value) == value:
-                self.valueType = value
-            else:
-                raise RuntimeError("value_type attribute of {0} is neither a PyROOT class nor a string, but {1}".format(typeName, value))
+        if itemType:
+            self.valueType = itemType
         else:
-            self.valueType = vecPat.match(typeName).group("item")
+            from cppyy import gbl
+            vecClass = getattr(gbl, typeName)
+            if hasattr(vecClass, "value_type"):
+                value = getattr(vecClass, "value_type")
+                if hasattr(value, "__cppname__"):
+                    self.valueType = value.__cppname__
+                elif str(value) == value:
+                    self.valueType = value
+                else:
+                    raise RuntimeError("value_type attribute of {0} is neither a PyROOT class nor a string, but {1}".format(typeName, value))
+            else:
+                self.valueType = vecPat.match(typeName).group("item")
         super(VectorProxy, self).__init__(parent, typeName)
     def __getitem__(self, index):
         return GetItem(self, self.valueType, index).result
     def __len__(self):
         return self.size()
+    @simpletrace
     def __repr__(self):
         return "VectorProxy({0!r}, {1!r})".format(self._parent, self._typeName)
     #
+    @simpletrace
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         yield from self.parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    @simpletrace
     def __eq__(self, other):
         return isinstance(other, VectorProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype )
+    @simpletrace
+    def _clone(self, memo):
+        return self.__class__(self._parent.clone(memo=memo), typeName=self._typeName, itemType=self.valueType)
 
 class SelectionProxy(TupleBaseProxy,ListBase):
     """ Proxy for a selection from an iterable (ContainerGroup/ other selection etc.) """
@@ -298,12 +321,17 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r})".format(self._parent)
     #
+    @simpletrace
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if select(self._parent):
             yield self._parent
         yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    @simpletrace
     def __eq__(self, other):
         return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valueType == other.valueType ) and ( self._base == other._base )
+    @simpletrace
+    def _clone(self, memo):
+        return self.__class__(self._parent.clone(memo=memo))
 
 ## Attribute classes (like property) to customize the above base classes
 
@@ -398,12 +426,17 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
     ##
+    @simpletrace
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if select(self._parent):
             yield self._parent
         yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
+    @simpletrace
     def __eq__(self, other):
         return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType )
+    @simpletrace
+    def _clone(self, memo):
+        return self.__class__(self._parent.clone(memo=memo), self.orig.clone(memo=memo), itemType=self.itemType)
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination
@@ -446,3 +479,6 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
         yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     def __eq__(self):
         return isinstance(other, self.__class__) and self._parent == other._parent
+    @simpletrace
+    def _clone(self, memo):
+        return self.__class__(self._parent.clone(memo=memo), self.combs.clone(memo=memo))

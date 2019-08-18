@@ -274,7 +274,7 @@ def rng_sum(rng, fun=lambda x : x, start=c_float(0.)):
     """
     return _to.Reduce.fromRngFun(rng, start, ( lambda fn : (
         lambda res, elm : res+fn(elm)
-        ) )(fun) ).result
+        ) )(fun) )
 
 def rng_count(rng, pred=lambda x : c_bool(True)): ## specialised version of sum, for convenience
     """ Count the number of elements passing a selection
@@ -288,7 +288,7 @@ def rng_count(rng, pred=lambda x : c_bool(True)): ## specialised version of sum,
     """
     return _to.Reduce.fromRngFun(rng, c_int(0), ( lambda prd : (
         lambda res, elm : res+switch(prd(elm), c_int(1), c_int(0))
-        ) )(pred) ).result
+        ) )(pred) )
 
 def rng_product(rng, fun=lambda x : x):
     """ Calculate the production of a function over a range
@@ -302,7 +302,7 @@ def rng_product(rng, fun=lambda x : x):
     """
     return _to.Reduce.fromRngFun(rng, c_float(1.), ( lambda fn : (
         lambda res, elm : res*fn(elm)
-        ) )(fun) ).result
+        ) )(fun) )
 
 def rng_max(rng, fun=lambda x : x):
     """ Find the highest value of a function in a range
@@ -316,7 +316,7 @@ def rng_max(rng, fun=lambda x : x):
     """
     return _to.Reduce.fromRngFun(rng, c_float(float("-inf")), ( lambda fn : (
         lambda res, elm : extMethod("std::max")(res, fn(elm))
-        ) )(fun) ).result
+        ) )(fun) )
 def rng_min(rng, fun=lambda x : x):
     """ Find the lowest value of a function in a range
 
@@ -329,7 +329,7 @@ def rng_min(rng, fun=lambda x : x):
     """
     return _to.Reduce.fromRngFun(rng, c_float(float("+inf")), ( lambda fn : (
         lambda res, elm : extMethod("std::min")(res, fn(elm))
-        ) )(fun) ).result
+        ) )(fun) )
 
 def rng_max_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is maximal
@@ -343,7 +343,7 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
     """
     return rng._base[_to.Reduce.fromRngFun(rng,
         construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("-inf")))),
-        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).first]
 
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
@@ -357,7 +357,7 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
     """
     return rng._base[_to.Reduce.fromRngFun(rng,
         construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("+inf")))),
-        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).result.first]
+        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).first]
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):
@@ -370,7 +370,7 @@ def rng_any(rng, pred=lambda elm : elm):
 
     >>> hasCentralMu = op.rng_any(t.Muon. lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return  _tp.makeConst(-1, _to.SizeType) != _to.Next.fromRngFun(rng, pred)
+    return  _tp.makeConst(-1, _to.SizeType) != _to.Next.fromRngFun(rng, pred)._idx
 def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
     """ Find the first item in a range that passes a selection
 
@@ -381,7 +381,7 @@ def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
 
     >>> leadCentralMu = op.rng_find(t.Muon, lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return _to.Next.fromRngFun(rng, pred).result
+    return _to.Next.fromRngFun(rng, pred)
 
 ## range-to-range: selection, combinatorics, systematic variations
 def select(rng, pred=lambda elm : True):
@@ -394,7 +394,7 @@ def select(rng, pred=lambda elm : True):
 
     >>> centralMuons = op.select(t.Muon, lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return _tp.SelectionProxy(_to.Select.fromRngFun(rng, pred))
+    return _to.Select.fromRngFun(rng, pred)
 
 def sort(rng, fun=lambda elm : 0.):
     """ Sort the range (ascendingly) by the value of a function applied on each element
@@ -406,7 +406,7 @@ def sort(rng, fun=lambda elm : 0.):
 
     >>> muonsByCentrality = op.sort(t.Muon, lambda mu : op.abs(mu.p4.Eta()))
     """
-    return _tp.SelectionProxy(_to.Sort.fromRngFun(rng, fun))
+    return _to.Sort.fromRngFun(rng, fun)
 
 def map(rng, fun, valueType=None):
     """ Create a list of derived values for a collection
@@ -422,7 +422,7 @@ def map(rng, fun, valueType=None):
 
     >>> muon_absEta = op.map(t.Muon, lambda mu : op.abs(mu.p4.Eta()))
     """
-    return _to.Map.fromRngFun(rng, fun, typeName=valueType).result
+    return _to.Map.fromRngFun(rng, fun, typeName=valueType)
 
 def rng_pickRandom(rng, seed=0):
     """ Pick a random element from a range
@@ -463,4 +463,4 @@ def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1
         raise RuntimeError("Can only make combinations of more than one")
     if len(rng) != N and len(rng) != 1:
         raise RuntimeError("If N(={0:d}) input ranges are given, only N-combinations can be made, not {1:d}".format(len(rng), N))
-    return _to.Combine.fromRngFun(N, rng, pred, sameIdxPred=sameIdxPred).result ## only implemented for 2 (same or different container)
+    return _to.Combine.fromRngFun(N, rng, pred, sameIdxPred=sameIdxPred) ## only implemented for 2 (same or different container)

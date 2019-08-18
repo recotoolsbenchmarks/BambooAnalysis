@@ -170,15 +170,6 @@ class ListBase(object):
     @property
     def _idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from []
-    def clone(self, memo=None):
-        if id(self) in memo:
-            return memo[id(self)]
-        else:
-            cp = self._clone(memo)
-            memo[id(self)] = cp
-            return cp
 
 class ContainerGroupItemProxy(TupleBaseProxy):
     """ Proxy for an item in a structure of arrays """
@@ -202,16 +193,6 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
     @simpletrace
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
-    ##
-    @simpletrace
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from self._size.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    @simpletrace
-    def __eq__(self, other): ## TODO check if we even need this - these should be singletons
-        return isinstance(other, ContainerGroupProxy) and ( self._size == other._size ) and ( self.valuetype == other.valuetype ) and ( self._parent == other._parent ) and ( self._prefix == other._prefix )
-    @simpletrace
-    def _clone(self, memo):
-        return self ## can stop here
 
 class ObjectProxy(NumberProxy):
     """
@@ -292,22 +273,12 @@ class VectorProxy(ObjectProxy,ListBase):
     @simpletrace
     def __repr__(self):
         return "VectorProxy({0!r}, {1!r})".format(self._parent, self._typeName)
-    #
-    @simpletrace
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from self.parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    @simpletrace
-    def __eq__(self, other):
-        return isinstance(other, VectorProxy) and ( self._parent == other._parent ) and ( self.valuetype == other.valuetype )
-    @simpletrace
-    def _clone(self, memo):
-        return self.__class__(self._parent.clone(memo=memo), typeName=self._typeName, itemType=self.valueType)
 
 class SelectionProxy(TupleBaseProxy,ListBase):
     """ Proxy for a selection from an iterable (ContainerGroup/ other selection etc.) """
-    def __init__(self, parent):
+    def __init__(self, base, parent): ## 'parent' is a Select or Sort TupleOp
         ListBase.__init__(self)
-        self._base = parent.rng._base
+        self._base = base
         self.valueType = self._base.valueType
         ## the list of indices is stored as the parent
         super(SelectionProxy, self).__init__(self.valueType, parent=parent)
@@ -315,23 +286,11 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def _idxs(self):
         return self._parent.result
     def __getitem__(self, index):
-        return self._base[GetItem(self._idxs, SizeType, index)]
+        return self._base[self._idxs[index]]
     def __len__(self):
         return self._idxs.__len__()
     def __repr__(self):
-        return "SelectionProxy({0!r})".format(self._parent)
-    #
-    @simpletrace
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        if select(self._parent):
-            yield self._parent
-        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    @simpletrace
-    def __eq__(self, other):
-        return isinstance(other, SelectionProxy) and ( self._parent == other._parent ) and ( self.valueType == other.valueType ) and ( self._base == other._base )
-    @simpletrace
-    def _clone(self, memo):
-        return self.__class__(self._parent.clone(memo=memo))
+        return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
 ## Attribute classes (like property) to customize the above base classes
 
@@ -425,18 +384,6 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
         return self.itemType(self, index)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
-    ##
-    @simpletrace
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        if select(self._parent):
-            yield self._parent
-        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    @simpletrace
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType )
-    @simpletrace
-    def _clone(self, memo):
-        return self.__class__(self._parent.clone(memo=memo), self.orig.clone(memo=memo), itemType=self.itemType)
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination
@@ -445,40 +392,29 @@ class CombinationProxy(TupleBaseProxy):
         super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
     @property
     def _idx(self):
-        return adaptArg(self._parent)._index ## parent is a GetIndex-proxy
+        return self._parent._index
     @property
     def index(self):
-        return adaptArg(self._parent).index ## parent is a GetIndex-proxy
+        return self._parent.index
     def __getitem__(self, i):
         idx = makeConst(i, SizeType)
-        return self.cont.base(i)[self._parent.get(idx)]
+        return self.cont.base(i)[self._parent.result.get(idx)]
     ## TODO add more (maybe simply defer to rdfhelpers::Combination object
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    def __eq__(self):
-        return isinstance(other, self.__class__) and self._parent == other._parent
 
 class CombinationListProxy(TupleBaseProxy,ListBase):
     ## NOTE list of decorated rdfhelpers::Combination
     ## TODO check if this works with selection (it should...)
-    def __init__(self, parent, combs):
-        self.combs = combs ## straightforward proxy for parent
+    def __init__(self, ranges, parent):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
+        self.ranges = ranges
         super(CombinationListProxy, self).__init__(parent.resultType, parent=parent)
     def __getitem__(self, idx):
-        return CombinationProxy(self, GetItem(self.combs, self.combs.valueType, adaptArg(idx, SizeType)).result)
+        return CombinationProxy(self, adaptArg(self._parent.result[idx]))
     def base(self, i):
-        return self._parent.ranges[i]._base
+        return self.ranges[i]._base
     def __len__(self):
-        return self.combs.size()
+        return self._parent.result.size()
     def __repr__(self):
-        return "{0}({1!r})".format(self.__class__.__name__, self._parent)
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from self._parent.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    def __eq__(self):
-        return isinstance(other, self.__class__) and self._parent == other._parent
-    @simpletrace
-    def _clone(self, memo):
-        return self.__class__(self._parent.clone(memo=memo), self.combs.clone(memo=memo))
+        return "{0}({1!r})".format(self.__class__.__name__, self.ranges, self._parent)

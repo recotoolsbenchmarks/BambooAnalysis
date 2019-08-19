@@ -122,7 +122,9 @@ class ForwardingOp(TupleOp):
         yield from self.wrapped.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):
-        return self.wrapped.result
+        wrapRes = self.wrapped.result
+        wrapRes._parent = self
+        return wrapRes
     def _repr(self):
         return "{0}({1!r})".format(self.__class__.__name__, self.wrapped)
     def _eq(self, other):

@@ -586,7 +586,7 @@ def collectNodes(expr, defCache=cppNoRedir, select=(lambda nd : True), stop=(lam
 
 def _collectDeps(self, defCache=cppNoRedir):
     ## first pass (will trigger definitions, if necessary)
-    for dep in self.deps(defCache=defCache, select=lambda op : defCache.shouldDefine(op), includeLocal=False):
+    for dep in self.deps(defCache=defCache, select=lambda op : defCache.shouldDefine(op)):
         cn = defCache(dep)
         if not cn:
             logger.warning("Probably a problem in triggering definition for {0}".format(dep))

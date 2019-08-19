@@ -70,8 +70,9 @@ class SelWithDefines(top.CppStrRedir):
         return self(expr)
 
     def _define(self, name, expr):
-        logger.debug("Defining {0} as {1}", name, bamboo.logging.lazy_str(expr.get_cppStr, defCache=self))
-        self.df = self.df.Define(name, expr.get_cppStr(defCache=self))
+        cppStr = expr.get_cppStr(defCache=self)
+        logger.debug("Defining {0} as {1}", name, cppStr)
+        self.df = self.df.Define(name, cppStr)
         self._definedColumns[expr] = name
 
     def symbol(self, decl, **kwargs):

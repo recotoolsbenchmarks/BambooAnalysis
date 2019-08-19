@@ -28,11 +28,3 @@ def getLogger(name):
     """ Get a logger that uses new-style (brace) string formatting """
     logger = logging.getLogger(name)
     return StyleAdapter(logger)
-
-class lazy_str(object):
-    def __init__(self, fun, *args, **kwargs):
-        self.fun = fun
-        self.args = args
-        self.kwargs = kwargs
-    def __str__(self):
-        return self.fun(*self.args, **self.kwargs)

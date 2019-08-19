@@ -1051,6 +1051,8 @@ class SystAltColumnOp(OpWithSyst):
         super(SystAltColumnOp, self).__init__(wrapped, name)
         self.variations = valid if valid else list(nameMap.keys())
         self.nameMap = nameMap
+    def _clone(self, memo):
+        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict(self.nameMap), valid=list(self.variations))
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newVariation not in self.variations:

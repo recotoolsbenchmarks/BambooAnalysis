@@ -361,7 +361,10 @@ def forceDefine(arg, selection):
     :param selection: :py:class:`~bamboo.plots.Selection` for which the expression should be defined
     """
     from .treeoperations import adaptArg
-    return selection._fbe.selDFs[selection.name].define(adaptArg(arg))
+    op = adaptArg(arg)
+    if not op.canDefine:
+        raise RuntimeError("Cannot define {0!r}".format(op))
+    return selection._fbe.selDFs[selection.name].define(op)
 
 def makePileupWeight(puWeightsFile, numTrueInteractions, variation="Nominal", systName=None, nameHint=None):
     """ Construct a pileup weight for MC, based on the weights in a JSON file

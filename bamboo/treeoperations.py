@@ -115,8 +115,10 @@ class ForwardingOp(TupleOp):
         self.wrapped = wrapped
         self.canDefine = canDefine if canDefine is not None else self.wrapped.canDefine
     def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo), canDefine=self.canDefine)
+        return self.__class__(self.wrapped.clone(memo=memo), canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
+        if select(self.wrapped):
+            yield self.wrapped
         yield from self.wrapped.deps(defCache=defCache, select=select, includeLocal=includeLocal)
     @property
     def result(self):

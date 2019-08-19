@@ -668,7 +668,7 @@ class Select(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp != self._i or includeLocal:
+                    if includeLocal or dp != self._i:
                         yield dp
     @property
     def result(self):
@@ -721,7 +721,7 @@ class Sort(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp != self._i or includeLocal:
+                    if includeLocal or dp != self._i:
                         yield dp
     @property
     def result(self):
@@ -774,7 +774,7 @@ class Map(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp != self._i or includeLocal:
+                    if includeLocal or dp != self._i:
                         yield dp
     @property
     def result(self):
@@ -826,7 +826,7 @@ class Next(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp != self._i or includeLocal:
+                    if includeLocal or dp != self._i:
                         yield dp
     @property
     def result(self):
@@ -884,7 +884,7 @@ class Reduce(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp not in (self._i, self._prevRes) or includeLocal:
+                    if includeLocal or dp not in (self._i, self._prevRes):
                         yield dp
     @property
     def result(self):
@@ -955,7 +955,7 @@ class Combine(TupleOp):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
-                    if dp not in self._i or includeLocal:
+                    if includeLocal or dp not in self._i:
                         yield dp
     @property
     def result(self):

@@ -388,11 +388,6 @@ class AltCollectionProxy(TupleBaseProxy, ListBase):
         return self.orig.__len__()
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
-    ##
-    def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
-        yield from self.orig.deps(defCache=defCache, select=select, includeLocal=includeLocal)
-    def __eq__(self, other):
-        return isinstance(other, self.__class__) and ( self._parent == other._parent ) and ( self.itemType == other.itemType ) and ( self.brMap == other.brMap )
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination

@@ -732,7 +732,7 @@ class Sort(TupleOp):
     def _eq(self, other):
         return self.rng == other.rng and self.funExpr == other.funExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
-        depList = _collectDeps(self.rng, defCache=defCache)
+        depList = _collectDeps(self, defCache=defCache)
         captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
         expr = "rdfhelpers::sort({idxs},\n    [{captures}] ( {i} ) {{ return {funExpr}; }})".format(
                 idxs=defCache(self.rng),
@@ -854,6 +854,7 @@ class Next(TupleOp):
 class Reduce(TupleOp):
     """ Reduce a range to a value (could be a transformation, index...) """
     def __init__(self, rng, resultType, start, accuExpr, idx, prevRes, canDefine=None):
+        super(Reduce, self).__init__()
         self.rng = rng ## input indices
         self.resultType = resultType
         self.start = start
@@ -891,7 +892,7 @@ class Reduce(TupleOp):
         from .treeproxies import makeProxy
         return makeProxy(self.resultType, self)
     def _repr(self):
-        return "{0}({1!r}, {2!r}, {3!r}, {4!r}, {5!r}, {6!r})".format(self.__class__.__name__, self.rng, self.resultType, self.start, self.accuExpr, self._i, self_prevRes)
+        return "{0}({1!r}, {2!r}, {3!r}, {4!r}, {5!r}, {6!r})".format(self.__class__.__name__, self.rng, self.resultType, self.start, self.accuExpr, self._i, self._prevRes)
     def _eq(self, other):
         return self.rng == other.rng and self.resultType == other.resultType and self.start == other.start and self.accuExpr == other.accuExpr and self._i == other._i and self._prevRes == other._prevRes
     def get_cppStr(self, defCache=cppNoRedir):

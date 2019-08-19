@@ -130,7 +130,7 @@ class ForwardingOp(TupleOp):
     def _eq(self, other):
         return self.wrapped == other.wrapped
     def get_cppStr(self, defCache=cppNoRedir):
-        return self.wrapped.get_cppStr(defCache=defCache)
+        return defCache(self.wrapped)
 
 SizeType = "std::size_t"
 

@@ -23,10 +23,12 @@ def main():
     if args.verbose:
         remArgs.append("--verbose")
 
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
+    logModules = ["bamboo.{0}".format(bMod) for bMod in ("analysismodules", "analysisutils", "batch", "batch_slurm", "batch_htcondor", "dataframebackend", "treeoperations", "treedecorators", "plots") ]
+    logLevel = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=logLevel) ## FIXME specify a handler
+    for logMod in logModules:
+        modLogger = logging.getLogger(logMod)
+        modLogger.setLevel(logLevel)
 
     modArg = args.module
     clName = None

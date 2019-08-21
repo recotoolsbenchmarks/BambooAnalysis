@@ -122,7 +122,7 @@ class FloatProxy(NumberProxy):
         super(FloatProxy, self).__init__(parent, typeName)
 
 for nm,(opNm,outType) in {
-          "__truediv__": ("div" , None)
+          "__truediv__": ("floatdiv" , None)
         }.items():
     setattr(FloatProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),

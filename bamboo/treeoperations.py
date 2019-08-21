@@ -248,6 +248,12 @@ mathOpFuns_cppStr = {
     , "exp"   : lambda cppStr,arg : "std::exp( {0} )".format(cppStr(arg))
     , "log"   : lambda cppStr,arg : "std::log( {0} )".format(cppStr(arg))
     , "log10" : lambda cppStr,arg : "std::log10( {0} )".format(cppStr(arg))
+    , "sin"  : lambda cppStr,arg : "std::sin( {0} )".format(cppStr(arg))
+    , "cos"  : lambda cppStr,arg : "std::cos( {0} )".format(cppStr(arg))
+    , "tan"  : lambda cppStr,arg : "std::tan( {0} )".format(cppStr(arg))
+    , "asin"  : lambda cppStr,arg : "std::asin( {0} )".format(cppStr(arg))
+    , "acos"  : lambda cppStr,arg : "std::acos( {0} )".format(cppStr(arg))
+    , "atan"  : lambda cppStr,arg : "std::atan( {0} )".format(cppStr(arg))
     , "max"   : lambda cppStr,a1,a2 : "std::max( {0}, {1} )".format(cppStr(a1), cppStr(a2))
     , "min"   : lambda cppStr,a1,a2 : "std::min( {0}, {1} )".format(cppStr(a1), cppStr(a2))
     #

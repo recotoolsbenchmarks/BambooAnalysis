@@ -61,6 +61,12 @@ def getJetMETVarName_postproc(nm):
                 return "btagSF_shape", "nom"
             else:
                 return "btagSF_shape", "{0}_{1}_{3}{2}".format(*nm.split("_"))
+def getPUWeightVarName_postproc(nm):
+    if nm.startswith("puWeight"):
+        if nm == "puWeight":
+            return "puWeight", "nom"
+        else:
+            return "puWeight", nm
 
 ## Attribute classes (like property) to customize the proxy classes
 
@@ -318,14 +324,19 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
 
     ## weights with variations
     if "puWeightUp" in allTreeLeafs:
-        brMap = {
-            "nom"  : tree_dict["puWeight"].op,
-            "up"   : tree_dict["puWeightUp"].op,
-            "down" : tree_dict["puWeightDown"].op
-            }
-        del tree_dict["puWeightUp"], tree_dict["puWeightDown"]
+        brMap = {}
+        toRem = []
+        for nm,nmAtt in tree_dict.items():
+            test = getPUWeightVarName_postproc(nm)
+            if test is not None:
+                attNm,varNm = test
+                brMap[normVarName(varNm)] = nmAtt.op
+                toRem.append(nm)
+        for nm in toRem:
+            del tree_dict[nm]
         brMap["nomWithSyst"] = SystAltColumnOp(brMap["nom"], "puWeight",
-            {"up" : "puWeightUp", "down" : "puWeightDown"}, valid=["up", "down"]
+            dict((var, vop.name) for var,vop in brMap.items()),
+            valid=[ var for var in brMap.keys() if var != "nom"]
             )
         varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
         addSetParentToPostConstr(varsProxy)

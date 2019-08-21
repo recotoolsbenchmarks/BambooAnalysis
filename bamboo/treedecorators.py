@@ -91,14 +91,14 @@ class varItemRefProxy(object):
     def __get__(self, inst, cls):
         return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
 
-class altProxy(object):
+class altProxy(object): ## grouped: instance has the branch map
     def __init__(self, name, op):
         self.name = name
         self.op = op
     def __get__(self, inst, cls):
         return inst.brMap.get(self.name, self.op)
 
-class altItemProxy(object):
+class altItemProxy(object): ## collection carries branch map (instance comes from collection.__getitem__)
     def __init__(self, name, op):
         self.name = name
         self.op = op
@@ -297,6 +297,22 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     tree_postconstr = []
     addSetParentToPostConstr = partial(lambda act,obj : act.append(SetAsParent(obj)), tree_postconstr)
 
+    ## weights with variations
+    if "puWeightUp" in allTreeLeafs:
+        brMap = {
+            "nom"  : tree_dict["puWeight"].op,
+            "up"   : tree_dict["puWeightUp"].op,
+            "down" : tree_dict["puWeightDown"].op
+            }
+        del tree_dict["puWeightUp"], tree_dict["puWeightDown"]
+        brMap["nomWithSyst"] = SystAltColumnOp(brMap["nom"], "puWeight",
+            {"up" : "puWeightUp", "down" : "puWeightDown"}, valid=["up", "down"]
+            )
+        varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
+        addSetParentToPostConstr(varsProxy)
+        tree_dict["_puWeight"] = varsProxy
+        nomSystProxy = varsProxy["nomWithSyst"]
+        tree_dict["puWeight"] = nomSystProxy
     ## non-collection branches to group
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_") ## TODO get this from description?
     simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_",)
@@ -332,8 +348,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             if prefix == "MET_":
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, ("pt", "phi"), attCls=altProxy, altBases=(AltLeafGroupProxy,), exclVars=("raw",), systName="jet")
             grpNm = "_{0}".format(grpNm)
-            tree_dict[grpNm] = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
-            nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
+            varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
+            addSetParentToPostConstr(varsProxy)
+            tree_dict[grpNm] = varsProxy
+            nomSystProxy = varsProxy["nomWithSyst"]
             addSetParentToPostConstr(nomSystProxy)
             tree_dict[grpNm[1:]] = nomSystProxy
         else:

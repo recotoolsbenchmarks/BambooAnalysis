@@ -335,6 +335,18 @@ class CalcCollectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
 
+class AltLeafVariations(TupleBaseProxy):
+    """ Branch with alternative names """
+    def __init__(self, parent, brMap, typeName):
+        super(AltLeafVariations, self).__init__(typeName, parent=parent)
+        self.brMap = brMap
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return self.brMap[key].result
+
 class AltLeafGroupVariations(TupleBaseProxy):
     """ Set of groups with alternative names for some branches """
     def __init__(self, parent, orig, brMapMap, altProxyType):
@@ -352,10 +364,10 @@ class AltLeafGroupVariations(TupleBaseProxy):
 class AltLeafGroupProxy(TupleBaseProxy):
     """ Group with alternative names for some branches """
     ## base class like LeafGroupProxy, but with a brMap
-    def __init__(self, parent, orig, brMap):
+    def __init__(self, parent, orig, brMap, typeName="struct"):
         self.orig = orig
         self.brMap = brMap
-        super(AltLeafGroupProxy, self).__init__("struct", parent=parent)
+        super(AltLeafGroupProxy, self).__init__(typeName, parent=parent)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.brMap)
 

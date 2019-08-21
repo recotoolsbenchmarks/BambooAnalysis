@@ -51,6 +51,9 @@ class NumberProxy(TupleBaseProxy):
         if outType is None:
             outType = self._typeName ## default: math will give same type
         return MathOp(opName, self, other, outType=outType).result
+    def _unaryOp(self, opName):
+        return MathOp(opName, self, outType=self._typeName)
+
 for nm,opNm in {
           "__add__": "add"
         , "__sub__": "subtract"
@@ -59,23 +62,36 @@ for nm,opNm in {
         }.items():
     setattr(NumberProxy, nm, functools.partialmethod(
         (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
+
 for nm in ("__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"):
     setattr(NumberProxy, nm, (lambda oN, oT : (lambda self, other : self._binaryOp(oN, other, outType=oT)))(nm.strip("_"), boolType))
+
+for name in ("__neg__",):
+    setattr(NumberProxy, name, functools.partialmethod(
+        (lambda self, oN: self._unaryOp(oN)), name.strip("_")))
+
 
 class IntProxy(NumberProxy):
     def __init__(self, parent, typeName):
         super(IntProxy, self).__init__(parent, typeName)
+
 for nm,(opNm,outType) in {
           "__truediv__" : ("floatdiv", floatType)
         , "__floordiv__": ("divide"  , None)
         , "__and__"     : ("band"    , None)
         , "__or__"      : ("bor"     , None)
-        , "__invert__"  : ("bxor"    , None)
-        , "__xor__"     : ("bnot"    , None)
+        , "__xor__"     : ("bxor"    , None)
         }.items():
     setattr(IntProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, outType))
+
+for name,opName in {
+            "__invert__": "bnot"
+        }.items():
+    setattr(IntProxy, name, functools.partialmethod(
+        (lambda self, oN: self._unaryOp(oN)), opName))
+
 
 class BoolProxy(IntProxy):
     """ Proxy for a boolean type """
@@ -83,6 +99,7 @@ class BoolProxy(IntProxy):
         super(BoolProxy, self).__init__(parent, typeName)
     def __repr__(self):
         return "BoolProxy({0!r}, {1!r})".format(self._parent, self._typeName)
+
 for nm,opNm in {
           "__and__"   : "and"
         , "__or__"    : "or"
@@ -93,15 +110,24 @@ for nm,opNm in {
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, boolType))
 
+for name,opName in {
+            "__invert__": "not"
+        }.items():
+    setattr(BoolProxy, name, functools.partialmethod(
+        (lambda self, oN: self._unaryOp(oN)), opName))
+
+
 class FloatProxy(NumberProxy):
     def __init__(self, parent, typeName):
         super(FloatProxy, self).__init__(parent, typeName)
+
 for nm,(opNm,outType) in {
           "__truediv__": ("div" , None)
         }.items():
     setattr(FloatProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, outType))
+
 
 def _hasFloat(*args):
     return any(isinstance(a, float) or isinstance(a, FloatProxy) for a in args)
@@ -126,6 +152,7 @@ class LeafGroupProxy(TupleBaseProxy):
         super(LeafGroupProxy, self).__init__("struct", parent=parent)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._prefix, self._parent)
+
 def fullPrefix(prefix, parent): ## TODO check if we actually need it (probably yes for nested)
     if parent:
         return "".join(fullPrefix(parent._prefix, parent._parent), prefix)

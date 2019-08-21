@@ -690,8 +690,8 @@ class Select(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            expr_n, args_n = _normFunArgs(expr, paramDecl, paramCall)
-            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(args_n))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Sort(TupleOp):
@@ -743,7 +743,8 @@ class Sort(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Map(TupleOp):
@@ -797,7 +798,8 @@ class Map(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Next(TupleOp):
@@ -848,7 +850,8 @@ class Next(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=SizeType, args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=SizeType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Reduce(TupleOp):
@@ -909,7 +912,8 @@ class Reduce(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=self.resultType, args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Combine(TupleOp):
@@ -981,8 +985,8 @@ class Combine(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            expr_n, args_n = _normFunArgs(expr, paramDecl, paramCall)
-            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(args_n))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 ## FIXME to be implemented

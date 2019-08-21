@@ -69,7 +69,8 @@ def switch(test, trueBranch, falseBranch):
 
     >>> op.switch(runOnMC, mySF, 1.) ## incomplete pseudocode
     """
-    return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName)
+    assert trueBranch._typeName == falseBranch._typeName
+    return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
 def extMethod(name):
     return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
 def extVar(typeName, name):

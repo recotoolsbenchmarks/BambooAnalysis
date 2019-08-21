@@ -143,12 +143,10 @@ class Plot(object):
         >>> hasTwoEl = noSel.refine(cut=(op.rng_len(t.Electron) >= 2))
         >>> mElElPlot = Plot.make1D("mElEl", op.invariant_mass(t.Electron[0].p4, t.Electron[1].p4), hasTwoEl, EquidistantBinning(80, 50., 130.), title="Invariant mass of the leading-PT electrons")
         """
-
         title = kwargs.pop("title", "")
         kwargs["axisTitles"] = (kwargs.pop("xTitle", title),)
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None),)
         return Plot(name, (adaptArg(variable),), selection, (binning,), **kwargs)
-    
     @staticmethod
     def make2D(name, variables, selection, binnings, **kwargs):
         """ Construct a 2-dimensional histogram plot
@@ -167,11 +165,9 @@ class Plot(object):
 
         :returns: the new :py:class:`~bamboo.plots.Plot` instance with a 2-dimensional histogram
         """
-        
         kwargs["axisTitles"] = (kwargs.pop("xTitle", ""), kwargs.pop("yTitle", ""))
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None))
         return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
-    
     @staticmethod
     def make3D(name, variables, selection, binnings, **kwargs):
         """ Construct a 3-dimensional histogram
@@ -192,7 +188,6 @@ class Plot(object):
 
         :returns: the new :py:class:`~bamboo.plots.Plot` instance with a 3-dimensional histogram
         """
-        
         kwargs["axisTitles"] = (kwargs.pop("xTitle", ""), kwargs.pop("yTitle", ""), kwargs.pop("zTitle", ""))
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None), kwargs.pop("zBinLabels", None))
         return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)

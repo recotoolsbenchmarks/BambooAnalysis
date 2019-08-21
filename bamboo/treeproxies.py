@@ -53,7 +53,6 @@ class NumberProxy(TupleBaseProxy):
         return MathOp(opName, self, other, outType=outType).result
     def _unaryOp(self, opName):
         return MathOp(opName, self, outType=self._typeName)
-
 for nm,opNm in {
           "__add__": "add"
         , "__sub__": "subtract"
@@ -62,14 +61,11 @@ for nm,opNm in {
         }.items():
     setattr(NumberProxy, nm, functools.partialmethod(
         (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
-
 for nm in ("__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"):
     setattr(NumberProxy, nm, (lambda oN, oT : (lambda self, other : self._binaryOp(oN, other, outType=oT)))(nm.strip("_"), boolType))
-
 for name in ("__neg__",):
     setattr(NumberProxy, name, functools.partialmethod(
         (lambda self, oN: self._unaryOp(oN)), name.strip("_")))
-
 
 class IntProxy(NumberProxy):
     def __init__(self, parent, typeName):
@@ -85,13 +81,11 @@ for nm,(opNm,outType) in {
     setattr(IntProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, outType))
-
 for name,opName in {
             "__invert__": "bnot"
         }.items():
     setattr(IntProxy, name, functools.partialmethod(
         (lambda self, oN: self._unaryOp(oN)), opName))
-
 
 class BoolProxy(IntProxy):
     """ Proxy for a boolean type """
@@ -99,7 +93,6 @@ class BoolProxy(IntProxy):
         super(BoolProxy, self).__init__(parent, typeName)
     def __repr__(self):
         return "BoolProxy({0!r}, {1!r})".format(self._parent, self._typeName)
-
 for nm,opNm in {
           "__and__"   : "and"
         , "__or__"    : "or"
@@ -109,25 +102,21 @@ for nm,opNm in {
     setattr(BoolProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, boolType))
-
 for name,opName in {
             "__invert__": "not"
         }.items():
     setattr(BoolProxy, name, functools.partialmethod(
         (lambda self, oN: self._unaryOp(oN)), opName))
 
-
 class FloatProxy(NumberProxy):
     def __init__(self, parent, typeName):
         super(FloatProxy, self).__init__(parent, typeName)
-
 for nm,(opNm,outType) in {
           "__truediv__": ("floatdiv" , None)
         }.items():
     setattr(FloatProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
         opNm, outType))
-
 
 def _hasFloat(*args):
     return any(isinstance(a, float) or isinstance(a, FloatProxy) for a in args)

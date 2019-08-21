@@ -144,11 +144,9 @@ class AnalysisModule(object):
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
-            
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
-                
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
@@ -157,7 +155,6 @@ class AnalysisModule(object):
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
-                
                 if self.args.onlypost:
                     if not os.path.exists(resultsdir):
                         raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
@@ -175,7 +172,6 @@ class AnalysisModule(object):
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
                             self.processTrees(inputs, output, **kwargs)
-                    
                     else:
                         from .batch import splitTask
                         backend = envConfig["batch"]["backend"]
@@ -215,7 +211,6 @@ class AnalysisModule(object):
                 except Exception as ex:
                     logger.exception(ex)
                     logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")
-            
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
@@ -233,15 +228,12 @@ class AnalysisModule(object):
         :param sample: sample name (key in the samples block of the configuration file)
         """
         pass
-    
     def getTasks(self, analysisCfg, **extraOpts):
         """ Get tasks from analysis configs (and args), called in for driver or sequential mode
 
         Should return a list of ``(inputs, output), kwargs, config``
         """
-        
         tasks = []
-        
         for sName, sConfig in analysisCfg["samples"].items():
             opts = dict(extraOpts)
             if "certified_lumi_file" in sConfig:
@@ -269,7 +261,6 @@ class AnalysisModule(object):
         :param resultsdir: path with the results files
         """
         pass
-    
     def interact(self):
         """ Interactive mode (load some things and embed IPython)
 
@@ -415,11 +406,9 @@ class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODModule, self).__init__(args)
-    
     @staticmethod
     def isMC(sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    
     def prepareTree(self, tree, era=None, sample=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend """
         from bamboo.treedecorators import decorateNanoAOD

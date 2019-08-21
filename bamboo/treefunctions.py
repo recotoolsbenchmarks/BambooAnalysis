@@ -70,7 +70,7 @@ def switch(test, trueBranch, falseBranch):
     >>> op.switch(runOnMC, mySF, 1.) ## incomplete pseudocode
     """
     assert trueBranch._typeName == falseBranch._typeName
-    return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName)
+    return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
 def extMethod(name):
     return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
 def extVar(typeName, name):
@@ -163,6 +163,61 @@ def log10(sth):
     >>> op.log10(t.Muon[0].p4.Pt())
     """
     return _to.MathOp("log10", sth).result
+
+def sin(sth):
+    """ Return the sine of a number
+
+    :Example:
+
+    >>> op.sin(t.Muon[0].p4.Phi())
+    """
+    return _to.MathOp("sin", sth).result
+
+def cos(sth):
+    """ Return the cosine of a number
+
+    :Example:
+
+    >>> op.cos(t.Muon[0].p4.Phi())
+    """
+    return _to.MathOp("cos", sth).result
+
+def tan(sth):
+    """ Return the tangent of a number
+
+    :Example:
+
+    >>> op.tan(t.Muon[0].p4.Phi())
+    """
+    return _to.MathOp("tan", sth).result
+
+def asin(sth):
+    """ Return the arcsine of a number
+
+    :Example:
+
+    >>> op.asin(op.c_float(3.1415))
+    """
+    return _to.MathOp("asin", sth).result
+
+def acos(sth):
+    """ Return the arccosine of a number
+
+    :Example:
+
+    >>> op.ascos(op.c_float(3.1415))
+    """
+    return _to.MathOp("acos", sth).result
+
+def atan(sth):
+    """ Return the arctangent of a number
+
+    :Example:
+
+    >>> op.atan(op.c_float(3.1415))
+    """
+    return _to.MathOp("atan", sth).result
+
 def max(a1,a2):
     """ Return the maximum of two numbers
 

@@ -131,7 +131,7 @@ class Plot(object):
         :param selection: the :py:class:`~bamboo.plots.Selection` with cuts and weights to apply
         :param binning: x-axis binning
         :param title: plot title
-        :param xTitle: x-axis title (optional, empty by default)
+        :param xTitle: x-axis title (optional, taken from plot title by default)
         :param xBinLabels: x-axis bin labels (optional)
         :param plotopts: dictionary of options to pass directly to plotIt (optional)
         :param autoSyst: automatically add systematic variations (True by default - set to False to turn off)
@@ -143,7 +143,8 @@ class Plot(object):
         >>> hasTwoEl = noSel.refine(cut=(op.rng_len(t.Electron) >= 2))
         >>> mElElPlot = Plot.make1D("mElEl", op.invariant_mass(t.Electron[0].p4, t.Electron[1].p4), hasTwoEl, EquidistantBinning(80, 50., 130.), title="Invariant mass of the leading-PT electrons")
         """
-        kwargs["axisTitles"] = (kwargs.pop("xTitle", ""),)
+        title = kwargs.pop("title", "")
+        kwargs["axisTitles"] = (kwargs.pop("xTitle", title),)
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None),)
         return Plot(name, (adaptArg(variable),), selection, (binning,), **kwargs)
     @staticmethod
@@ -283,10 +284,10 @@ class Selection(object):
              and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in izip(self.weights, other.weights) ) )
 
     def refine(self, name, cut=None, weight=None, autoSyst=True):
-        """ Create a new selection by adding a cuts and/or weight factors
+        """ Create a new selection by adding cuts and/or weight factors
 
         :param name: unique name of the new selection
-        :param cut: expression (or list of expressions) with additional selection criteria
+        :param cut: expression (or list of expressions) with additional selection criteria (combined using logical AND)
         :param weight: expression (or list of expressions) with additional weight factors
         :param autoSyst: automatically add systematic variations (True by default - set to False to turn off; note that this would also turn off automatic systematic variations for any selections and plots that derive from the one created by this method)
 

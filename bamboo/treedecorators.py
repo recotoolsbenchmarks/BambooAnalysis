@@ -4,6 +4,7 @@ and proxy classes
 User-facing module
 """
 
+from collections import defaultdict
 from functools import partial
 
 from .treeproxies import *
@@ -44,6 +45,22 @@ def normVarName(varName):
         return "{0}down".format(varName[:-4])
     else:
         return varName
+
+## TODO: make configurable
+def getJetMETVarName_postproc(nm):
+    if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) == 2:
+        return tuple(nm.split("_"))
+    elif nm.split("_")[0] == "btagSF":
+        if "shape" not in nm.split("_"):
+            if "_" not in nm:
+                return "btagSF", "nom"
+            else: ## btag SF up and down
+                return "btagSF", "{0}{1}".format(*nm.split("_"))
+        else:
+            if nm == "btagSF_shape":
+                return "btagSF_shape", "nom"
+            else:
+                return "btagSF_shape", "{0}_{1}_{3}{2}".format(*nm.split("_"))
 
 ## Attribute classes (like property) to customize the proxy classes
 
@@ -210,20 +227,22 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
-def _makeAltClassAndMaps(name, dict_orig, varAttNames, attCls=None, altBases=None, exclVars=None, getCol=lambda op : op, nomName="nom", systName=None):
-    ## collect ops of kinematic variables that change (nominal as well as varied)
-    var_atts = dict((attNm,
-        dict((nm, att.op) for nm,att in dict_orig.items() if nm.startswith("{0}_".format(attNm))))
-        for attNm in varAttNames)
-    ## redirect in altProxy
+def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="nom", exclVars=None,
+        getCol=lambda op : op, attCls=None, altBases=None): ## internal, leaf/group/collection
+    ## getVarName should return the variable and variation name (nomName for the nominal one)
+    ## if this is a systematic variation branch - otherwise None
     dict_alt = dict(dict_orig)
-    for attNm in varAttNames:
+    ## collect ops of kinematic variables that change (nominal as well as varied)
+    var_atts = defaultdict(dict)
+    for nm, nmAtt in dict_orig.items():
+        test = getVarName(nm)
+        if test is not None:
+            attNm, varNm = test
+            var_atts[attNm][normVarName(varNm)] = nmAtt.op
+            del dict_alt[nm]
+    ## redirect in altProxy
+    for attNm in var_atts.keys():
         dict_alt[attNm] = attCls(attNm, dict_orig[attNm].op)
-    for nm in chain.from_iterable(atts.keys() for atts in var_atts.values()):
-        del dict_alt[nm]
-    var_atts = dict((attNm,
-        dict((normVarName(nm[len(attNm)+1:]), att) for nm,att in atts.items()))
-        for attNm, atts in var_atts.items())
     cls_alt = type("Alt{0}Proxy".format(name), altBases, dict_alt)
     ## construct the map of maps of redirections { variation : { varName : op } }
     brMapMap = {}
@@ -239,7 +258,7 @@ def _makeAltClassAndMaps(name, dict_orig, varAttNames, attCls=None, altBases=Non
         SystAltColumnOp(
             getCol(vAtts[nomName]), systName,
             dict((var, getCol(vop).name) for var,vop in vAtts.items() if var not in exclVars),
-            valid=allVars
+            valid=[ var for var in allVars if var in vAtts ],
             ).result)
         for attNm,vAtts in var_atts.items())
     return cls_alt, brMapMap
@@ -346,7 +365,11 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             ###
         elif prefix in grp_readVar:
             if prefix == "MET_":
-                grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, ("pt", "phi"), attCls=altProxy, altBases=(AltLeafGroupProxy,), exclVars=("raw",), systName="jet")
+                grpcls_alt, brMapMap = _makeAltClassAndMaps(
+                        grpNm, grp_dict, getJetMETVarName_postproc,
+                        systName="jet", nomName="nom", exclVars=("raw",),
+                        attCls=altProxy, altBases=(AltLeafGroupProxy,)
+                        )
             grpNm = "_{0}".format(grpNm)
             varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
             addSetParentToPostConstr(varsProxy)
@@ -413,7 +436,11 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
             if sizeNm == "nJet":
-                altItemType, brMapMap = _makeAltClassAndMaps(grpNm, itm_dict, ("pt", "mass"), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,), exclVars=("raw",), getCol=(lambda att : att.op), systName="jet")
+                altItemType, brMapMap = _makeAltClassAndMaps(
+                        grpNm, itm_dict, getJetMETVarName_postproc,
+                        systName="jet", nomName="nom", exclVars=("raw",),
+                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
+                        )
 
             ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
             grpNm = "_{0}".format(grpNm)

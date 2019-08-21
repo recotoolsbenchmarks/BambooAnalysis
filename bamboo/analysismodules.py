@@ -415,13 +415,16 @@ class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODModule, self).__init__(args)
-    def isMC(self, sampleName):
+    
+    @staticmethod
+    def isMC(sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
+    
     def prepareTree(self, tree, era=None, sample=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree, isMC=self.isMC(sample))
+        t = decorateNanoAOD(tree, isMC=NanoAODHistoModule.isMC(sample))
         be, noSel = DataframeBackend.create(t)
         ## force definition of the jet variations calculator such that
         ## it can be configured by calling its member methods through t._Jet.calc

@@ -14,7 +14,7 @@ class NanoZMuMu(NanoAODHistoModule):
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
         from bamboo.analysisutils import makePileupWeight, configureJets, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
-        if self.isMC(sample):
+        if NanoAODHistoModule.isMC(sample):
             jecTag = None
             smearTag = None
             puWeightsFile = None

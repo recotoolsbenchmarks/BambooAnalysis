@@ -707,7 +707,7 @@ uncertainties to 2016 MC:
        tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
        from bamboo.analysisutils import configureJets
        if era == "2016":
-           if self.isMC(sample): # can be inferred from sample name
+           if NanoAODHistoModule.isMC(sample): # can be inferred from sample name
                configureJets(tree, "Jet", "AK4PFchs",
                    jec="Summer16_07Aug2017_V20_MC",
                    smear="Summer16_25nsV1_MC",

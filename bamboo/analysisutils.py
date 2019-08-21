@@ -403,7 +403,7 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
 
     :Example:
 
-    >>> if not NanoAODHistoModule.isMC(sample):
+    >>> if not self.isMC(sample):
     >>>     trigSel = noSel.refine("trigAndPrimaryDataset",
     >>>         cut=makeMultiPrimaryDatasetTriggerSelection(sample, {
     >>>               "DoubleMuon" : [ t.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL, t.HLT.Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL ],

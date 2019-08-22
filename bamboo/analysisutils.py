@@ -253,8 +253,11 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                 smpOpts["cross-section"] = smpCfg["cross-section"]
                 from cppyy import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
-                counters = readCounters(resultsFile)
-                smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
+                try:
+                    counters = readCounters(resultsFile)
+                    smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
+                except Exception as ex:
+                    logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpN, os.path.join(resultsdir, resultsName), ex))
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotit_plots = dict()

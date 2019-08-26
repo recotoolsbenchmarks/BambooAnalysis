@@ -86,6 +86,7 @@ class AnalysisModule(object):
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         worker.add_argument("--sample", type=str, help="Sample name (as in the samples section of the analysis configuration)")
         worker.add_argument("--era", type=str, help="Era of the sample")
+        worker.add_argument("--input", nargs="*", default="File with the list of files to read", dest="filelists")
         specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
         self.args = parser.parse_args(args)
@@ -97,12 +98,20 @@ class AnalysisModule(object):
     def initialize(self):
         """ Hook for module-specific initialization (called from the constructor after parsing arguments) """
         pass
+    @property
+    def inputs(self):
+        inputs = list(self.args.input)
+        if self.args.distributed == "worker":
+            for ifl in self.args.filelists:
+                with open(ifl) as iflf:
+                    inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
+        return inputs
     def getATree(self):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
             from cppyy import gbl
             tup = gbl.TChain(self.args.treeName)
-            tup.Add(self.args.input[0])
+            tup.Add(self.inputs[0])
             return tup, {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
             if len(self.args.input) != 1:
@@ -138,7 +147,7 @@ class AnalysisModule(object):
             if self.args.distributed == "worker":
                 if ( not self.args.output.endswith(".root") ) or os.path.isdir(self.args.output):
                     raise RuntimeError("Output for worker processes needs to be a ROOT file")
-                inputFiles = self.args.input
+                inputFiles = self.inputs
                 if self.args.maxFiles > 0 and self.args.maxFiles < len(inputFiles):
                     logger.warning("Only processing first {0:d} of {1:d} files".format(self.args.maxFiles, len(inputFiles)))
                     inputFiles = inputFiles[:self.args.maxFiles]
@@ -173,11 +182,29 @@ class AnalysisModule(object):
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
                             self.processTrees(inputs, output, **kwargs)
                     else:
-                        from .batch import splitTask
+                        ## construct the list of tasks
+                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction
+                        commArgs = ["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker"]+self.specificArgv+(["--verbose"] if self.args.verbose else [])
+                        tasks = []
+                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
+                            split = 1
+                            if tConfig and "split" in tConfig:
+                                split = tConfig["split"]
+                            if split >= 0: ## at least 1 (no splitting), at most the numer of arguments (one job per input)
+                                chunks = splitInChunks(inputs, nChunks=max(1, min(split, len(inputs))))
+                            else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
+                                chunks = splitInChunks(inputs, chunkLength=max(1, min(-split, len(inputs))))
+                            cmds = []
+                            for i,chunk in enumerate(chunks):
+                                cfn = os.path.join(workdir, "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
+                                writeFileList(chunk, cfn)
+                                cmds.append(" ".join(commArgs+[
+                                    "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
+                                    ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
+                                    ))
+                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir)))
+                        ## submit to backend
                         backend = envConfig["batch"]["backend"]
-                        tasks = [ splitTask(["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker", "--output={0}".format(output)]+self.specificArgv+
-                                            ["--{0}={1}".format(key, value) for key, value in kwargs.items()]+(["--verbose"] if self.args.verbose else []), inputs, outdir=resultsdir, config=tConfig)
-                                    for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs) ]
                         if backend == "slurm":
                             from . import batch_slurm as batchBackend
                             backendOpts = {
@@ -286,7 +313,7 @@ class HistogramsModule(AnalysisModule):
 
     def initialize(self):
         """ initialize """
-        if self.args.distributed == "worker" and len(self.args.input) == 0:
+        if self.args.distributed == "worker" and len(self.inputs) == 0:
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):

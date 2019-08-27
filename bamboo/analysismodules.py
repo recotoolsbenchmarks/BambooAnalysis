@@ -202,7 +202,7 @@ class AnalysisModule(object):
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
                                     ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
                                     ))
-                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir)))
+                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f", " > /dev/null"])))
                         ## submit to backend
                         backend = envConfig["batch"]["backend"]
                         if backend == "slurm":
@@ -231,8 +231,11 @@ class AnalysisModule(object):
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
                                 "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
-                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
-                        clusMon.collect() ## wait for batch jobs to finish and finalize
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
+                        shouldDoPostProc = clusMon.collect() ## wait for batch jobs to finish and finalize
+                        if not shouldDoPostProc:
+                            logger.error("There were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
+                            return
                 try:
                     self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:

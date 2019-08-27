@@ -163,6 +163,10 @@ class CommandListJob(CommandListJobBase):
     def commandStatus(self, command):
         return self.subjobStatus(self.commandList.index(command)+1)
 
+    def getLogFile(self, command):
+        return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self.commandList.index(command)+1))
+
+
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if batchConfig:
         if not configOpts:
@@ -189,5 +193,6 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval
             , allStatuses=SlurmJobStatus
             , activeStatuses=[SlurmJobStatus.index(stNm) for stNm in ("CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED")]
+            , failedStatuses=[SlurmJobStatus.index(stNm) for stNm in ("FAILED", "TIMEOUT", "CANCELLED")]
             , completedStatus=SlurmJobStatus.index("COMPLETED")
             )

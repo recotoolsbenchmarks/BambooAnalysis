@@ -214,15 +214,13 @@ def splitInChunks(theList, nChunks=None, chunkLength=None):
     for iStart, iStop in zip(range(0, len(theList), chunkLength), range(chunkLength, len(theList)+chunkLength, chunkLength)):
         yield islice(theList, iStart, min(iStop,N))
 
-def splitTask(commonArgs, toSplitArgs, outdir=None, config=None):
-    split = 1
-    if config and "split" in config:
-        split = config["split"]
-    if split >= 0: ## at least 1 (no splitting), at most the numer of arguments (one job per input)
-        chunks = splitInChunks(toSplitArgs, nChunks=max(1, min(split, len(toSplitArgs))))
-    else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
-        chunks = splitInChunks(toSplitArgs, chunkLength=max(1, min(-split, len(toSplitArgs))))
-    splitSplitArgs = list(list(chunk) for chunk in chunks)
-    assert sum(len(ssa) for ssa in splitSplitArgs) == len(toSplitArgs)
-    cmds = [ " ".join(commonArgs+splitArgs) for splitArgs in splitSplitArgs ]
-    return SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=outdir))
+def writeFileList(fileList, outName):
+    if os.path.isfile(outName):
+        with open(outName) as ffile:
+            ffiles = [ ln.strip() for ln in ffile if len(ln.strip()) > 0 ]
+        if sorted(ffiles) == sorted(fileList):
+            return
+        else:
+            logger.warning("Overwriting {0} with a new list of {1:d} files".format(outName, len(fileList)))
+    with open(outName, "w") as nfile:
+        nfile.write("\n".join(fileList))

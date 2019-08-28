@@ -111,7 +111,8 @@ class AnalysisModule(object):
         if self.args.distributed == "worker":
             from cppyy import gbl
             tup = gbl.TChain(self.args.treeName)
-            tup.Add(self.inputs[0])
+            if not tup.AddFile(self.inputs[0], 0):
+                raise IOError("Could not open file {}".format(fName))
             return tup, {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
             if len(self.args.input) != 1:
@@ -123,7 +124,8 @@ class AnalysisModule(object):
             logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
             from cppyy import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            tup.Add(fName)
+            if not tup.AddFile(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
             return tup, {"name": smpNm, "era": smpCfg["era"]}
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
@@ -342,7 +344,8 @@ class HistogramsModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(tree)
         for fName in inputFiles:
-            tup.Add(fName)
+            if not tup.AddFile(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
@@ -535,7 +538,8 @@ class SkimmerModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(treeName)
         for fName in inputFiles:
-            tup.Add(fName)
+            if not tup.AddFile(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)

@@ -111,6 +111,11 @@ class CommandListJob(CommandListJobBase):
 
         logger.info("Submitted, job ID is {}".format(self.clusterId))
 
+    def cancel(self):
+        """ Cancel all the jobs using scancel """
+
+        subprocess.check_call(["scancel", self.clusterId])
+
     def statuses(self, update=True):
         """ list of subjob statuses (numeric, using indices in SlurmJobStatus) """
         if update:
@@ -152,7 +157,11 @@ class CommandListJob(CommandListJobBase):
                         raise AssertionError("More than two lines in sacct... there's something wrong")
                 else:
                     if len(ret) != 0:
-                        status = ret
+                        if "CANCELLED+" in ret:
+                            # Can happen if scancel command did not have time to propagate
+                            status = "CANCELLED"
+                        else:
+                            status = ret
                     else:
                         squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
                         ret = subprocess.check_output(squeueCmdArgs).decode().strip()

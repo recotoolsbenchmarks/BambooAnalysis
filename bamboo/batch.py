@@ -9,6 +9,8 @@ import os, os.path
 import subprocess
 from datetime import datetime
 import time
+from threading import Event
+import signal
 
 class CommandListJob(object):
     """ Interface/base for 'backend' classes to create a job cluster/array from a list of commands (each becoming a subjob) """
@@ -20,6 +22,9 @@ class CommandListJob(object):
     ## interface methods
     def submit(self):
         """ Submit the job(s) """
+        pass
+    def cancel(self):
+        """ Cancel the job(s) """
         pass
     def commandOutFiles(self, command):
         """ Output files for a given command (when finished) """
@@ -243,6 +248,16 @@ class TasksMonitor(object):
         
         Returns True if every job succeeded, otherwise return False.
         """
+        
+        exitEvent = Event()
+        def exitLoop(signal, _frame):
+            resp = input("Do you really want to cancel all jobs and exit (y/n)? ")
+            if resp.lower() == "y":
+                for j in self.jobs:
+                    j.cancel()
+                exitEvent.set()
+        signal.signal(signal.SIGINT, exitLoop)
+        
         for j in self.jobs:
             j.updateStatuses()
         self._tryFinalize()
@@ -252,8 +267,8 @@ class TasksMonitor(object):
             if wait:
                 time.sleep(wait)
             stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
-            while len(self.activeTasks) > 0 and sum(stats[sa] for sa in self.activeStatuses) > 0:
-                time.sleep(self.interval)
+            while len(self.activeTasks) > 0 and sum(stats[sa] for sa in self.activeStatuses) > 0 and not exitEvent.is_set():
+                exitEvent.wait(self.interval)
                 prevStats = stats
                 stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
                 logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))

@@ -88,6 +88,8 @@ class CommandListJob(CommandListJobBase):
         """ Output files for a given command """
         import fnmatch
         cmdOutDir = self._commandOutDir(command)
+        if not os.path.isdir(cmdOutDir):
+            os.mkdir(cmdOutDir)
         return list( os.path.join(cmdOutDir, fn) for fn in os.listdir(cmdOutDir)
                 if any( fnmatch.fnmatch(fn, pat) for pat in self.cfg.stageoutFiles) )
 

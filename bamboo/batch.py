@@ -43,6 +43,7 @@ class CommandListJob(object):
         pass
     def getLogFile(self, command):
         """ get path to log file corresponding to the given command """
+        pass
 
     ## helper methods
     @staticmethod
@@ -86,7 +87,7 @@ class SplitAggregationTask(object):
         self._jobCluster = None
         self.commandList = commandList
         self.finalizeAction = finalizeAction
-        self.failedCommands = set()
+        self.failedCommands = []
     @property
     def jobCluster(self):
         return self._jobCluster
@@ -98,21 +99,41 @@ class SplitAggregationTask(object):
         if self.finalizeAction: ## pass it on
             self.finalizeAction.jobCluster = jobCluster
 
-    def tryFinalize(self, failedStatuses):
+    def tryFinalize(self, completedStatus, failedStatuses=None):
         """Return True if all jobs have finished running (either failed or completed)"""
-        if self.jobCluster:
-            self.failedCommands.update(cmd for cmd in self.commandList if self.jobCluster.commandStatus(cmd).upper() in failedStatuses)
-            if len(self.failedCommands) == len(self.commandList):
-                return True
-            if all(self.jobCluster.commandStatus(cmd).upper() == "COMPLETED" for cmd in self.commandList):
+        if not self.jobCluster:
+            return False
+        
+        nFailed, nSuccess = 0, 0
+        for cmd in self.commandList:
+            cmdStatus = self.jobCluster.commandStatus(cmd).upper()
+            if failedStatuses and cmdStatus in failedStatuses:
+                nFailed += 1
+                if cmd not in self.failedCommands:
+                    logger.error("Batch job failed for the command {0}".format(cmd))
+                    logger.error("The corresponding log file is in {0}".format(self.jobCluster.getLogFile(cmd)))
+                    self.failedCommands.append(cmd)
+            elif cmdStatus == completedStatus:
+                nSuccess += 1
+        
+        if nSuccess + nFailed == len(self.commandList):
+            if nSuccess == len(self.commandList):
                 if self.finalizeAction:
                     self.finalizeAction.perform()
-                return True
+            else:
+                if self.finalizeAction:
+                    self.failedCommands += [ " ".join(action) for action in self.finalizeAction.getActions() ]
+                logger.error("Task failed, the following commands return a non-zero exit code, or could not be run:\n{0}".format("\n".join(self.failedCommands)))
+            return True
+
         return False
 
 class Action(object):
     """ interface for job finalization """
-    def perform(self, dryRun=False):
+    def getActions(self):
+        """ interface method """
+        pass
+    def perform(self):
         """ interface method """
         return False
 
@@ -125,25 +146,18 @@ class HaddAction(Action):
         self.outDir = outDir
         self.options = options if options is not None else []
         super(HaddAction, self).__init__()
-    def perform(self, dryRun=False):
-        """ Perform actual hadd/move. If dryRun is True, do not call the commands but just print them."""
+    
+    def getActions(self):
+        """ Get list of commands to be run """
+
         if len(self.commandList) == 0:   ## nothing
-            return
+            return []
         elif len(self.commandList) == 1: ## move
             cmd = self.commandList[0]
             for outf in self.jobCluster.commandOutFiles(cmd):
-                action = ["mv", outf, self.outDir]
-                if not dryRun:
-                    logger.info("Finalization: moving output file {0} to {1}".format(outf, self.outDir))
-                    try:
-                        subprocess.check_call(action)
-                    except subprocess.CalledProcessError:
-                        logger.error("Failed to run the finalization command:")
-                        logger.error(" ".join(action))
-                else:
-                    logger.error("Not performing finalization with command:")
-                    logger.error(" ".join(action))
+                return [ ["mv", outf, self.outDir] ]
         else:                            ## merge
+            actions = []
             ## collect for each output file name which jobs produced one
             filesToMerge = dict()
             for cmd in self.commandList:
@@ -155,17 +169,20 @@ class HaddAction(Action):
 
             for outfb, outfin in filesToMerge.items():
                 fullout = os.path.join(self.outDir, outfb)
-                action = ["hadd"]+self.options+[fullout]+outfin
-                if not dryRun:
-                    logger.info("Finalization: merging {0} to {1}".format(", ".join(outfin), fullout))
-                    try:
-                        subprocess.check_call(action, stdout=subprocess.DEVNULL)
-                    except subprocess.CalledProcessError:
-                        logger.error("Failed to run the finalization command:")
-                        logger.error(" ".join(action))
-                else:
-                    logger.error("Not performing finalization with command:")
-                    logger.error(" ".join(action))
+                actions.append(["hadd"]+self.options+[fullout]+outfin)
+            return actions
+    
+    def perform(self):
+        """ Perform actual hadd/move."""
+        
+        for action in self.getActions():
+            logger.info("Finalization: calling {}".format(action))
+            try:
+                stdout = subprocess.DEVNULL if "hadd" in action else None
+                subprocess.check_call(action, stdout=stdout)
+            except subprocess.CalledProcessError:
+                logger.error("Failed to run the finalization command:")
+                logger.error(" ".join(action))
 
 class TasksMonitor(object):
     """ Monitor a number of tasks and the associated job clusters """
@@ -201,11 +218,20 @@ class TasksMonitor(object):
     def formatStats(stats, allStatuses):
         return "{0} / {1:d} Total".format(", ".join("{0:d} {1}".format(n,nm) for n,nm in zip(stats, allStatuses)), sum(stats))
 
+    def _shouldTryFinalize(self, prevStats, stats):
+        """ determine if finalization should be tried: has any job finished (either successfully or not?) """
+        if stats[self.completedStatus] > prevStats[self.completedStatus]:
+            return True
+        for st in self.failedStatuses:
+            if stats[st] > prevStats[st]:
+                return True
+        return False
+
     def _tryFinalize(self):
         """ try to finalize tasks """
         finalized = []
         for t in self.activeTasks:
-            if t.tryFinalize([ self.allStatuses[i] for i in self.failedStatuses ]):
+            if t.tryFinalize(self.allStatuses[self.completedStatus], [ self.allStatuses[i] for i in self.failedStatuses ]):
                 finalized.append(t) ## don't change while iterating
         for ft in finalized:
             self.activeTasks.remove(ft)
@@ -214,9 +240,9 @@ class TasksMonitor(object):
 
     def collect(self, wait=None):
         """ Wait for the jobs to finish, then finalize tasks.
+        
         Returns True if every job succeeded, otherwise return False.
         """
-        shouldDoPostProc = True
         for j in self.jobs:
             j.updateStatuses()
         self._tryFinalize()
@@ -231,22 +257,20 @@ class TasksMonitor(object):
                 prevStats = stats
                 stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
                 logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))
-                if stats[self.completedStatus] > prevStats[self.completedStatus]:
+                if self._shouldTryFinalize(prevStats, stats):
                     self._tryFinalize()
         # Check for failed tasks, print manual recovering actions:
-        for task in self.tasks:
-            if task.failedCommands:
-                shouldDoPostProc = False
-                logger.error("The following commands failed to run:")
-                for cmd in task.failedCommands:
-                    logger.error(cmd)
-                logger.error("The job logs are in:")
-                for cmd in task.failedCommands:
-                    logger.error(task.jobCluster.getLogFile(cmd))
-                if task.finalizeAction:
-                    logger.error("The corresponding finalization command is:")
-                    task.finalizeAction.perform(dryRun=True)
-        return shouldDoPostProc
+        if any(task.failedCommands for task in self.tasks):
+            logFiles = "\n".join(
+                task.jobCluster.getLogFile(cmd) for task in self.tasks 
+                    for cmd in task.failedCommands if cmd in task.commandList
+                )
+            logger.error("Some tasks failed to run. The log files of the failed batch jobs are:\n{0}".format(logFiles))
+            logger.error("The full list of commands that failed or was not run is:\n{0}".format(
+                "\n".join(cmd for task in self.tasks for cmd in task.failedCommands)))
+            return False
+
+        return True
 
 def splitInChunks(theList, nChunks=None, chunkLength=None):
     if ( nChunks is None ) == ( chunkLength is None ):

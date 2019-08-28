@@ -111,7 +111,7 @@ class AnalysisModule(object):
         if self.args.distributed == "worker":
             from cppyy import gbl
             tup = gbl.TChain(self.args.treeName)
-            if not tup.AddFile(self.inputs[0], 0):
+            if not tup.Add(self.inputs[0], 0):
                 raise IOError("Could not open file {}".format(fName))
             return tup, {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
@@ -124,7 +124,7 @@ class AnalysisModule(object):
             logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
             from cppyy import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            if not tup.AddFile(fName, 0):
+            if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
             return tup, {"name": smpNm, "era": smpCfg["era"]}
         else:
@@ -344,7 +344,7 @@ class HistogramsModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(tree)
         for fName in inputFiles:
-            if not tup.AddFile(fName, 0):
+            if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
@@ -538,7 +538,7 @@ class SkimmerModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(treeName)
         for fName in inputFiles:
-            if not tup.AddFile(fName, 0):
+            if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:

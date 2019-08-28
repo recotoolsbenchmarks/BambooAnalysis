@@ -159,7 +159,7 @@ class HaddAction(Action):
                 if not dryRun:
                     logger.info("Finalization: merging {0} to {1}".format(", ".join(outfin), fullout))
                     try:
-                        subprocess.check_call(action)
+                        subprocess.check_call(action, stdout=subprocess.DEVNULL)
                     except subprocess.CalledProcessError:
                         logger.error("Failed to run the finalization command:")
                         logger.error(" ".join(action))

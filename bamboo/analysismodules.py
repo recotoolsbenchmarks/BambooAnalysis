@@ -204,7 +204,7 @@ class AnalysisModule(object):
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
                                     ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
                                     ))
-                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f", " > /dev/null"])))
+                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
                         ## submit to backend
                         backend = envConfig["batch"]["backend"]
                         if backend == "slurm":

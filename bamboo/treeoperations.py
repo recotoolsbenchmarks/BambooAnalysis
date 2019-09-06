@@ -670,7 +670,7 @@ class Select(TupleOp):
         res = Select(adaptArg(rng._idxs), predExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
-        return SelectionProxy(rng._base, res)
+        return SelectionProxy(rng._base, res, valueType=rng.valueType)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
@@ -723,7 +723,7 @@ class Sort(TupleOp):
         res = Sort(adaptArg(rng._idxs), funExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
-        return SelectionProxy(rng._base, res)
+        return SelectionProxy(rng._base, res, valueType=rng.valueType)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.funExpr):

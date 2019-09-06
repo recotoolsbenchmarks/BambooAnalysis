@@ -323,10 +323,10 @@ class VectorProxy(ObjectProxy,ListBase):
 
 class SelectionProxy(TupleBaseProxy,ListBase):
     """ Proxy for a selection from an iterable (ContainerGroup/ other selection etc.) """
-    def __init__(self, base, parent): ## 'parent' is a Select or Sort TupleOp
+    def __init__(self, base, parent, valueType=None): ## 'parent' is a Select or Sort TupleOp
         ListBase.__init__(self)
         self._base = base
-        self.valueType = self._base.valueType
+        self.valueType = valueType if valueType else self._base.valueType
         ## the list of indices is stored as the parent
         super(SelectionProxy, self).__init__(self.valueType, parent=parent)
     @property
@@ -334,10 +334,16 @@ class SelectionProxy(TupleBaseProxy,ListBase):
         return self._parent.result
     def __getitem__(self, index):
         return self._getItem(self._idxs[index])
+    def _getItem(self, baseIndex):
+        itm = self._base[baseIndex]
+        if self.valueType and self.valueType != self._base.valueType:
+            return self.valueType(itm._parent, itm._idx)
+        else:
+            return itm
     def __len__(self):
         return self._idxs.__len__()
     def __repr__(self):
-        return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
+        return "SelectionProxy({0!r}, {1!r}, valueType={2!r})".format(self._base, self._parent, self.valueType)
 
 class SliceProxy(TupleBaseProxy,ListBase):
     """ Proxy for part of an iterable (ContainerGroup/selection etc.) """
@@ -346,7 +352,7 @@ class SliceProxy(TupleBaseProxy,ListBase):
         self._base = base
         self._begin = begin
         self._end = end
-        self.valueType = valueType
+        self.valueType = valueType if valueType else base.valueType
         super(SliceProxy, self).__init__(self.valueType, parent=parent)
     @property
     def _idxs(self):
@@ -356,7 +362,7 @@ class SliceProxy(TupleBaseProxy,ListBase):
         return self._getItem(self._begin+index)
     def _getItem(self, baseIndex):
         itm = self._base[baseIndex]
-        if self.valueType is not None:
+        if self.valueType and self.valueType != self._base.valueType:
             return self.valueType(itm._parent, itm._idx)
         return itm
     def __len__(self):

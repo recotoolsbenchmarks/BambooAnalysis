@@ -296,6 +296,12 @@ def deltaPhi(a1, a2):
     >>> elelDphi = op.deltaPhi(t.Electron[0].p4, t.Electron[1].p4)
     """
     return extMethod("ROOT::Math::VectorUtil::DeltaPhi")(a1, a2)
+def Phi_mpi_pi(a):
+    """ Return an angle between -pi and pi """
+    return extMethod("ROOT::Math::VectorUtil::Phi_mpi_pi")(a)
+def Phi_0_2pi(a):
+    """ Return an angle between 0 and 2*pi """
+    return extMethod("ROOT::Math::VectorUtil::Phi_0_2pi")(a)
 def deltaR(a1, a2):
     """ Calculate the Delta R distance (using ``ROOT::Math::VectorUtil::DeltaR``)
 

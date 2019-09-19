@@ -11,6 +11,7 @@ from datetime import datetime
 import time
 from threading import Event
 import signal
+from collections import defaultdict
 
 class CommandListJob(object):
     """ Interface/base for 'backend' classes to create a job cluster/array from a list of commands (each becoming a subjob) """
@@ -126,9 +127,9 @@ class SplitAggregationTask(object):
                 if self.finalizeAction:
                     self.finalizeAction.perform()
             else:
-                if self.finalizeAction:
-                    self.failedCommands += [ " ".join(action) for action in self.finalizeAction.getActions() ]
                 logger.error("Task failed, the following commands return a non-zero exit code, or could not be run:\n{0}".format("\n".join(self.failedCommands)))
+                if self.finalizeAction:
+                    logger.error("Skipping finalization step since there were failed commands.")
             return True
 
         return False
@@ -181,7 +182,7 @@ class HaddAction(Action):
         """ Perform actual hadd/move."""
         
         for action in self.getActions():
-            logger.info("Finalization: calling {}".format(action))
+            logger.info("Finalization: calling {}".format(" ".join(action)))
             try:
                 stdout = subprocess.DEVNULL if "hadd" in action else None
                 subprocess.check_call(action, stdout=stdout)
@@ -248,6 +249,8 @@ class TasksMonitor(object):
         
         Returns True if every job succeeded, otherwise return False.
         """
+
+        collectResult = { "success": True }
         
         exitEvent = Event()
         def exitLoop(signal, _frame):
@@ -274,18 +277,26 @@ class TasksMonitor(object):
                 logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))
                 if self._shouldTryFinalize(prevStats, stats):
                     self._tryFinalize()
-        # Check for failed tasks, print manual recovering actions:
+        # Check for failed tasks, retrieve all failed commands:
         if any(task.failedCommands for task in self.tasks):
             logFiles = "\n".join(
                 task.jobCluster.getLogFile(cmd) for task in self.tasks 
                     for cmd in task.failedCommands if cmd in task.commandList
                 )
             logger.error("Some tasks failed to run. The log files of the failed batch jobs are:\n{0}".format(logFiles))
+            failedCommands = [ cmd for task in self.tasks for cmd in task.failedCommands ]
             logger.error("The full list of commands that failed or was not run is:\n{0}".format(
-                "\n".join(cmd for task in self.tasks for cmd in task.failedCommands)))
-            return False
+                "\n".join(failedCommands)))
+            collectResult["success"] = False
+            collectResult["failedCommands"] = failedCommands
+            failedCommandsPerCluster = defaultdict(list)
+            for task in self.tasks:
+                failedCommandsPerCluster[task.jobCluster] += task.failedCommands
+            resubmitCommands = [ cluster.getResubmitCommand(commands) for cluster,commands in failedCommandsPerCluster.items() ]
+            logger.error("Resubmitting the failed jobs can be done by running:\n{0}".format("\n".join(" ".join(cmd) for cmd in resubmitCommands)))
+            collectResult["resubmitCommands"] = resubmitCommands
 
-        return True
+        return collectResult
 
 def splitInChunks(theList, nChunks=None, chunkLength=None):
     if ( nChunks is None ) == ( chunkLength is None ):

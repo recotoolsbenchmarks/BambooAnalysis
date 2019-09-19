@@ -177,6 +177,16 @@ class CommandListJob(CommandListJobBase):
     def getLogFile(self, command):
         return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self.commandList.index(command)+1))
 
+    def getResubmitCommand(self, failedCommands):
+        commandArray = [ str(self.commandList.index(cmd)+1) for cmd in failedCommands ]
+        sbatchOpts = [
+              "--array={}".format(",".join(commandArray))
+            , "--partition={}".format(self.cfg.sbatch_partition)
+            , "--qos={}".format(self.cfg.sbatch_qos)
+            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        return ["sbatch"]+sbatchOpts+[self.slurmScript]
+
+
 
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if batchConfig:

@@ -14,6 +14,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os.path
+import re
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
@@ -234,9 +235,19 @@ class AnalysisModule(object):
                                 "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
                         clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
-                        shouldDoPostProc = clusMon.collect() ## wait for batch jobs to finish and finalize
-                        if not shouldDoPostProc:
+                        collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
+                        if not collectResult["success"]:
                             logger.error("There were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
+                            # Print missing hadd actions to be done when (if) those recovery jobs succeed
+                            filesToMerge = set()
+                            for cmd in collectResult["failedCommands"]:
+                                result = re.search(r'--output=(.*)\.root', cmd)
+                                if result is not None:
+                                    filesToMerge.add(result.group(1) + ".root")
+                            haddCmds = []
+                            for outputFile in filesToMerge:
+                                haddCmds.append("hadd {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
+                            logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
                             return
                 try:
                     self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)

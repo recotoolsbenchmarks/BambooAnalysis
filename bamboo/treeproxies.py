@@ -74,6 +74,7 @@ class IntProxy(NumberProxy):
 for nm,(opNm,outType) in {
           "__truediv__" : ("floatdiv", floatType)
         , "__floordiv__": ("divide"  , None)
+        , "__mod__"     : ("mod"     , None)
         , "__and__"     : ("band"    , None)
         , "__or__"      : ("bor"     , None)
         , "__xor__"     : ("bxor"    , None)

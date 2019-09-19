@@ -88,6 +88,7 @@ class AnalysisModule(object):
         worker.add_argument("--sample", type=str, help="Sample name (as in the samples section of the analysis configuration)")
         worker.add_argument("--era", type=str, help="Era of the sample")
         worker.add_argument("--input", nargs="*", default="File with the list of files to read", dest="filelists")
+        worker.add_argument("--anaConfig", type=str, default=None, help="Analysis description yml file provided to the driver")
         specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
         self.args = parser.parse_args(args)
@@ -155,6 +156,8 @@ class AnalysisModule(object):
                     logger.warning("Only processing first {0:d} of {1:d} files".format(self.args.maxFiles, len(inputFiles)))
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
+                if self.args.anaConfig:
+                    self.analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
@@ -162,8 +165,8 @@ class AnalysisModule(object):
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
-                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
+                self.analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                tasks = self.getTasks(self.analysisCfg, tree=self.analysisCfg.get("tree", "Events"))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
@@ -187,7 +190,12 @@ class AnalysisModule(object):
                     else:
                         ## construct the list of tasks
                         from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction
-                        commArgs = ["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker"]+self.specificArgv+(["--verbose"] if self.args.verbose else [])
+                        commArgs = [
+                              "bambooRun"
+                            , "--module={0}".format(modAbsPath(self.args.module))
+                            , "--distributed=worker"
+                            , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
+                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else [])
                         tasks = []
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             split = 1
@@ -250,7 +258,7 @@ class AnalysisModule(object):
                             logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             return
                 try:
-                    self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
+                    self.postProcess(taskArgs, config=self.analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
                     logger.exception(ex)
                     logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")

@@ -75,13 +75,13 @@ def multiSwitch(*args):
 
     :Example:
 
-    >>> op.multiSwitch((lepton.pt > 15 && op.abs(lepton.eta) < 2.1, 5.), (lepton.pt > 30, 4.), 3.)
+    >>> op.multiSwitch((lepton.pt > 30, 4.), (lepton.pt > 15 && op.abs(lepton.eta) < 2.1, 5.), 3.)
 
     is equivalent to:
 
-    >>> if lepton.pt > 15 and abs(lepton.eta) < 2.1:
+    >>> if lepton.pt > 30:
     >>>     return 5.
-    >>> elif lepton.pt > 30:
+    >>> elif lepton.pt > 15 and abs(lepton.eta) < 2.1:
     >>>     return 4.
     >>> else:
     >>>     return 3.
@@ -89,7 +89,7 @@ def multiSwitch(*args):
     if len(args) == 1:
         return args[0]
     else:
-        return switch(args[0][0], args[0][1], multiSwitch(args[1:]))
+        return switch(args[0][0], args[0][1], multiSwitch(*(args[1:])))
 def extMethod(name):
     return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
 def extVar(typeName, name):

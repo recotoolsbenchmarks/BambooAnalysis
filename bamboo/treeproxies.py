@@ -58,6 +58,10 @@ for nm,opNm in {
         , "__sub__": "subtract"
         , "__mul__": "multiply"
         , "__pow__": "pow"
+        , "__radd__": "add"
+        , "__rsub__": "subtract"
+        , "__rmul__": "multiply"
+        , "__rpow__": "rpow"
         }.items():
     setattr(NumberProxy, nm, functools.partialmethod(
         (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
@@ -70,13 +74,18 @@ for name in ("__neg__",):
 class IntProxy(NumberProxy):
     def __init__(self, parent, typeName):
         super(IntProxy, self).__init__(parent, typeName)
-
 for nm,(opNm,outType) in {
           "__truediv__" : ("floatdiv", floatType)
         , "__floordiv__": ("divide"  , None)
         , "__and__"     : ("band"    , None)
         , "__or__"      : ("bor"     , None)
         , "__xor__"     : ("bxor"    , None)
+        , "__rtruediv__" : ("floatdiv", floatType)
+        , "__rfloordiv__": ("divide"  , None)
+        , "__rmod__"     : ("mod"     , None)
+        , "__rand__"     : ("band"    , None)
+        , "__ror__"      : ("bor"     , None)
+        , "__rxor__"     : ("bxor"    , None)
         }.items():
     setattr(IntProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
@@ -98,6 +107,9 @@ for nm,opNm in {
         , "__or__"    : "or"
         , "__invert__": "not"
         , "__xor__"   : "ne"
+        , "__rand__"   : "and"
+        , "__ror__"    : "or"
+        , "__rxor__"   : "ne"
         }.items():
     setattr(BoolProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
@@ -113,6 +125,7 @@ class FloatProxy(NumberProxy):
         super(FloatProxy, self).__init__(parent, typeName)
 for nm,(opNm,outType) in {
           "__truediv__": ("floatdiv" , None)
+        , "__rtruediv__": ("floatdiv" , None)
         }.items():
     setattr(FloatProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),

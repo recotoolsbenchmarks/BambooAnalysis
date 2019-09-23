@@ -61,7 +61,6 @@ def OR(*args):
         return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0]))
     else:
         return _to.MathOp("or", *args, outType=_tp.boolType).result
-
 def switch(test, trueBranch, falseBranch):
     """ Pick one or another value, based on a third one (ternary operator in C++)
 
@@ -71,6 +70,26 @@ def switch(test, trueBranch, falseBranch):
     """
     assert trueBranch._typeName == falseBranch._typeName
     return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
+def multiSwitch(*args):
+    """ Construct arbitrary-length switch (if-elif-elif-...-else sequence)
+
+    :Example:
+
+    >>> op.multiSwitch((lepton.pt > 15 && op.abs(lepton.eta) < 2.1, 5.), (lepton.pt > 30, 4.), 3.)
+
+    is equivalent to:
+
+    >>> if lepton.pt > 15 and abs(lepton.eta) < 2.1:
+    >>>     return 5.
+    >>> elif lepton.pt > 30:
+    >>>     return 4.
+    >>> else:
+    >>>     return 3.
+    """
+    if len(args) == 1:
+        return args[0]
+    else:
+        return switch(args[0][0], args[0][1], multiSwitch(args[1:]))
 def extMethod(name):
     return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
 def extVar(typeName, name):

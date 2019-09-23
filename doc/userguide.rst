@@ -529,7 +529,7 @@ the first key is a tag (as an example: "electron_2015_76", for electrons in
 2015 data, analysed with a ``CMSSW_7_6_X`` release) and the second key is an
 identifier of the selection they correspond to (e.g. ``id_loose``).
 The value inside this dictionary can be either a single path to a JSON file,
-or a list of ``(period, path)`` pairs, in case scalefactors for different
+or a list of ``(periods, path)`` pairs, where ``periods`` is a list of run periods, in case scalefactors for different
 running periods need to be combined (the ``periods`` keyword argument to
 :py:meth:`~bamboo.scalefactors.get_scalefactor` can be used to select only
 a certain set of these periods).
@@ -595,6 +595,8 @@ instances with
  deepBLooseSF = get_scalefactor("jet", ("btag_2016_94", "DeepJet_loose"), additionalVariables=deepFlavB_discriVar, systName="bTag")
  hasTwoElTwoB = hasTwoEl.refine("hasTwoElTwoB", cut=[ op.rng_len(bJets) > 1 ],
                   weight=[ deepBLooseSF(bJets[0]), deepBLooseSF(bJets[1]) ])
+
+Note that the user is responsible for making sure that the weights are only applied to simulated events, and not to real data!
 
 .. _ugrecipepureweighting:
 

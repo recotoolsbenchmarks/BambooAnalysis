@@ -257,7 +257,7 @@ mathOpFuns_cppStr = {
     , "max"   : lambda cppStr,a1,a2 : "std::max( {0}, {1} )".format(cppStr(a1), cppStr(a2))
     , "min"   : lambda cppStr,a1,a2 : "std::min( {0}, {1} )".format(cppStr(a1), cppStr(a2))
     #
-    , "switch" : lambda cppStr,test,trueBr,falseBr : "( {0} ) ? ( {1} ) : ( {2} )".format(cppStr(test), cppStr(trueBr), cppStr(falseBr))
+    , "switch" : lambda cppStr,test,trueBr,falseBr : "( ( {0} ) ? ( {1} ) : ( {2} ) )".format(cppStr(test), cppStr(trueBr), cppStr(falseBr))
     }
 
 class MathOp(TupleOp):

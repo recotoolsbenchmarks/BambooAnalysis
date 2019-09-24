@@ -804,7 +804,7 @@ corrected muons are in ``tree.Muon``.
    class MyAnalysisModule(NanoAODHistoModule):
        def __init__(self, args):
            super(MyAnalysisModule, self).__init__(args)
-           self.calcToAdd.append("nJet")
+           self.calcToAdd.append("nMuon")
        def prepareTree(self, tree, era=None, sample=None):
            tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
            from bamboo.analysisutils import configureRochesterCorrection

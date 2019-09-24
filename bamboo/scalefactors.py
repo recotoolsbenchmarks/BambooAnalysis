@@ -20,17 +20,34 @@ from . import treefunctions as op
 
 #: Integrated luminosity (in 1/pb) per data taking period
 lumiPerPeriod_default = {
-      "Run2016B" : 5785.152 ## averaged 5783.740 (DoubleMuon), 5787.976 (DoubleEG) and 5783.740 (MuonEG) - max dev. from average is 5.e-4 << lumi syst
-    , "Run2016C" : 2573.399
-    , "Run2016D" : 4248.384
-    , "Run2016E" : 4009.132
-    , "Run2016F" : 3101.618
-    , "Run2016G" : 7540.488
-    , "Run2016H" : 8605.689
-    ##
+    ## 2017 - using approved normtag + 07Aug2017 re-reco golden JSON
+      "Run2016B" : 5750.491
+    , "Run2016C" : 2572.903
+    , "Run2016D" : 4242.292
+    , "Run2016E" : 4025.228
+    , "Run2016F" : 3104.509
+    , "Run2016G" : 7575.824
+    , "Run2016H" : 8650.628
+    # hww muon periods
     , "Run271036to275783" : 6274.191
     , "Run275784to276500" : 3426.131
     , "Run276501to276811" : 3191.207
+
+    ## 2017 - using approved normtag + re-reco golden JSON
+    , "Run2017B" : 4793.970
+    , "Run2017C" : 9632.746
+    , "Run2017D" : 4247.793
+    , "Run2017E" : 9314.581
+    , "Run2017F" : 13540.062
+    
+    ## 2018 - using approved normtag + re-reco golden JSON
+    , "Run2018A" : 14027.614
+    , "Run2018B" : 7066.552
+    , "Run2018C" : 6898.817
+    , "Run2018D" : 31747.582
+    # before/after muon HLT update (during 2018A)
+    , "Run315264to316360" : 8928.970
+    , "Run316361to325175" : 50789.746
     }
 
 
@@ -83,16 +100,18 @@ class ScaleFactor(object):
             expr._parent = ScaleFactorWithSystOp(expr._parent, self._systName)
         return expr
 
-def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=lumiPerPeriod_default, getFlavour=None, systName=None):
+def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
     :param key: key in ``sfLib`` (or tuple of keys, in case of a nested dictionary)
-    :param periods: data taking periods to consider when combining different scalefactors
-    :param combine: combination strategy (``"weight"`` or ``"sample"``)
+    :param sfLib: dictionary (or nested dictionary) of scale factors. A scale factor entry is either a path to a JSON file, or a list of pairs ``(periods, path)``, where ``periods`` is a list of periods found in ``lumiPerPeriod`` and ``path`` is a path to the JSON file with the scale factors corresponding to those run periods.
+    :param combine: combination strategy for combining different run periods (``"weight"`` or ``"sample"``)
     :param paramDefs: dictionary of binning variable definitions (name to callable)
     :param additionalVariables: additional binning variable definitions (TODO: remove)
     :param lumiPerPeriod: alternative definitions and relative weights of run periods
+    :param periods: Only combine scale factors for those periods
+    :param isElectron: if True, will use supercluster eta instead of eta (for ``"lepton"`` type only) (TODO: find a better way of doing that)
     :param systName: name of the associated systematic nuisance parameter
 
     :returns: a callable that takes ``(object, variation="Nominal")`` and returns a floating-point number proxy
@@ -110,13 +129,6 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
         mainKey = key
         config = sfLib[key]
 
-    if periods is None:
-        if "2016" in mainKey:
-            periods = [ "Run2016{0}".format(ltr) for ltr in "BCDEFGH" ]
-        else: ## TODO similar for 2017, 2018
-            periods = []
-    periods = set(periods)
-    
     if combine is not None:
         combPrefix = { "weight" : "W"
                      , "sample" : "Smp" }.get(combine, "W")
@@ -125,12 +137,16 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
         getFlavour = lambda j : j.hadronFlavor
     getFlavour = partial(lambda getter, j : op.extMethod("IJetScaleFactor::get_flavour")(getter(j)), getFlavour)
 
+    lumiPerPeriod_default.update(lumiPerPeriod)
+    lumiPerPeriod = lumiPerPeriod_default
+    if periods is None:
+        periods = lumiPerPeriod.keys()
+
     ##
     ## Construct scalefactors
     ##
     if objType == "lepton":
         iface = "ILeptonScaleFactor"
-        isElectron = (key[0].split("_")[0] == "electron")
         if isinstance(config, str):
             return ScaleFactor(cppDef='const ScaleFactor <<name>>{{"{0}"}};'.format(config),
                     args=(getBinningParameters(getBinningVarNames(config), isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
@@ -187,8 +203,8 @@ def get_scalefactor(objType, key, periods=None, combine=None, additionalVariable
                 if combPrefix == "":
                     raise ValueError("A combination mode needs to be specified for this scale factor")
                 selConfigs = list(filter((lambda elm : elm[0] != 0.), # only keep those with nonzero lumi
-                    ((sum(lumiPerPeriod[ier] for ier in eras if ier in periods),paths)
-                        for eras,paths in config if any(ier in periods for ier in eras))))
+                    ((sum(lumiPerPeriod[ier] for ier in eras if ier in periods),path)
+                        for eras,path in config if any(ier in periods for ier in eras))))
                 if len(selConfigs) < 1:
                     raise RuntimeError("Zero configs")
                 elif len(selConfigs) == 1:

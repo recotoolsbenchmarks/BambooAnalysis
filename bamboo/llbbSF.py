@@ -80,8 +80,8 @@ all_scalefactors = {
         )
     }
 
-def get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict()):
-    return scalefactors.get_scalefactor(objType, key, periods=None, combine=None, additionalVariables=dict(), sfLib=all_scalefactors, paramDefs=binningVariables)
+def get_scalefactor(objType, key, combine=None, periods=None, isElectron=False, additionalVariables=dict()):
+    return scalefactors.get_scalefactor(objType, key, combine=combine, periods=periods, additionalVariables=dict(), sfLib=all_scalefactors, paramDefs=binningVariables, isElectron=isElectron)
 
 if __name__ == "__main__":
     lSF = get_scalefactors("lepton", ("muon_2016_80", "iso_loose_id_loose"), combine="weight")

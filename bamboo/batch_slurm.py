@@ -88,6 +88,8 @@ class CommandListJob(CommandListJobBase):
         """ Output files for a given command """
         import fnmatch
         cmdOutDir = self._commandOutDir(command)
+        if not os.path.isdir(cmdOutDir):
+            os.mkdir(cmdOutDir)
         return list( os.path.join(cmdOutDir, fn) for fn in os.listdir(cmdOutDir)
                 if any( fnmatch.fnmatch(fn, pat) for pat in self.cfg.stageoutFiles) )
 
@@ -108,6 +110,11 @@ class CommandListJob(CommandListJobBase):
             f.write(self.clusterId)
 
         logger.info("Submitted, job ID is {}".format(self.clusterId))
+
+    def cancel(self):
+        """ Cancel all the jobs using scancel """
+
+        subprocess.check_call(["scancel", self.clusterId])
 
     def statuses(self, update=True):
         """ list of subjob statuses (numeric, using indices in SlurmJobStatus) """
@@ -150,7 +157,11 @@ class CommandListJob(CommandListJobBase):
                         raise AssertionError("More than two lines in sacct... there's something wrong")
                 else:
                     if len(ret) != 0:
-                        status = ret
+                        if "CANCELLED+" in ret:
+                            # Can happen if scancel command did not have time to propagate
+                            status = "CANCELLED"
+                        else:
+                            status = ret
                     else:
                         squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
                         ret = subprocess.check_output(squeueCmdArgs).decode().strip()
@@ -162,6 +173,18 @@ class CommandListJob(CommandListJobBase):
 
     def commandStatus(self, command):
         return self.subjobStatus(self.commandList.index(command)+1)
+
+    def getLogFile(self, command):
+        return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self.commandList.index(command)+1))
+
+    def getResubmitCommand(self, failedCommands):
+        commandArray = [ str(self.commandList.index(cmd)+1) for cmd in failedCommands ]
+        sbatchOpts = [
+              "--array={}".format(",".join(commandArray))
+            , "--partition={}".format(self.cfg.sbatch_partition)
+            , "--qos={}".format(self.cfg.sbatch_qos)
+            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        return ["sbatch"]+sbatchOpts+[self.slurmScript]
 
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if batchConfig:
@@ -189,5 +212,6 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval
             , allStatuses=SlurmJobStatus
             , activeStatuses=[SlurmJobStatus.index(stNm) for stNm in ("CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED")]
+            , failedStatuses=[SlurmJobStatus.index(stNm) for stNm in ("FAILED", "TIMEOUT", "CANCELLED")]
             , completedStatus=SlurmJobStatus.index("COMPLETED")
             )

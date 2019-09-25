@@ -14,6 +14,7 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 import os.path
+import re
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
@@ -111,7 +112,8 @@ class AnalysisModule(object):
         if self.args.distributed == "worker":
             from cppyy import gbl
             tup = gbl.TChain(self.args.treeName)
-            tup.Add(self.inputs[0])
+            if not tup.Add(self.inputs[0], 0):
+                raise IOError("Could not open file {}".format(fName))
             return tup, {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
             if len(self.args.input) != 1:
@@ -123,7 +125,8 @@ class AnalysisModule(object):
             logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
             from cppyy import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            tup.Add(fName)
+            if not tup.Add(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
             return tup, {"name": smpNm, "era": smpCfg["era"]}
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
@@ -202,7 +205,7 @@ class AnalysisModule(object):
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
                                     ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
                                     ))
-                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir)))
+                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
                         ## submit to backend
                         backend = envConfig["batch"]["backend"]
                         if backend == "slurm":
@@ -231,8 +234,21 @@ class AnalysisModule(object):
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
                                 "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
-                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=120)
-                        clusMon.collect() ## wait for batch jobs to finish and finalize
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
+                        collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
+                        if not collectResult["success"]:
+                            # Print missing hadd actions to be done when (if) those recovery jobs succeed
+                            filesToMerge = set()
+                            for cmd in collectResult["failedCommands"]:
+                                result = re.search(r'--output=(.*)\.root', cmd)
+                                if result is not None:
+                                    filesToMerge.add(result.group(1) + ".root")
+                            haddCmds = []
+                            for outputFile in filesToMerge:
+                                haddCmds.append("hadd {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
+                            logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
+                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
+                            return
                 try:
                     self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
@@ -340,7 +356,8 @@ class HistogramsModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(tree)
         for fName in inputFiles:
-            tup.Add(fName)
+            if not tup.Add(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
@@ -542,7 +559,8 @@ class SkimmerModule(AnalysisModule):
         from cppyy import gbl
         tup = gbl.TChain(treeName)
         for fName in inputFiles:
-            tup.Add(fName)
+            if not tup.Add(fName, 0):
+                raise IOError("Could not open file {}".format(fName))
         tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)

@@ -59,6 +59,8 @@ def getJetMETVarName_postproc(nm):
         else:
             if nm == "btagSF_shape":
                 return "btagSF_shape", "nom"
+            elif nm.startswith("btagSF_shape_") and nm.endswith("_jes"):
+                return "btagSF_shape", "jesTotal{0}".format(nm.split("_")[2])
             else:
                 return "btagSF_shape", "{0}_{1}_{3}{2}".format(*nm.split("_"))
 def getPUWeightVarName_postproc(nm):

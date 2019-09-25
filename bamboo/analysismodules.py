@@ -237,7 +237,6 @@ class AnalysisModule(object):
                         clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
                         if not collectResult["success"]:
-                            logger.error("There were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
                             filesToMerge = set()
                             for cmd in collectResult["failedCommands"]:
@@ -248,6 +247,7 @@ class AnalysisModule(object):
                             for outputFile in filesToMerge:
                                 haddCmds.append("hadd {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
                             logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
+                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             return
                 try:
                     self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)

@@ -50,6 +50,9 @@ class CommandListJob(object):
     def getLogFile(self, command):
         """ get path to log file corresponding to the given command """
         pass
+    def getResubmitCommand(self, failedCommands):
+        """ return a suggestion command the user should run to resubmit a job array with only the failed commands """
+        pass
 
     ## helper methods
     @staticmethod
@@ -127,7 +130,7 @@ class SplitAggregationTask(object):
                 if self.finalizeAction:
                     self.finalizeAction.perform()
             else:
-                logger.error("Task failed, the following commands return a non-zero exit code, or could not be run:\n{0}".format("\n".join(self.failedCommands)))
+                logger.error("Task failed, {0} out of {1} commands returned a non-zero exit code or could not be run.".format(len(self.failedCommands), len(self.commandList)))
                 if self.finalizeAction:
                     logger.error("Skipping finalization step since there were failed commands.")
             return True
@@ -293,8 +296,9 @@ class TasksMonitor(object):
             for task in self.tasks:
                 failedCommandsPerCluster[task.jobCluster] += task.failedCommands
             resubmitCommands = [ cluster.getResubmitCommand(commands) for cluster,commands in failedCommandsPerCluster.items() ]
-            logger.error("Resubmitting the failed jobs can be done by running:\n{0}".format("\n".join(" ".join(cmd) for cmd in resubmitCommands)))
-            collectResult["resubmitCommands"] = resubmitCommands
+            if any(resubmitCommands):
+                logger.error("Resubmitting the failed jobs can be done by running:\n{0}".format("\n".join(" ".join(cmd) for cmd in resubmitCommands)))
+                collectResult["resubmitCommands"] = resubmitCommands
 
         return collectResult
 

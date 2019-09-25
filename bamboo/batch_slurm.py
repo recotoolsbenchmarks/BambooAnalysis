@@ -186,8 +186,6 @@ class CommandListJob(CommandListJobBase):
             ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
         return ["sbatch"]+sbatchOpts+[self.slurmScript]
 
-
-
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if batchConfig:
         if not configOpts:

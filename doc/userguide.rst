@@ -236,7 +236,7 @@ For the code inside the module, the example is also very instructive:
 
 .. code-block:: python
 
-       def definePlots(self, t, noSel, era=None, sample=None):
+       def definePlots(self, t, noSel, era=None, sample=None, sampleCfg=None):
            from bamboo.plots import Plot, EquidistantBinning
            from bamboo import treefunctions as op
 
@@ -465,7 +465,7 @@ used to define the same plots for different selection stages, e.g.
        ]
        return plots
 
-   def definePlots(self, t, noSel, era=None, sample=None):
+   def definePlots(self, t, noSel, era=None, sample=None, sampleCfg=None):
        from bamboo import treefunctions as op
 
        plots = []
@@ -720,8 +720,8 @@ uncertainties to 2016 MC:
        def __init__(self, args):
            super(MyAnalysisModule, self).__init__(args)
            self.calcToAdd.append("nJet")
-       def prepareTree(self, tree, era=None, sample=None):
-           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample)
+       def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
+           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample, sampleCfg=sampleCfg)
            from bamboo.analysisutils import configureJets
            isNotWorker = (self.args.distributed != "worker")
            if era == "2016":
@@ -807,13 +807,53 @@ corrected muons are in ``tree.Muon``.
        def __init__(self, args):
            super(MyAnalysisModule, self).__init__(args)
            self.calcToAdd.append("nMuon")
-       def prepareTree(self, tree, era=None, sample=None):
-           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
+       def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
+           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample, sampleCfg=sampleCfg)
            from bamboo.analysisutils import configureRochesterCorrection
            if era == "2016":
                configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
        return tree,noSel,be,lumiArgs
 
+
+Splitting a sample into sub-components
+''''''''''''''''''''''''''''''''''''''
+
+It is frequently necessary to split a single Monte-Carlo sample into different processes, depending on generator-level information, or simply to add some cuts at generator level (e.g. to stitch binned samples together). 
+This can be achieved by duplicating that sample in the analysis configuration file for as many splits as are needed, and putting (any) additional information into that sample's entry, e.g. as:
+
+.. code-block:: yaml
+
+     ttbb:
+       db: das:/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv5-Nano1June2019_102X_upgrade2018_realistic_v19-v1/NANOAODSIM
+       era: 2018
+       group: ttbb
+       subprocess: ttbb
+       cross-section: 366.
+       generated-events: genEventSumw
+
+     ttjj:
+       db: das:/TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8/RunIIAutumn18NanoAODv5-Nano1June2019_102X_upgrade2018_realistic_v19-v1/NANOAODSIM
+       era: 2018
+       group: ttjj
+       subprocess: ttjj
+       cross-section: 366.
+       generated-events: genEventSumw
+
+That information can then be retrieved in the analysis module through the ``sampleCfg`` keyword argument, to add additional cuts to the selection when preparing the tree:
+
+.. code-block:: python
+
+   def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
+       tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample, sampleCfg=sampleCfg)
+
+       if "subprocess" in sampleCfg:
+            subProc = sampleCfg["subprocess"]
+            if subProc == "ttbb":
+                noSel = noSel.refine(subProc, cut=(tree.genTtbarId % 100) >= 52)
+            elif subProc == "ttjj":
+                noSel = noSel.refine(subProc, cut=(tree.genTtbarId % 100) < 41)
+
+       return tree,noSel,be,lumiArgs
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
@@ -844,3 +884,4 @@ corrected muons are in ``tree.Muon``.
 
 .. |---| unicode:: U+2014
    :trim:
+

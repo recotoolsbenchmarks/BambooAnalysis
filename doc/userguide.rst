@@ -687,55 +687,93 @@ difference in jet energy resolution between data and simulation, each jet in
 the reconstructed jet collection should be modified, the collection sorted,
 and any derived quantity re-evaluated.
 
-For efficiency and consistency, this is done by a single C++ module
-that produces a set of jet collections (technically, only lists with the sorted
-new momenta and the corresponding indices of the original jets are stored, and
-the python decorations take care of redirecting to those if necessary).
-The base jet collection proxy (e.g. ``_Jet`` for NanoAOD) has a member ``calc``
-that can be used to store a reference to the module instance, and serves as a
-handle to configure it.
-By default, only the nominal jet collection (``Jet`` for NanoAOD) is
-available. The :py:meth:`bamboo.analysisutils.configureJets` provides a
+How to do this depends on the input trees: in production NanoAOD the modified
+momenta need to calculated using the jet energy correction parameters; it is
+also possible to add them when post-processing with the
+`jetmetUncertainties module`_ of the NanoAODTools_ package.
+In the latter case the NanoAOD decoration method will detect the modified
+branches, and no additional configuration is needed.
+
+To calculate the variations on the fly, two things are needed: when decorating
+the tree, some redirections should be set up to pick up the variations from a
+calculator module, and then this module needs to be configured with the correct
+JEC and resolution parameters.
+The first step can be done by adding ``"nJet"`` (the name of the length branch
+of the stored jet collection) to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
+attribute of the analysis module, from its constructor or
+:py:meth:`~bamboo.analysismodules.AnalysisModule.initialize` method;
+:py:attr:`bamboo.NanoAODModule.prepareTree` will pass this to the
+:py:meth:`bamboo.treedecorators.decorateNanoAOD` method and add the calculator
+module.
+
+With the default settings, only the nominal jet collection is produced.
+The :py:meth:`bamboo.analysisutils.configureJets` provides a
 convenient way to correct the jet resolution in MC, apply a different JEC, and
 add variations due to different sources of uncertainty in the jet energy scale.
-As an example, the ``prepareTrees`` method of a NanoAOD analysis module could
+As an example, the relevant code of a NanoAOD analysis module could
 look like this to apply a newer JEC to 2016 data and perform smearing and add
 uncertainties to 2016 MC:
 
 .. code-block:: python
 
-   def prepareTree(self, tree, era=None, sample=None):
-       ## initializes tree.Jet.calc so should be called first (better: use super() instead)
-       tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
-       from bamboo.analysisutils import configureJets
-       if era == "2016":
-           if self.isMC(sample): # can be inferred from sample name
-               configureJets(tree, "Jet", "AK4PFchs",
-                   jec="Summer16_07Aug2017_V20_MC",
-                   smear="Summer16_25nsV1_MC",
-                   jesUncertaintySources=["Total"])
-           else:
-               if "2016G" in sample or "2016H" in sample:
+   class MyAnalysisModule(NanoAODHistoModule):
+       def __init__(self, args):
+           super(MyAnalysisModule, self).__init__(args)
+           self.calcToAdd.append("nJet")
+       def prepareTree(self, tree, era=None, sample=None):
+           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample)
+           from bamboo.analysisutils import configureJets
+           isNotWorker = (self.args.distributed != "worker")
+           if era == "2016":
+               if self.isMC(sample): # can be inferred from sample name
                    configureJets(tree, "Jet", "AK4PFchs",
-                       jec="Summer16_07Aug2017GH_V11_DATA")
-               elif ...: ## other 2016 periods
-                   pass
+                       jec="Summer16_07Aug2017_V20_MC",
+                       smear="Summer16_25nsV1_MC",
+                       jesUncertaintySources=["Total"],
+                       mayWriteCache=isNotWorker)
+               else:
+                   if "2016G" in sample or "2016H" in sample:
+                       configureJets(tree, "Jet", "AK4PFchs",
+                           jec="Summer16_07Aug2017GH_V11_DATA",
+                           mayWriteCache=isNotWorker)
+                   elif ...: ## other 2016 periods
+                       pass
 
-       return tree,noSel,be,lumiArgs
+           return tree,noSel,be,lumiArgs
 
-The jet collections ``t._Jet["nominal"]``, ``t._Jet["jerup"]``,
-``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]`` and ``t._Jet["jesTotalDown"]``
-will then be available when defining plots, but they are generally not needed
-directly, because by default the jet variations compatible with the
-configuration will be propagated to the histograms (this can be disabled by
+Both with variations read from a postprocessed NanoAOD and calculated on the
+fly, the different jet collections are available from ``t._Jet``, e.g.
+``t._Jet["nom"]`` (postprocessed) or ``t._Jet["nominal"]`` (calculated),
+``t._Jet["jerup"]``, ``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]``,
+``t._Jet["jesTotalDown"]`` etc. depending on the configured variations.
+``t.Jet`` will be changed for one of these for each systematic variation,
+if it affects a plot, in case automatically producing the systematic variations
+is enabled (the collections from ``t._Jet`` will not be changed).
+The automatic calculation of systematic variations can be disabled globally
+or on a per-selection basis (sse above), and for on the fly calculation also by
 passing ``enableSystematics=[]`` to
 :py:meth:`bamboo.analysisutils.configureJets`).
+The jet collection as stored on the input file, finally, can be retrieved as
+``t._Jet.orig``.
 
-The necessary txt files will be automatically downloaded (and kept up to date)
-from the repositories on github, and stored in a local cache (this should be
-entirely transparent to the user |---| in case of doubt one can remove the
-corresponding directory and status file from ``~/.bamboo/cache``, they will be
-recreated automatically at the next use).
+.. note:: Isn't it slow to calculate jet corrections on the fly?
+   It does take a bit of time, but the calculation is done in one C++ module,
+   which should not be executed more than once per event (see the explanation
+   of the :py:meth:`bamboo.analysisutils.forceDefine` method in the
+   :ref:`section above<ugcutordering>`).
+   In most realistic cases, the bottleneck is in reading and decompressing the
+   input files, so the performance hit from the jet corrections should usually
+   be acceptable.
+
+.. tip:: Bamboo_ runs outside CMSSW and has no access to the conditions
+   database, so it fetches the necessary txt files from the repositories
+   on github (they are quite large, so this is more efficient than storing
+   a clone locally). They should automatically be updated if the upstream
+   repository changes and the ``mayWriteCache`` argument to
+   :py:meth:`bamboo.analysisutils.configureJets` (see the example above)
+   helps ensure that only one process write to the cache at a time.
+   In case of doubt one can remove the cache directories and status files from
+   ``~/.bamboo/cache``, they will be recreated automatically at the next use.
 
 
 .. _ugreciperochester:
@@ -747,25 +785,35 @@ The so-called
 `Rochester correction <https://twiki.cern.ch/twiki/bin/viewauth/CMS/RochcorMuon>`_
 removes a bias in the muon momentum, and improves the agreement between data
 and simulation in the description of the Z boson peak.
-Muons are saved on the NanoAOD without this correction, so if required it needs
-to be applied afterwards.
-This can be done in a way that is very similar to the jet variations above,
-with the difference that the module that applies the correction is attached
-to the ``t._Muon`` branch, such that the corrected muons can be directly
-accessed from the ``t.Muon`` branch |---| therefore the correction is
-configured with
+As for the jet correction and variations described in the previous section,
+this can either be done during postprocessing, with the
+`muonScaleResProducer module`_ of the NanoAODTools_ package, or on the fly.
+The former will be detected automatically when decorating the trees, the latter
+requires adding ``"nMuon"`` to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
+attribute of the analysis module, such that is propogated to the decorations
+and a calculator created by the :py:attr:`bamboo.NanoAODModule.prepareTree`
+method.
+
+The on the fly calculator can be configured with the
+:py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,
+as in the example below.
+``tree._Muon.calc`` points directly to the C++ calculator module; the
+uncorrected muon collection can be found in ``tree._Muon.orig``, and the
+corrected muons are in ``tree.Muon``.
 
 .. code-block:: python
 
-   def prepareTree(self, tree, era=None, sample=None):
-       ## initializes tree.Jet.calc so should be called first (better: use super() instead)
-       tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
-       from bamboo.analysisutils import configureRochesterCorrection
-       if era == "2016":
-           configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
+   class MyAnalysisModule(NanoAODHistoModule):
+       def __init__(self, args):
+           super(MyAnalysisModule, self).__init__(args)
+           self.calcToAdd.append("nMuon")
+       def prepareTree(self, tree, era=None, sample=None):
+           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample)
+           from bamboo.analysisutils import configureRochesterCorrection
+           if era == "2016":
+               configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
        return tree,noSel,be,lumiArgs
 
-The original, uncorrected, muon collection can be found in ``t._Muon.orig``.
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
@@ -787,6 +835,12 @@ The original, uncorrected, muon collection can be found in ``t._Muon.orig``.
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
 
 .. _pileupcalc documentation: https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData#Pileup_JSON_Files_For_Run_II
+
+.. _NanoAODTools: https://github.com/cms-nanoAOD/nanoAOD-tools
+
+.. _jetmetUncertainties module: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/master/python/postprocessing/modules/jme/jetmetUncertainties.py
+
+.. _muonScaleResProducer module: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/master/python/postprocessing/modules/common/muonScaleResProducer.py
 
 .. |---| unicode:: U+2014
    :trim:

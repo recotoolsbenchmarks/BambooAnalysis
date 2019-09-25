@@ -197,6 +197,8 @@ class DataframeBackend(FactoryBackend):
                             nRem += 1
                 ## construct variation nodes (if necessary)
                 for varn in systVars:
+                    _hasthissystV = partial((lambda sV, iNd : isinstance(iNd, top.OpWithSyst) and sV in iNd.variations), varn)
+                    hasthissystV = lambda nd : ( isthissyst(nd) and _hasthissystV(nd) )
                     ## add cuts to the appropriate node, if affected by systematics (here or up)
                     varParentNd = None ## set parent node if not the nominal one
                     if nomParentNd and varn in nomParentNd.var: ## -> continue on branch
@@ -212,7 +214,7 @@ class DataframeBackend(FactoryBackend):
                             ctChanged = []
                             for ct in ctToChange: ## empty if sele._cuts are not affected
                                 newct = ct.clone()
-                                for nd in top.collectNodes(newct, select=isthissyst):
+                                for nd in top.collectNodes(newct, select=hasthissystV):
                                     nd.changeVariation(varn)
                                 ctChanged.append(newct)
                             cutStr = Selection._makeExprAnd(ctKeep+ctChanged).get_cppStr(defCache=varParentNd)
@@ -234,7 +236,7 @@ class DataframeBackend(FactoryBackend):
                             wfChanged = []
                             for wf in wfToChange:
                                 newf = wf.clone()
-                                for nd in top.collectNodes(newf, select=isthissyst):
+                                for nd in top.collectNodes(newf, select=hasthissystV):
                                     nd.changeVariation(varn)
                                 wfChanged.append(newf)
                             logger.debug("{0} systematic variation {1}: defining new weight based on {2}", sele.name, varn, parwn)
@@ -267,13 +269,10 @@ class DataframeBackend(FactoryBackend):
 
         if plot.selection.autoSyst and autoSyst:
             ## Same for all the systematics
-            varSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-                top.collectNodes(vi, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
-                for vi in plot.variables))
+            varSysts = top.collectSystVars(plot.variables)
             selSysts = plot.selection.systematics
-            allSysts = dict(plot.selection.systematics)
-            allSysts.update(varSysts)
-            self.allSysts.update(allSysts)
+            allSysts = top.mergeSystVars(dict(plot.selection.systematics), varSysts)
+            top.mergeSystVars(self.allSysts, allSysts)
             for systN, systVars in allSysts.items():
                 isthissyst = partial((lambda sN,iw : isinstance(iw, top.OpWithSyst) and iw.systName == sN), systN)
                 idxVarsToChange = []
@@ -281,13 +280,15 @@ class DataframeBackend(FactoryBackend):
                     if any(top.collectNodes(xvar, select=isthissyst)):
                         idxVarsToChange.append(i)
                 for varn in systVars:
+                    _hasthissystV = partial((lambda sV, iNd : isinstance(iNd, top.OpWithSyst) and sV in iNd.variations), varn)
+                    hasthissystV = lambda nd : ( isthissyst(nd) and _hasthissystV(nd) )
                     if systN in varSysts or varn in nomNd.var:
                         varNd = nomNd.var.get(varn, nomNd)
                         varExprs = {}
                         for i,xvar in enumerate(plot.variables):
                             if i in idxVarsToChange:
                                 varVar = xvar.clone()
-                                for nd in top.collectNodes(varVar, select=isthissyst):
+                                for nd in top.collectNodes(varVar, select=hasthissystV):
                                     nd.changeVariation(varn)
                             else:
                                 varVar = xvar

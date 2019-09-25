@@ -8,6 +8,7 @@ class NanoZMuMu(NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def __init__(self, args):
         super(NanoZMuMu, self).__init__(args)
+        self.calcToAdd += ["nJet", "nMuon"] ## will do Jet variations and Rochester correction
 
     def prepareTree(self, tree, era=None, sample=None):
         ## initializes tree._Jet.calc so should be called first (better: use super() instead)

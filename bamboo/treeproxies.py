@@ -305,84 +305,37 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
 
-## Attribute classes (like property) to customize the above base classes
-
-class proxy(object): ## the default one
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op.result
-
-class funProxy(object): ## the generic one
-    def __init__(self, fun):
-        self.fun = fun
-    def __get__(self, inst, cls):
-        return self.fun(inst)
-
-class itemProxy(object):
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op[inst._idx]
-
-class itemRefProxy(object):
-    def __init__(self, op, getTarget):
-        self.op = op
-        self.getTarget = getTarget
-    def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._idx]]
-
-class itemObjProxy(object): ## re-construct an object that was split in arrays
-    def __init__(self, typeName, args):
-        self.typeName = typeName
-        self.args = args
-    def __get__(self, inst, cls):
-        return Construct(self.typeName, tuple(arg[inst._idx] for arg in self.args)).result
-
-class varItemProxy(object):
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op[inst._parent._parent.result.indices()[inst._idx]]
-class varItemRefProxy(object):
-    def __init__(self, op, getTarget):
-        self.op = op
-        self.getTarget = getTarget
-    def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
-
-class Variations(TupleBaseProxy):
-    def __init__(self, parent, orig, args, varItemType=None, nameMap=None):
+class CalcVariations(TupleBaseProxy):
+    def __init__(self, parent, orig, varItemType=None, withSystName=None):
         self.orig = orig
-        self._args = args
         self.varItemType = varItemType if varItemType else orig.valuetype
         self.calc = None
         self.calcProd = None
-        self.nameMap = nameMap
-        super(Variations, self).__init__("Variations", parent=parent)
+        self.withSystName = withSystName
+        super(CalcVariations, self).__init__("CalcVariations", parent=parent)
     @property
     def available(self):
         return list(self.calc.availableProducts())
-    def initCalc(self, calcProxy, calcHandle=None):
+    def initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
-        self.calcProd = calcProxy.produceModifiedCollections(*self._args)
-        if self.nameMap:
-            for k,v in self.nameMap.items():
-                setattr(self._parent, v, self[k])
+        self.calcProd = calcProxy.produceModifiedCollections(*args)
+        setattr(self._parent, self.withSystName,
+            CalcCollectionProxy(
+                SystModifiedCollectionOp(
+                    self.calcProd.at(makeConst("nominal", "std::string")).op,
+                    None, self.available),
+                self.orig, itemType=self.varItemType))
     def __getitem__(self, key):
         if not self.calc:
-            raise RuntimeError("Variations calculator first needs to be initialized")
+            raise RuntimeError("CalcVariations calculator first needs to be initialized")
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
         if self.calc and key not in self.available:
             raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
-        res_item = self.calcProd.at(makeConst(key, "std::string")).op
-        if key == "nominal":
-            res_item = SystModifiedCollectionOp(res_item, None, self.available)
-        return ModifiedCollectionProxy(res_item, self.orig, itemType=self.varItemType)
+        return CalcCollectionProxy(self.calcProd.at(makeConst(key, "std::string")).op, self.orig, itemType=self.varItemType)
 
-class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
-    ## TODO make jet-specific, maybe add a bit of MET deco
+class CalcCollectionProxy(TupleBaseProxy,ListBase):
+    ## TODO make a jet specialisation (add MET deco)
     """ Collection with a selection and modified branches """
     def __init__(self, parent, base, itemType=None):
         ## parent has a member indices() and one for each of modBranches
@@ -390,13 +343,79 @@ class ModifiedCollectionProxy(TupleBaseProxy,ListBase):
         self.orig = base
         self.valueType = base.valueType ## for ListBase
         self.itemType = itemType ## for actual items
-        super(ModifiedCollectionProxy, self).__init__(self.valueType, parent=parent)
+        super(CalcCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __len__(self):
         return self._parent.result.indices().__len__()
     def __getitem__(self, index):
         return self.itemType(self, index)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
+
+class AltLeafVariations(TupleBaseProxy):
+    """ Branch with alternative names """
+    def __init__(self, parent, brMap, typeName):
+        super(AltLeafVariations, self).__init__(typeName, parent=parent)
+        self.brMap = brMap
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return self.brMap[key].result
+
+class AltLeafGroupVariations(TupleBaseProxy):
+    """ Set of groups with alternative names for some branches """
+    def __init__(self, parent, orig, brMapMap, altProxyType):
+        self.orig = orig
+        self.brMapMap = brMapMap
+        self.altProxyType = altProxyType
+        super(AltLeafGroupVariations, self).__init__("AltLeafGroupVariations", parent=parent)
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMapMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return self.altProxyType(self._parent, self.orig, self.brMapMap[key])
+
+class AltLeafGroupProxy(TupleBaseProxy):
+    """ Group with alternative names for some branches """
+    ## base class like LeafGroupProxy, but with a brMap
+    def __init__(self, parent, orig, brMap, typeName="struct"):
+        self.orig = orig
+        self.brMap = brMap
+        super(AltLeafGroupProxy, self).__init__(typeName, parent=parent)
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.brMap)
+
+class AltCollectionVariations(TupleBaseProxy):
+    """ Set of collections with alternative names for some branches """
+    def __init__(self, parent, orig, brMapMap, altItemType=None):
+        self.orig = orig
+        self.brMapMap = brMapMap
+        self.altItemType = altItemType if altItemType else orig.valuetype
+        super(AltCollectionVariations, self).__init__("AltCollectionVariations", parent=parent)
+    def __getitem__(self, key):
+        if not isinstance(key, str):
+            raise ValueError("Getting variation with non-string key {0!r}".format(key))
+        if key not in self.brMapMap:
+            raise KeyError("No such variation: {0}".format(key))
+        return AltCollectionProxy(self._parent, self.orig, self.brMapMap[key], itemType=self.altItemType)
+
+class AltCollectionProxy(TupleBaseProxy, ListBase):
+    """ Collection with alternative names for some branches """
+    def __init__(self, parent, orig, brMap, itemType=None):
+        ListBase.__init__(self)
+        self.orig = orig
+        self.valueType = orig.valueType ## for ListBase
+        self.itemType = itemType ## for actual items
+        self.brMap = brMap
+        super(AltCollectionProxy, self).__init__(self.valueType, parent=parent)
+    def __getitem__(self, index):
+        return self.itemType(self, index)
+    def __len__(self):
+        return self.orig.__len__()
+    def __repr__(self):
+        return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
 
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination

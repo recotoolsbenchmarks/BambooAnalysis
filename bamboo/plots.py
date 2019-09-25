@@ -218,12 +218,8 @@ class Selection(object):
         self.parent   = None
         self._cuts     = [ adaptArg(cut, "Bool_t") for cut in cuts ] if cuts else []
         self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in weights ] if weights else []
-        self._cSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
-            for wf in self._cuts))
-        self._wSysts = dict((sfs.systName, sfs.variations) for sfs in chain.from_iterable(
-            top.collectNodes(wf, select=(lambda nd : isinstance(nd, top.OpWithSyst) and nd.systName and nd.variations))
-            for wf in self._weights))
+        self._cSysts = top.collectSystVars(self._cuts)
+        self._wSysts = top.collectSystVars(self._weights)
 
         ## register with backend
         if isinstance(parent, Selection):
@@ -251,24 +247,18 @@ class Selection(object):
     @property
     def weightSystematics(self):
         if self.parent:
-            systs = self.parent.weightSystematics
-            systs.update(self._wSysts)
-            return systs
+            return top.mergeSystVars(self.parent.weightSystematics, self._wSysts)
         else:
             return dict(self._wSysts)
     @property
     def cutSystematics(self):
         if self.parent:
-            systs = self.parent.cutSystematics
-            systs.update(self._cSysts)
-            return systs
+            return top.mergeSystVars(self.parent.cutSystematics, self._cSysts)
         else:
             return dict(self._cSysts)
     @property
     def systematics(self):
-        allSyst = self.weightSystematics
-        allSyst.update(self.cutSystematics)
-        return allSyst
+        return top.mergeSystVars(self.weightSystematics, self.cutSystematics)
     ## for debugging/monitoring: full cut and weight expression ## TODO review
     @property
     def cut(self):

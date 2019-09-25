@@ -697,8 +697,8 @@ class Select(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            expr_n, args_n = _normFunArgs(expr, paramDecl, paramCall)
-            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(args_n))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Sort(TupleOp):
@@ -750,7 +750,8 @@ class Sort(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(SizeType), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Map(TupleOp):
@@ -804,7 +805,8 @@ class Map(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType="ROOT::VecOps::RVec<{0}>".format(self.typeName), args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Next(TupleOp):
@@ -855,7 +857,8 @@ class Next(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=SizeType, args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=SizeType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Reduce(TupleOp):
@@ -916,7 +919,8 @@ class Reduce(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            funName = defCache.symbol(expr, resultType=self.resultType, args=", ".join(paramDecl))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 class Combine(TupleOp):
@@ -988,8 +992,8 @@ class Combine(TupleOp):
         if any(isinstance(dp, LocalVariablePlaceholder) for dp in depList):
             return expr
         else:
-            expr_n, args_n = _normFunArgs(expr, paramDecl, paramCall)
-            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(args_n))
+            expr_n, paramDecl_n = _normFunArgs(expr, paramDecl, paramCall)
+            funName = defCache.symbol(expr_n, resultType=self.resultType, args=", ".join(paramDecl_n))
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 ## FIXME to be implemented
@@ -1051,3 +1055,39 @@ class SystModifiedCollectionOp(OpWithSyst):
             raise ValueError("Invalid collection: {0}".format(newCollection))
         if self.wrapped.args[0].value == '"nominal"' and newCollection != self.wrapped.args[0].value.strip('"'):
             self.wrapped.args[0].value = '"{0}"'.format(newCollection)
+
+class SystAltColumnOp(OpWithSyst):
+    """ Change the column name """
+    def __init__(self, wrapped, name, nameMap, valid=None):
+        super(SystAltColumnOp, self).__init__(wrapped, name)
+        self.variations = valid if valid else list(nameMap.keys())
+        self.nameMap = nameMap
+    def _clone(self, memo):
+        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict(self.nameMap), valid=list(self.variations))
+    def changeVariation(self, newVariation):
+        """ Assumed to be called on a fresh copy - *will* change the underlying value """
+        if newVariation not in self.variations:
+            raise ValueError("Invalid branch name: {0}".format(newVariation))
+        if newVariation in self.nameMap:
+            self.wrapped.name = self.nameMap[newVariation]
+
+def collectSystVars(exprs):
+    systVars = {}
+    for sfs in chain.from_iterable(collectNodes(expr, select=(lambda nd : isinstance(nd, OpWithSyst) and nd.systName and nd.variations)) for expr in exprs):
+        if sfs.systName not in systVars:
+            systVars[sfs.systName] = list(sfs.variations)
+        else:
+            for sv in sfs.variations:
+                if sv not in systVars[sfs.systName]:
+                    systVars[sfs.systName].append(sv)
+    return systVars
+def mergeSystVars(svA, svB):
+    ## returns A updated with B
+    for systName, variations in svB.items():
+        if systName not in svA:
+            svA[systName] = list(variations)
+        else:
+            for sv in variations:
+                if sv not in svA[systName]:
+                    svA[systName].append(sv)
+    return svA

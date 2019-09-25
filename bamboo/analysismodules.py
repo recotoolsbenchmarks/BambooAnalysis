@@ -307,6 +307,7 @@ class HistogramsModule(AnalysisModule):
         """
         super(HistogramsModule, self).__init__(args)
         self.plotList = []
+        self.plotDefaults = {}
 
     def addArgs(self, parser):
         parser.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
@@ -425,9 +426,9 @@ class HistogramsModule(AnalysisModule):
         for eraName, eraCfg in config.get("eras", {}).items():
             if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
                 for cmbCfg in eraCfg:
-                    runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=cmbCfg, verbose=self.args.verbose)
+                    runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, era=cmbCfg, verbose=self.args.verbose)
             else:
-                runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, readCounters=self.readCounters, era=eraName, verbose=self.args.verbose)
+                runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, era=eraName, verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

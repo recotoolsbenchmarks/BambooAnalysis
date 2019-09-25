@@ -442,6 +442,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             addSetParentToPostConstr(coll_orig)
             itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
             itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
+            for p4AttN in p4AttNames: # pt -> p4.Pt() etc.; mass -> p4.M()
+                itm_dict_var[p4AttN] = funProxy(partial((lambda lAttNm,inst : getattr(inst.p4, lAttNm)()), ("M" if p4AttN == "mass" else p4AttN.capitalize())))
             varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
             tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, withSystName=grpNm[1:])

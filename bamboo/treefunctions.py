@@ -48,19 +48,19 @@ def c_float(num):
 ## boolean logic
 def NOT(sth):
     """ Logical NOT """
-    return _to.MathOp("not", sth, outType=_tp.boolType).result
+    return _to.MathOp("not", _to.adaptArg(sth, _tp.boolType), outType=_tp.boolType).result
 def AND(*args):
     """ Logical AND """
     if len(args) == 1:
-        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0]))
+        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0], _tp.boolType))
     else:
-        return _to.MathOp("and", *args, outType=_tp.boolType).result
+        return _to.MathOp("and", *[ _to.adaptArg(arg, _tp.boolType) for arg in args ], outType=_tp.boolType).result
 def OR(*args):
     """ Logical OR """
     if len(args) == 1:
-        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0]))
+        return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0], _tp.boolType))
     else:
-        return _to.MathOp("or", *args, outType=_tp.boolType).result
+        return _to.MathOp("or", *[ _to.adaptArg(arg, _tp.boolType) for arg in args ], outType=_tp.boolType).result
 def switch(test, trueBranch, falseBranch):
     """ Pick one or another value, based on a third one (ternary operator in C++)
 

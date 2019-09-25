@@ -47,9 +47,11 @@ class NumberProxy(TupleBaseProxy):
         super(NumberProxy, self).__init__(typeName, parent=parent)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._typeName)
-    def _binaryOp(self, opName, other, outType=None):
+    def _binaryOp(self, opName, other, outType=None, reverseOrder=False):
         if outType is None:
             outType = self._typeName ## default: math will give same type
+        if reverseOrder:
+            return MathOp(opName, other, self, outType=outType).result
         return MathOp(opName, self, other, outType=outType).result
     def _unaryOp(self, opName):
         return MathOp(opName, self, outType=self._typeName)
@@ -58,9 +60,17 @@ for nm,opNm in {
         , "__sub__": "subtract"
         , "__mul__": "multiply"
         , "__pow__": "pow"
+        , "__radd__": "add"
+        , "__rmul__": "multiply"
         }.items():
     setattr(NumberProxy, nm, functools.partialmethod(
         (lambda self, oN, other : self._binaryOp(oN, other)), opNm))
+for nm,opNm in {
+          "__rsub__": "subtract"
+        , "__rpow__": "rpow"
+        }.items():
+    setattr(NumberProxy, nm, functools.partialmethod(
+        (lambda self, oN, other : self._binaryOp(oN, other, reverseOrder=True)), opNm))
 for nm in ("__lt__", "__le__", "__eq__", "__ne__", "__gt__", "__ge__"):
     setattr(NumberProxy, nm, (lambda oN, oT : (lambda self, other : self._binaryOp(oN, other, outType=oT)))(nm.strip("_"), boolType))
 for name in ("__neg__",):
@@ -70,7 +80,6 @@ for name in ("__neg__",):
 class IntProxy(NumberProxy):
     def __init__(self, parent, typeName):
         super(IntProxy, self).__init__(parent, typeName)
-
 for nm,(opNm,outType) in {
           "__truediv__" : ("floatdiv", floatType)
         , "__floordiv__": ("divide"  , None)
@@ -78,9 +87,20 @@ for nm,(opNm,outType) in {
         , "__and__"     : ("band"    , None)
         , "__or__"      : ("bor"     , None)
         , "__xor__"     : ("bxor"    , None)
+        , "__rand__"     : ("band"    , None)
+        , "__ror__"      : ("bor"     , None)
+        , "__rxor__"     : ("bxor"    , None)
         }.items():
     setattr(IntProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+for nm,(opNm,outType) in {
+          "__rtruediv__" : ("floatdiv", floatType)
+        , "__rfloordiv__": ("divide"  , None)
+        , "__rmod__"     : ("mod"     , None)
+        }.items():
+    setattr(IntProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT, reverseOrder=True)),
         opNm, outType))
 for name,opName in {
             "__invert__": "bnot"
@@ -99,6 +119,9 @@ for nm,opNm in {
         , "__or__"    : "or"
         , "__invert__": "not"
         , "__xor__"   : "ne"
+        , "__rand__"   : "and"
+        , "__ror__"    : "or"
+        , "__rxor__"   : "ne"
         }.items():
     setattr(BoolProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
@@ -117,6 +140,12 @@ for nm,(opNm,outType) in {
         }.items():
     setattr(FloatProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT)),
+        opNm, outType))
+for nm,(opNm,outType) in {
+          "__rtruediv__": ("floatdiv" , None)
+        }.items():
+    setattr(FloatProxy, nm, functools.partialmethod(
+        (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT, reverseOrder=True)),
         opNm, outType))
 
 def _hasFloat(*args):

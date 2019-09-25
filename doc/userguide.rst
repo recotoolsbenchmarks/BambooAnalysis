@@ -236,7 +236,7 @@ For the code inside the module, the example is also very instructive:
 
 .. code-block:: python
 
-       def definePlots(self, t, noSel, era=None, sample=None, sampleCfg=None):
+       def definePlots(self, t, noSel, sample=None, sampleCfg=None):
            from bamboo.plots import Plot, EquidistantBinning
            from bamboo import treefunctions as op
 
@@ -465,7 +465,7 @@ used to define the same plots for different selection stages, e.g.
        ]
        return plots
 
-   def definePlots(self, t, noSel, era=None, sample=None, sampleCfg=None):
+   def definePlots(self, t, noSel, sample=None, sampleCfg=None):
        from bamboo import treefunctions as op
 
        plots = []
@@ -720,10 +720,11 @@ uncertainties to 2016 MC:
        def __init__(self, args):
            super(MyAnalysisModule, self).__init__(args)
            self.calcToAdd.append("nJet")
-       def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
-           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample, sampleCfg=sampleCfg)
+       def prepareTree(self, tree, sample=None, sampleCfg=None):
+           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
            from bamboo.analysisutils import configureJets
            isNotWorker = (self.args.distributed != "worker")
+           era = sampleCfg["era"]
            if era == "2016":
                if self.isMC(sample): # can be inferred from sample name
                    configureJets(tree, "Jet", "AK4PFchs",
@@ -807,9 +808,10 @@ corrected muons are in ``tree.Muon``.
        def __init__(self, args):
            super(MyAnalysisModule, self).__init__(args)
            self.calcToAdd.append("nMuon")
-       def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
-           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample, sampleCfg=sampleCfg)
+       def prepareTree(self, tree, sample=None, sampleCfg=None):
+           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
            from bamboo.analysisutils import configureRochesterCorrection
+           era = sampleCfg["era"]
            if era == "2016":
                configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
        return tree,noSel,be,lumiArgs
@@ -843,8 +845,8 @@ That information can then be retrieved in the analysis module through the ``samp
 
 .. code-block:: python
 
-   def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
-       tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, era=era, sample=sample, sampleCfg=sampleCfg)
+   def prepareTree(self, tree, sample=None, sampleCfg=None):
+       tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
 
        if "subprocess" in sampleCfg:
             subProc = sampleCfg["subprocess"]

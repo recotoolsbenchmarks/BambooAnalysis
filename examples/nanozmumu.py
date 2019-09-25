@@ -10,11 +10,12 @@ class NanoZMuMu(NanoAODHistoModule):
         super(NanoZMuMu, self).__init__(args)
         self.calcToAdd += ["nJet", "nMuon"] ## will do Jet variations and Rochester correction
 
-    def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
+    def prepareTree(self, tree, sample=None, sampleCfg=None):
         ## initializes tree._Jet.calc so should be called first (better: use super() instead)
-        tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, era=era, sample=sample, sampleCfg=sampleCfg)
+        tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
         from bamboo.analysisutils import makePileupWeight, configureJets, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
+        era = sampleCfg["era"]
         if self.isMC(sample):
             jecTag = None
             smearTag = None
@@ -50,7 +51,7 @@ class NanoZMuMu(NanoAODHistoModule):
 
         return tree,noSel,be,lumiArgs
 
-    def definePlots(self, t, noSel, era=None, sample=None, sampleCfg=None):
+    def definePlots(self, t, noSel, sample=None, sampleCfg=None):
         from bamboo.plots import Plot, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
@@ -86,7 +87,7 @@ class NanoZMuMu(NanoAODHistoModule):
 class SkimNanoZMuMu(NanoAODSkimmerModule):
     def __init__(self, args):
         super(SkimNanoZMuMu, self).__init__(args)
-    def defineSkimSelection(self, tree, noSel, era=None, sample=None, sampleCfg=None):
+    def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):
         from bamboo import treefunctions as op
         muons = op.select(tree.Muon, lambda mu : op.AND(mu.p4.Pt() > 20., op.abs(mu.p4.Eta()) < 2.4))
         hasTwoMu = noSel.refine("hasTwoMu", cut=(op.rng_len(muons) >= 2))

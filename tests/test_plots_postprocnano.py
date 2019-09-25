@@ -22,12 +22,12 @@ def test(decoNano):
     from bamboo.plots import Plot, Selection, EquidistantBinning
     from bamboo.analysisutils import forceDefine
     plots = []
-    electrons = op.select(tup.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.p4.Pt() > 15., op.abs(ele.p4.Eta()) < 2.4))
-    muons = op.select(tup.Muon, lambda mu : op.AND(mu.p4.Pt() > 10., op.abs(mu.p4.Eta()) < 2.4, mu.mediumId, mu.pfRelIso04_all < 0.15))
+    electrons = op.select(tup.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15., op.abs(ele.eta) < 2.4))
+    muons = op.select(tup.Muon, lambda mu : op.AND(mu.pt > 10., op.abs(mu.eta) < 2.4, mu.mediumId, mu.pfRelIso04_all < 0.15))
     plots.append(Plot.make1D("nElectrons", op.rng_len(electrons), noSel, EquidistantBinning(10, 0., 10.), title="Number of electrons", xTitle="N_{e}"))
     hasMuon = noSel.refine("hasMuon", cut=(op.rng_len(muons) > 0))
-    plots.append(Plot.make1D("hasMuon_leadMuPT", muons[0].p4.Pt(), hasMuon, EquidistantBinning(50, 0., 100.), title="Leading muon PT", xTitle="p_{T}(mu_{1})"))
-    jets = op.select(tup.Jet, lambda j : op.AND(j.p4.Pt() > 20., op.abs(j.p4.Eta()) < 2.4, j.jetId & 2))
+    plots.append(Plot.make1D("hasMuon_leadMuPT", muons[0].pt, hasMuon, EquidistantBinning(50, 0., 100.), title="Leading muon PT", xTitle="p_{T}(mu_{1})"))
+    jets = op.select(tup.Jet, lambda j : op.AND(j.pt > 20., op.abs(j.eta) < 2.4, j.jetId & 2))
     cleanedJets = op.select(jets, lambda j : op.AND(op.NOT(op.rng_any(electrons, lambda ele : op.deltaR(j.p4, ele.p4) < 0.3 )), op.NOT(op.rng_any(muons, lambda mu : op.deltaR(j.p4, mu.p4) < 0.3 ))))
     plots.append(Plot.make1D("nCleanedJets", op.rng_len(cleanedJets), noSel, EquidistantBinning(10, 0., 10.), title="Number of cleaned jets", xTitle="N_{j}"))
     plots.append(Plot.make1D("btagSF", op.rng_product(cleanedJets, lambda j : j.btagSF), noSel, EquidistantBinning(100, 0., 1.2), title="Product of cleaned jets b-tag SF", xTitle="prod(btagSF)"))

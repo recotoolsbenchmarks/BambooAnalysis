@@ -45,27 +45,27 @@ def test_fromJetRef(decoNano):
 
 def test_selectElectron(decoNano):
     from bamboo import treefunctions as op
-    ele1 = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.p4.Pt() > 15.))
-    assert ele1.op and ele1[0].p4.Pt().op
+    ele1 = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15.))
+    assert ele1.op and ele1[0].pt.op
 
 def test_selectJet(decoNano):
     from bamboo import treefunctions as op
-    jets = op.select(decoNano.Jet, lambda j : op.AND(j.p4.Pt() > 20., op.abs(j.p4.Eta()) < 2.4, j.jetId & 2))
-    assert jets.op and jets[0].p4.Pt().op
+    jets = op.select(decoNano.Jet, lambda j : op.AND(j.pt > 20., op.abs(j.eta) < 2.4, j.jetId & 2))
+    assert jets.op and jets[0].pt.op
 
 def test_selectSelectElectron(decoNano):
     from bamboo import treefunctions as op
-    ele1 = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.p4.Pt() > 15.))
-    ele2 = op.select(ele1, lambda ele : op.abs(ele.p4.Eta()) < 2.5)
-    assert ele1.op and ele2.op and ele2[0].p4.Pt().op
+    ele1 = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15.))
+    ele2 = op.select(ele1, lambda ele : op.abs(ele.eta) < 2.5)
+    assert ele1.op and ele2.op and ele2[0].pt.op
 
 def test_rangeOps_cleanJetsSortReduceCombine(decoNano):
     from bamboo import treefunctions as op
-    electrons = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.p4.Pt() > 15., op.abs(ele.p4.Eta()) < 2.4))
-    muons = op.select(decoNano.Muon, lambda mu : op.AND(mu.p4.Pt() > 10., op.abs(mu.p4.Eta()) < 2.4, mu.mediumId, mu.pfRelIso04_all < 0.15))
-    jets = op.select(decoNano.Jet, lambda j : op.AND(j.p4.Pt() > 20., op.abs(j.p4.Eta()) < 2.4, j.jetId & 2))
+    electrons = op.select(decoNano.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15., op.abs(ele.eta) < 2.4))
+    muons = op.select(decoNano.Muon, lambda mu : op.AND(mu.pt > 10., op.abs(mu.eta) < 2.4, mu.mediumId, mu.pfRelIso04_all < 0.15))
+    jets = op.select(decoNano.Jet, lambda j : op.AND(j.pt > 20., op.abs(j.eta) < 2.4, j.jetId & 2))
     cleanedJets = op.select(jets, lambda j : op.AND(op.NOT(op.rng_any(electrons, lambda ele : op.deltaR(j.p4, ele.p4) < 0.3 )), op.NOT(op.rng_any(muons, lambda mu : op.deltaR(j.p4, mu.p4) < 0.3 ))))
     cleanedJetsByDeepFlav = op.sort(cleanedJets, lambda jet: jet.btagDeepFlavB)
     prodBTags = op.rng_product(cleanedJets, lambda jet: jet.btagDeepB)
     osdiele  = op.combine(electrons, N=2, pred=lambda ele1,ele2 : ele1.charge != ele2.charge)
-    assert electrons.op and muons.op and jets.op and cleanedJets.op and cleanedJets[0].p4.Pt().op and cleanedJetsByDeepFlav.op and cleanedJetsByDeepFlav[0].p4.Pt().op and prodBTags.op and osdiele.op and osdiele[0][1].p4.Pt().op
+    assert electrons.op and muons.op and jets.op and cleanedJets.op and cleanedJets[0].pt.op and cleanedJetsByDeepFlav.op and cleanedJetsByDeepFlav[0].pt.op and prodBTags.op and osdiele.op and osdiele[0][1].pt.op

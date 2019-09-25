@@ -157,16 +157,19 @@ class AnalysisModule(object):
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
                 if self.args.anaConfig:
-                    self.analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
-                self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
+                    analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
+                    sampleCfg = analysisCfg["samples"][self.args.sample]
+                else:
+                    sampleCfg = None
+                self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample, sampleCfg=sampleCfg)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
-                self.analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-                tasks = self.getTasks(self.analysisCfg, tree=self.analysisCfg.get("tree", "Events"))
+                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
@@ -181,12 +184,12 @@ class AnalysisModule(object):
                         os.makedirs(resultsdir)
                     ##
                     if not self.args.distributed: ## sequential mode
-                        for (inputs, output), kwargs in taskArgs:
+                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             output = os.path.join(resultsdir, output)
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
-                            self.processTrees(inputs, output, **kwargs)
+                            self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks
                         from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction
@@ -258,14 +261,14 @@ class AnalysisModule(object):
                             logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             return
                 try:
-                    self.postProcess(taskArgs, config=self.analysisCfg, workdir=workdir, resultsdir=resultsdir)
+                    self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
                     logger.exception(ex)
                     logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None, sampleCfg=None):
         """ worker method: produce results (e.g. histograms or trees) from the input files
 
         should be implemented by concrete modules
@@ -277,6 +280,7 @@ class AnalysisModule(object):
         :param runRange: run range to consider (for efficiency of the lumi mask)
         :param era: era to which the sample belongs (allows for era-based customization)
         :param sample: sample name (key in the samples block of the configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         pass
     def getTasks(self, analysisCfg, **extraOpts):
@@ -354,7 +358,7 @@ class HistogramsModule(AnalysisModule):
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None, sampleCfg=None):
         """ Worker sequence: produce histograms from the input files
 
         More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`,
@@ -366,7 +370,7 @@ class HistogramsModule(AnalysisModule):
         for fName in inputFiles:
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
-        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample, sampleCfg=sampleCfg)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
@@ -391,7 +395,7 @@ class HistogramsModule(AnalysisModule):
         self.mergeCounters(outF, inputFiles)
         outF.Close()
     # processTrees customisation points
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
 
         should be implemented by concrete modules
@@ -399,9 +403,10 @@ class HistogramsModule(AnalysisModule):
         :param tree: decorated tree
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return tree, None, None, None
-    def definePlots(self, tree, noSel, era=None, sample=None):
+    def definePlots(self, tree, noSel, era=None, sample=None, sampleCfg=None):
         """ Main method: define plots on the trees (for a give systematic variation)
 
         should be implemented by concrete modules, and return a list of
@@ -416,6 +421,7 @@ class HistogramsModule(AnalysisModule):
         :param noSel: base selection
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return [] ## plot list
     def mergeCounters(self, outF, infileNames):
@@ -462,7 +468,7 @@ class NanoAODModule(AnalysisModule):
         self.calcToAdd = [] ## names of the length leaves (e.g. nJet, nMuon) of the collections for which calculators should be added
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
         The :py:attr:`~bamboo.analysismodules.NanoAODModlecalcToAdd`` member is
@@ -556,7 +562,7 @@ class SkimmerModule(AnalysisModule):
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None, sampleCfg=None):
         """ Worker sequence: produce histograms from the input files
 
         More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.SkimmerModule.prepareTree`,
@@ -569,7 +575,7 @@ class SkimmerModule(AnalysisModule):
         for fName in inputFiles:
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
-        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample, sampleCfg=sampleCfg)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
@@ -584,7 +590,7 @@ class SkimmerModule(AnalysisModule):
         outF.Close()
 
     # processTrees customisation points
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, era=None, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
 
         should be implemented by concrete modules
@@ -592,9 +598,10 @@ class SkimmerModule(AnalysisModule):
         :param tree: decorated tree
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return tree, None, None, None
-    def defineSkimSelection(self, tree, noSel, era=None, sample=None):
+    def defineSkimSelection(self, tree, noSel, era=None, sample=None, sampleCfg=None):
         """ Main method: define a selection for the skim
 
         should be implemented by concrete modules, and return a
@@ -604,6 +611,7 @@ class SkimmerModule(AnalysisModule):
         :param noSel: base selection
         :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
 
         :returns: the skim :py:class:`bamboo.plots.Selection`, and a map ``{ name: expression }`` of branches to store (to store all the branches of the original tree in addition, pass --keepOriginalBranches to bambooRun; individual branches can be added by with an entry ``name: None`` entry)
         """

@@ -222,10 +222,6 @@ def readEnvConfig(explName=None):
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
         "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
-        "log-y"            : "both",
-        "y-axis-show-zero" : True,
-        "save-extensions"  : ["pdf"],
-        "show-ratio"       : True,
         }
 def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., era=None, verbose=False):
     ## TODO also pass the correct luminosity numbers

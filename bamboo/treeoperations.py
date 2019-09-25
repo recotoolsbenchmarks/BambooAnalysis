@@ -226,6 +226,7 @@ mathOpFuns_cppStr = {
     , "subtract" : lambda cppStr,a1,a2 : "( {0} - {1} )".format(cppStr(a1), cppStr(a2))
     , "divide"   : lambda cppStr,a1,a2 : "( {0} / {1} )".format(cppStr(a1), cppStr(a2))
     , "floatdiv"  : lambda cppStr,a1,a2 : "( 1.*{0} / {1} )".format(cppStr(a1), cppStr(a2))
+    , "mod" : lambda cppStr,a1,a2 : "( {0} % {1} )".format(cppStr(a1), cppStr(a2))
     , "neg"  : lambda cppStr,a : "( -{0} )".format(cppStr(a))
     #
     , "lt" : lambda cppStr,a1,a2 : "( {0} <  {1} )".format(cppStr(a1), cppStr(a2))

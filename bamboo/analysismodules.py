@@ -86,8 +86,8 @@ class AnalysisModule(object):
         worker.add_argument("--runRange", type=parseRunRange, help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         worker.add_argument("--sample", type=str, help="Sample name (as in the samples section of the analysis configuration)")
-        worker.add_argument("--era", type=str, help="Era of the sample")
         worker.add_argument("--input", nargs="*", default="File with the list of files to read", dest="filelists")
+        worker.add_argument("--anaConfig", type=str, default=None, help="Analysis description yml file provided to the driver")
         specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
         self.args = parser.parse_args(args)
@@ -127,7 +127,7 @@ class AnalysisModule(object):
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
-            return tup, {"name": smpNm, "era": smpCfg["era"]}
+            return tup, smpNm, smpCfg
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
     def run(self):
@@ -154,8 +154,13 @@ class AnalysisModule(object):
                 if self.args.maxFiles > 0 and self.args.maxFiles < len(inputFiles):
                     logger.warning("Only processing first {0:d} of {1:d} files".format(self.args.maxFiles, len(inputFiles)))
                     inputFiles = inputFiles[:self.args.maxFiles]
-                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, era={era}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample))
-                self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, era=self.args.era, sample=self.args.sample)
+                logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample))
+                if self.args.anaConfig:
+                    analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
+                    sampleCfg = analysisCfg["samples"][self.args.sample]
+                else:
+                    sampleCfg = None
+                self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
@@ -178,16 +183,21 @@ class AnalysisModule(object):
                         os.makedirs(resultsdir)
                     ##
                     if not self.args.distributed: ## sequential mode
-                        for (inputs, output), kwargs in taskArgs:
+                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             output = os.path.join(resultsdir, output)
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
-                            self.processTrees(inputs, output, **kwargs)
+                            self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks
                         from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction
-                        commArgs = ["bambooRun", "--module={0}".format(modAbsPath(self.args.module)), "--distributed=worker"]+self.specificArgv+(["--verbose"] if self.args.verbose else [])
+                        commArgs = [
+                              "bambooRun"
+                            , "--module={0}".format(modAbsPath(self.args.module))
+                            , "--distributed=worker"
+                            , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
+                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else [])
                         tasks = []
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             split = 1
@@ -257,7 +267,7 @@ class AnalysisModule(object):
             else:
                 raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
         """ worker method: produce results (e.g. histograms or trees) from the input files
 
         should be implemented by concrete modules
@@ -267,8 +277,8 @@ class AnalysisModule(object):
         :param tree: key name of the tree inside the files
         :param certifiedLumiFile: lumi mask json file name
         :param runRange: run range to consider (for efficiency of the lumi mask)
-        :param era: era to which the sample belongs (allows for era-based customization)
         :param sample: sample name (key in the samples block of the configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         pass
     def getTasks(self, analysisCfg, **extraOpts):
@@ -284,8 +294,6 @@ class AnalysisModule(object):
             if "run_range" in sConfig:
                 opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             opts["sample"] = sName
-            if "era" in sConfig:
-                opts["era"] = sConfig["era"]
             sInputFiles = sConfig["files"]
             if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
                 logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
@@ -340,13 +348,13 @@ class HistogramsModule(AnalysisModule):
         ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
         (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
         """
-        tup, tupInfo = self.getATree()
-        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
+        tup, smpName, smpCfg = self.getATree()
+        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
         import bamboo.treefunctions as op
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
         """ Worker sequence: produce histograms from the input files
 
         More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`,
@@ -358,12 +366,12 @@ class HistogramsModule(AnalysisModule):
         for fName in inputFiles:
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
-        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=sample, sampleCfg=sampleCfg)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
         outF = gbl.TFile.Open(outputFile, "RECREATE")
-        self.plotList = self.definePlots(tree, noSel, era=era, sample=sample)
+        self.plotList = self.definePlots(tree, noSel, sample=sample, sampleCfg=sampleCfg)
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():
@@ -383,17 +391,17 @@ class HistogramsModule(AnalysisModule):
         self.mergeCounters(outF, inputFiles)
         outF.Close()
     # processTrees customisation points
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
 
         should be implemented by concrete modules
 
         :param tree: decorated tree
-        :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return tree, None, None, None
-    def definePlots(self, tree, noSel, era=None, sample=None):
+    def definePlots(self, tree, noSel, sample=None, sampleCfg=None):
         """ Main method: define plots on the trees (for a give systematic variation)
 
         should be implemented by concrete modules, and return a list of
@@ -406,8 +414,8 @@ class HistogramsModule(AnalysisModule):
 
         :param tree: decorated tree
         :param noSel: base selection
-        :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return [] ## plot list
     def mergeCounters(self, outF, infileNames):
@@ -437,9 +445,9 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            tup, tupInfo = self.getATree()
-            tree, noSel, backend, runAndLS = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
-            self.plotList = self.definePlots(tree, noSel, era=tupInfo.get("era"), sample=tupInfo.get("name"))
+            tup, smpName, smpCfg = self.getATree()
+            tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+            self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
         for eraName, eraCfg in config.get("eras", {}).items():
             if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
                 for cmbCfg in eraCfg:
@@ -454,7 +462,7 @@ class NanoAODModule(AnalysisModule):
         self.calcToAdd = [] ## names of the length leaves (e.g. nJet, nMuon) of the collections for which calculators should be added
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, sample=None, sampleCfg=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
         The :py:attr:`~bamboo.analysismodules.NanoAODModlecalcToAdd`` member is
@@ -542,13 +550,13 @@ class SkimmerModule(AnalysisModule):
         ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
         (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
         """
-        tup, tupInfo = self.getATree()
-        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, era=tupInfo.get("era"), sample=tupInfo.get("name"))
+        tup, smpName, smpCfg = self.getATree()
+        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
         import bamboo.treefunctions as op
         import IPython
         IPython.embed()
 
-    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, era=None, sample=None):
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
         """ Worker sequence: produce histograms from the input files
 
         More in detail, this will load the inputs, call :py:meth:`~bamboo.analysismodules.SkimmerModule.prepareTree`,
@@ -561,11 +569,11 @@ class SkimmerModule(AnalysisModule):
         for fName in inputFiles:
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
-        tree, noSel, backend, runAndLS = self.prepareTree(tup, era=era, sample=sample)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=sample, sampleCfg=sampleCfg)
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
-        finalSel, brToKeep = self.defineSkimSelection(tree, noSel, era=era, sample=sample)
+        finalSel, brToKeep = self.defineSkimSelection(tree, noSel, sample=sample)
         defBr = dict((k,v) for k,v in brToKeep.items() if v is not None)
         origBr = list(k for k,v in brToKeep.items() if v is None)
 
@@ -576,17 +584,17 @@ class SkimmerModule(AnalysisModule):
         outF.Close()
 
     # processTrees customisation points
-    def prepareTree(self, tree, era=None, sample=None):
+    def prepareTree(self, tree, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
 
         should be implemented by concrete modules
 
         :param tree: decorated tree
-        :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
         """
         return tree, None, None, None
-    def defineSkimSelection(self, tree, noSel, era=None, sample=None):
+    def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):
         """ Main method: define a selection for the skim
 
         should be implemented by concrete modules, and return a
@@ -594,8 +602,8 @@ class SkimmerModule(AnalysisModule):
 
         :param tree: decorated tree
         :param noSel: base selection
-        :param era: era name, to allow era-based customization
         :param sample: sample name (as in the samples section of the analysis configuration file)
+        :param sampleCfg: that sample's entry in the configuration file
 
         :returns: the skim :py:class:`bamboo.plots.Selection`, and a map ``{ name: expression }`` of branches to store (to store all the branches of the original tree in addition, pass --keepOriginalBranches to bambooRun; individual branches can be added by with an entry ``name: None`` entry)
         """

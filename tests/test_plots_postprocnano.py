@@ -20,7 +20,6 @@ def test(decoNano):
     tup, noSel, be = decoNano
     from bamboo import treefunctions as op
     from bamboo.plots import Plot, Selection, EquidistantBinning
-    from bamboo.analysisutils import forceDefine
     plots = []
     electrons = op.select(tup.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15., op.abs(ele.eta) < 2.4))
     muons = op.select(tup.Muon, lambda mu : op.AND(mu.pt > 10., op.abs(mu.eta) < 2.4, mu.mediumId, mu.pfRelIso04_all < 0.15))
@@ -35,5 +34,7 @@ def test(decoNano):
     cleanedJetsByDeepFlav = op.sort(cleanedJets, lambda jet: jet.btagDeepFlavB)
     hasMuJ = hasMuon.refine("hasMuonJ", cut=(op.rng_len(cleanedJets) > 0), weight=op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB))
     plots.append(Plot.make1D("hasMuonJ_prodBTags", op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB), hasMuJ, EquidistantBinning(1, 0., 1.), title="Product of jet b-tags", xTitle="X"))
+    plots.append(Plot.make1D("MET", tup.MET.pt, noSel, EquidistantBinning(50, 0., 100.), title="MET pt", xTitle="MET"))
+    plots.append(Plot.make1D("hasMuonJ_MET", tup.MET.pt, hasMuJ, EquidistantBinning(50, 0., 100.), title="MET pt", xTitle="MET"))
 
     assert all(h for p in plots for h in be.getPlotResults(p))

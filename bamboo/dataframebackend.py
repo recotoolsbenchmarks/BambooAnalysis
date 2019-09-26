@@ -299,7 +299,7 @@ class DataframeBackend(FactoryBackend):
                             plotDF = plotDF.Define(vName, vExpr)
                         plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
                         plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
-                        wN = varNd.wName[varn] if systN in selSysts else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
+                        wN = varNd.wName[varn] if systN in selSysts and varn in varNd.wName else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
                         if wN is not None: ## nontrivial weight
                             logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}", plot.name, varn, ", ".join(varExprs.keys()), wN)
                             plotRes.append(plotFun(plotModel, *chain(varExprs.keys(), [ wN ]) ))

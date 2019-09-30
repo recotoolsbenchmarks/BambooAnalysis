@@ -125,11 +125,13 @@ public:
   using const_iterator = IndexRangeIterator<IDX>;
   using value_type = IDX;
 
-  explicit IndexRange(IDX max) : m_max(max) {}
+  explicit IndexRange(IDX max) : m_min(  0), m_max(max) {}
+  IndexRange(IDX min, IDX max) : m_min(min), m_max(max) {}
 
-  iterator begin() const { return IndexRangeIterator<IDX>(0, m_max); }
+  iterator begin() const { return IndexRangeIterator<IDX>(m_min, m_max); }
   iterator end  () const { return IndexRangeIterator<IDX>(m_max, m_max); }
 private:
+  IDX m_min;
   IDX m_max;
 };
 };

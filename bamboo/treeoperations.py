@@ -643,7 +643,8 @@ def _normFunArgs(expr, args, argNames):
     newArgs = args
     for i,argN in sorted(list(enumerate(argNames)), key=(lambda elm : len(elm[1])), reverse=True):
         newName = "myArg{0:d}".format(i, argN)
-        assert sum(1 for ia in newArgs if argN in ia) == 1 ## should be in one and only one argument
+        if sum(1 for ia in newArgs if argN in ia) != 1: ## should be in one and only one argument
+            raise RuntimeError("{0} is in more than one (or none) of {1}".format(argN, newArgs))
         newArgs = [ (ia.replace(argN, newName) if argN in ia else ia) for ia in newArgs ]
         newExpr = newExpr.replace(argN, newName)
     return newExpr, newArgs
@@ -663,7 +664,7 @@ class Select(TupleOp):
     def fromRngFun(rng, pred):
         """ Factory method from a range and predicate (callable) """
         idx = LocalVariablePlaceholder(SizeType)
-        predExpr = adaptArg(pred(rng._base[idx.result]))
+        predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
         res = Select(adaptArg(rng._idxs), predExpr, idx)
@@ -716,7 +717,7 @@ class Sort(TupleOp):
     @staticmethod
     def fromRngFun(rng, fun):
         idx = LocalVariablePlaceholder(SizeType)
-        funExpr = adaptArg(fun(rng._base[idx.result]))
+        funExpr = adaptArg(fun(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
         res = Sort(adaptArg(rng._idxs), funExpr, idx)
@@ -770,7 +771,7 @@ class Map(TupleOp):
     @staticmethod
     def fromRngFun(rng, fun, typeName=None):
         idx = LocalVariablePlaceholder(SizeType)
-        val = fun(rng._base[idx.result])
+        val = fun(rng._getItem(idx.result))
         funExpr = adaptArg(val)
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
@@ -824,12 +825,12 @@ class Next(TupleOp):
     @staticmethod
     def fromRngFun(rng, pred): ## FIXME you are here
         idx = LocalVariablePlaceholder(SizeType)
-        predExpr = adaptArg(pred(rng._base[idx.result]))
+        predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
         res = Next(adaptArg(rng._idxs), predExpr, idx)
         idx._parent = res
-        return rng._base[res]
+        return rng._getItem(res)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
@@ -880,7 +881,7 @@ class Reduce(TupleOp):
         resultType = start._typeName
         idx = LocalVariablePlaceholder(SizeType)
         prevRes = LocalVariablePlaceholder(resultType, i=-1)
-        accuExpr = adaptArg(accuFun(prevRes.result, rng._base[idx.result]))
+        accuExpr = adaptArg(accuFun(prevRes.result, rng._getItem(idx.result)))
         maxLVIdx = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(accuExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))
         idx.i = maxLVIdx+1
@@ -945,7 +946,7 @@ class Combine(TupleOp):
         areDiff = op.AND(*(sameIdxPred(ia.result, ib.result)
                 for ((ia, ra), (ib, rb)) in combinations(zip(idx, ranges), 2)
                 if ra._base == rb._base))
-        candPred = candPredFun(*( rng._base[iidx.result] for rng,iidx in zip(ranges, idx)))
+        candPred = candPredFun(*( rng._getItem(iidx.result) for rng,iidx in zip(ranges, idx)))
         if len(areDiff.op.args) > 0:
             candPredExpr = adaptArg(op.AND(areDiff, candPred))
         else:

@@ -209,7 +209,11 @@ class ListBase(object):
         self._base = self ## TODO get rid of _
         super(ListBase, self).__init__()
     def __getitem__(self, index):
-        pass ## need override
+        """ Get item using index of this range """
+        return self._getItem(index)
+    def _getItem(self, baseIndex):
+        """ Get item using index of base range """
+        return self._base[baseIndex]
     def __len__(self):
         pass ## need overridde
     @property
@@ -226,18 +230,17 @@ class ContainerGroupItemProxy(TupleBaseProxy):
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """
-    def __init__(self, prefix, parent, size, valuetype, offset=None):
+    def __init__(self, prefix, parent, size, valuetype):
         ListBase.__init__(self)
         self._size = size
         self.valuetype = valuetype
-        self.offset = offset
         super(ContainerGroupProxy, self).__init__(prefix, parent)
     def __len__(self):
-        return ( self._size.result-self.offset.result if self.offset is not None else self._size.result )
-    def __getitem__(self, index):
-        return ( self.valuetype(self, self.offset.result+index) if self.offset is not None else self.valuetype(self, index) )
+        return self._size.result
+    def _getItem(self, baseIndex):
+        return self.valuetype(self, baseIndex)
     def __repr__(self):
-        return "{0}({1!r}, {2!r}{3})".format(self.__class__.__name__, self._parent, self._size, (", {0!r}".format(self.offset) if self.offset is not None else ""))
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
 
 class ObjectProxy(NumberProxy):
     """
@@ -311,7 +314,7 @@ class VectorProxy(ObjectProxy,ListBase):
             else:
                 self.valueType = vecPat.match(typeName).group("item")
         super(VectorProxy, self).__init__(parent, typeName)
-    def __getitem__(self, index):
+    def _getItem(self, index):
         return GetItem(self, self.valueType, index).result
     def __len__(self):
         return self.size()
@@ -330,11 +333,36 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def _idxs(self):
         return self._parent.result
     def __getitem__(self, index):
-        return self._base[self._idxs[index]]
+        return self._getItem(self._idxs[index])
     def __len__(self):
         return self._idxs.__len__()
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r})".format(self._base, self._parent)
+
+class SliceProxy(TupleBaseProxy,ListBase):
+    """ Proxy for part of an iterable (ContainerGroup/selection etc.) """
+    def __init__(self, base, parent, begin, end, valueType=None): ## 'parent' is a Select or Sort TupleOp
+        ListBase.__init__(self)
+        self._base = base
+        self._begin = begin
+        self._end = end
+        self.valueType = valueType
+        super(SliceProxy, self).__init__(self.valueType, parent=parent)
+    @property
+    def _idxs(self):
+        return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (
+            adaptArg(self._begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
+    def __getitem__(self, index):
+        return self._getItem(self._begin+index)
+    def _getItem(self, baseIndex):
+        itm = self._base[baseIndex]
+        if self.valueType is not None:
+            return self.valueType(itm._parent, itm._idx)
+        return itm
+    def __len__(self):
+        return self._end-self._begin
+    def __repr__(self):
+        return "{0}({1!r}, {2!r}, {3!r}, {4!r}, valueType={5!r})".format(self.__class__.__name__, self._base, self._parent, self._begin, self._end, self.valueType)
 
 class CalcVariations(TupleBaseProxy):
     def __init__(self, parent, orig, varItemType=None, withSystName=None):
@@ -377,7 +405,7 @@ class CalcCollectionProxy(TupleBaseProxy,ListBase):
         super(CalcCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __len__(self):
         return self._parent.result.indices().__len__()
-    def __getitem__(self, index):
+    def _getItem(self, index):
         return self.itemType(self, index)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
@@ -473,7 +501,7 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
         self.ranges = ranges
         super(CombinationListProxy, self).__init__(parent.resultType, parent=parent)
-    def __getitem__(self, idx):
+    def _getItem(self, idx):
         return CombinationProxy(self, adaptArg(self._parent.result[idx]))
     def base(self, i):
         return self.ranges[i]._base

@@ -237,7 +237,7 @@ class ContainerGroupProxy(LeafGroupProxy,ListBase):
     def __getitem__(self, index):
         return ( self.valuetype(self, self.offset.result+index) if self.offset is not None else self.valuetype(self, index) )
     def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
+        return "{0}({1!r}, {2!r}{3})".format(self.__class__.__name__, self._parent, self._size, (", {0!r}".format(self.offset) if self.offset is not None else ""))
 
 class ObjectProxy(NumberProxy):
     """

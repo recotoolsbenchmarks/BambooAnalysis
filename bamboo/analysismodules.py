@@ -77,6 +77,7 @@ class AnalysisModule(object):
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
+        parser.add_argument("-j", "--jobs", type=int, help="Enable implicit multithreading, specify number of cores to use")
         driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
@@ -161,6 +162,10 @@ class AnalysisModule(object):
                     sampleCfg = analysisCfg["samples"][self.args.sample]
                 else:
                     sampleCfg = None
+                if self.args.jobs:
+                    from cppyy import gbl
+                    logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
+                    gbl.ROOT.EnableImplicitMT(self.args.jobs)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
@@ -189,6 +194,10 @@ class AnalysisModule(object):
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
+                            if self.args.jobs:
+                                from cppyy import gbl
+                                logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
+                                gbl.ROOT.EnableImplicitMT(self.args.jobs)
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks
@@ -198,7 +207,7 @@ class AnalysisModule(object):
                             , "--module={0}".format(modAbsPath(self.args.module))
                             , "--distributed=worker"
                             , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
-                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else [])
+                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-j {self.args.jobs}"] if self.args.jobs else [])
                         tasks = []
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             split = 1

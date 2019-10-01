@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os.path
 import re
+from timeit import default_timer as timer
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
@@ -371,7 +372,11 @@ class HistogramsModule(AnalysisModule):
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
         outF = gbl.TFile.Open(outputFile, "RECREATE")
+        logger.info("Starting to define plots")
+        start = timer()
         self.plotList = self.definePlots(tree, noSel, sample=sample, sampleCfg=sampleCfg)
+        end = timer()
+        logger.info(f"Plots defined in {end - start:.2f}s")
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():
@@ -385,9 +390,13 @@ class HistogramsModule(AnalysisModule):
             logger.info("Systematic shape variations impacting any plots: {0}".format(", ".join(systNuis)))
 
         outF.cd()
+        logger.info("Starting to fill plots")
+        start = timer()
         for p in self.plotList:
             for h in backend.getPlotResults(p):
                 h.Write()
+        end = timer()
+        logger.info(f"Plots finished in {end - start:.2f}s")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
     # processTrees customisation points

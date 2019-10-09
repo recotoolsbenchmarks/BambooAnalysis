@@ -158,7 +158,12 @@ class ArrayProxy(TupleBaseProxy):
         super(ArrayProxy, self).__init__("{0}[]".format(typeName), parent=parent)
         self.valueType = typeName
     def __getitem__(self, index):
-        return GetItem(self, self.valueType, index).result
+        if isinstance(index, slice):
+            if index.step and index.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
+        else:
+            return GetItem(self, self.valueType, index).result
     def __len__(self):
         return self._length.result
     def __repr__(self):
@@ -210,7 +215,12 @@ class ListBase(object):
         super(ListBase, self).__init__()
     def __getitem__(self, index):
         """ Get item using index of this range """
-        return self._getItem(index)
+        if isinstance(index, slice):
+            if index.step and index.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
+        else:
+            return self._getItem(index)
     def _getItem(self, baseIndex):
         """ Get item using index of base range """
         return self._base[baseIndex]
@@ -333,7 +343,12 @@ class SelectionProxy(TupleBaseProxy,ListBase):
     def _idxs(self):
         return self._parent.result
     def __getitem__(self, index):
-        return self._getItem(self._idxs[index])
+        if isinstance(index, slice):
+            if index.step and index.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
+        else:
+            return self._getItem(self._idxs[index])
     def _getItem(self, baseIndex):
         itm = self._base[baseIndex]
         if self.valueType and self.valueType != self._base.valueType:
@@ -347,28 +362,47 @@ class SelectionProxy(TupleBaseProxy,ListBase):
 
 class SliceProxy(TupleBaseProxy,ListBase):
     """ Proxy for part of an iterable (ContainerGroup/selection etc.) """
-    def __init__(self, base, parent, begin, end, valueType=None): ## 'parent' is a Select or Sort TupleOp
+    def __init__(self, parent, begin, end, valueType=None): ## 'parent' is another proxy (ListBase, will become _base of this one)
         ListBase.__init__(self)
-        self._base = base
-        self._begin = begin
-        self._end = end
-        self.valueType = valueType if valueType else base.valueType
-        super(SliceProxy, self).__init__(self.valueType, parent=parent)
+        self._base = parent if parent is not None else None
+        self._begin = makeProxy(SizeType, adaptArg(begin, SizeType)) if begin is not None else None ## None signals 0
+        self._end = makeProxy(SizeType, adaptArg(end, SizeType)) if end is not None else makeConst(parent.__len__(), SizeType)
+        self.valueType = valueType if valueType else parent.valueType
+        super(SliceProxy, self).__init__(self.valueType, parent=adaptArg(parent))
+    def _offset(self, idx):
+        if self._begin is not None:
+            return self._begin+idx
+        else:
+            return idx
+    @property
+    def begin(self):
+        if self._begin:
+            return self._begin
+        else:
+            return makeConst(0, SizeType)
     @property
     def _idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (
-            adaptArg(self._begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
-    def __getitem__(self, index):
-        return self._getItem(self._begin+index)
+            adaptArg(self.begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            if key.step and key.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self._base,
+                    (self._offset(key.start) if key.start is not None else self._begin),
+                    (self._offset(key.stop ) if key.stop  is not None else self._end  ),
+                    valueType=self.valueType)
+        else:
+            return self._getItem(self._offset(key))
     def _getItem(self, baseIndex):
         itm = self._base[baseIndex]
         if self.valueType and self.valueType != self._base.valueType:
             return self.valueType(itm._parent, itm._idx)
         return itm
     def __len__(self):
-        return self._end-self._begin
+        return self._end-self.begin
     def __repr__(self):
-        return "{0}({1!r}, {2!r}, {3!r}, {4!r}, valueType={5!r})".format(self.__class__.__name__, self._base, self._parent, self._begin, self._end, self.valueType)
+        return "{0}({1!r}, {2!r}, {3!r}, valueType={4!r})".format(self.__class__.__name__, self._parent, self._begin, self._end, self.valueType)
 
 class CalcVariations(TupleBaseProxy):
     def __init__(self, parent, orig, varItemType=None, withSystName=None):
@@ -476,7 +510,12 @@ class AltCollectionProxy(TupleBaseProxy, ListBase):
         self.brMap = brMap
         super(AltCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __getitem__(self, index):
-        return self.itemType(self, index)
+        if isinstance(index, slice):
+            if index.step and index.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
+        else:
+            return self.itemType(self, index)
     def __len__(self):
         return self.orig.__len__()
     def __repr__(self):
@@ -494,8 +533,13 @@ class CombinationProxy(TupleBaseProxy):
     def index(self):
         return self._parent.index
     def __getitem__(self, i):
-        idx = makeConst(i, SizeType)
-        return self.cont.base(i)[self._parent.result.get(idx)]
+        if isinstance(i, slice):
+            if i.step and i.step != 1:
+                raise RuntimeError("Slices with non-unit step are not implemented")
+            return SliceProxy(self, i.start, i.stop, valueType="struct")
+        else:
+            idx = makeConst(i, SizeType)
+            return self.cont.base(i)[self._parent.result.get(idx)]
     ## TODO add more (maybe simply defer to rdfhelpers::Combination object
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)

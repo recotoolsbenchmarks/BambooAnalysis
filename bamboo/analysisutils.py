@@ -301,9 +301,11 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
         args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
     else:
         args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
-    ## args are complete, add calculator and initiliaze
-    from . import treefunctions as op
-    from .root import gbl
+    ## load necessary library and header(s)
+    from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .root import loadJMESystematicsCalculator, gbl
+    loadJMESystematicsCalculator()
+    ## define calculator and initialize
     jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
 
@@ -468,9 +470,11 @@ def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
     else:
         args += [ _top.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
                   _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") ]
-    ## args are complete, add calculator and initiliaze
-    from . import treefunctions as op
-    from .root import gbl
+    ## load necessary library and header(s)
+    from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .root import loadRochesterCorrectionCalculator, gbl
+    loadRochesterCorrectionCalculator()
+    ## define calculator and initialize
     roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
 

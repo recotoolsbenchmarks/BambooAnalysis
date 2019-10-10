@@ -6,7 +6,6 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 @pytest.fixture(scope="module")
 def nanojetargs():
     from bamboo.root import gbl
-    res_t = getattr(gbl, "RochesterCorrectionCalculator::result_t") ## trigger dictionary generation
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016.root"))
     tup = f.Get("Events")
     tup.GetEntry(0)
@@ -29,15 +28,17 @@ def nanojetargs():
 
 @pytest.fixture(scope="module")
 def roccorcalc_empty():
-    from bamboo.root import gbl
-    import bamboo.treefunctions ## loads and includes
+    from bamboo.root import gbl, loadRochesterCorrectionCalculator
+    import bamboo.treefunctions
+    loadRochesterCorrectionCalculator()
     calc = gbl.RochesterCorrectionCalculator()
     yield calc
 
 @pytest.fixture(scope="module")
 def roccorcalc_2016():
-    from bamboo.root import gbl
+    from bamboo.root import gbl, loadRochesterCorrectionCalculator
     import bamboo.treefunctions
+    loadRochesterCorrectionCalculator()
     calc = gbl.RochesterCorrectionCalculator()
     calc.setRochesterCorrection(os.path.join(testData, "RoccoR2016.txt"))
     yield calc

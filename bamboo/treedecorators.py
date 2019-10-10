@@ -18,7 +18,7 @@ def allLeafs(branch):
     Recursively collect TTree leaves (TLeaf and TBranchElement)
     """
     for br in branch.GetListOfBranches():
-        from cppyy import gbl
+        from .root import gbl
         if isinstance(br, gbl.TBranchElement):
             yield br
         else:
@@ -151,7 +151,7 @@ def decorateTTW(aTree, description=None):
                 }
             itm_lvs_vec = set()
             itm_lvs_arrCnt = dict()
-            from cppyy import gbl
+            from .root import gbl
             for lvNm, lv in allTreeLeafs.items():
                 if lvNm.startswith(prefix):
                     if isinstance(lv, gbl.TBranchElement):

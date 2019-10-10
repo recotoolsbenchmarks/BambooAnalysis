@@ -53,7 +53,7 @@ mcPUProfiles = {
         }
 
 def getHist(fName, hName="pileup"):
-    from cppyy import gbl
+    from bamboo.root import gbl
     tf = gbl.TFile.Open(fName)
     if not tf:
         raise RuntimeError("Could not open file '{0}'".format(fName))

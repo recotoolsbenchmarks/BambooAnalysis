@@ -8,7 +8,7 @@ def _load_extensions():
     import pkg_resources
     import os.path
     pkgRoot = pkg_resources.get_distribution("bamboo").location
-    from cppyy import gbl
+    from .root import gbl
     gbl.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
     instPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
     instInclude = os.path.join(instPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo")

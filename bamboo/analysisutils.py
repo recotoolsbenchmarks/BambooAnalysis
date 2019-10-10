@@ -243,7 +243,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
             smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
                 smpOpts["cross-section"] = smpCfg["cross-section"]
-                from cppyy import gbl
+                from .root import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 try:
                     counters = readCounters(resultsFile)
@@ -303,7 +303,7 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
         args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
     ## args are complete, add calculator and initiliaze
     from . import treefunctions as op
-    from cppyy import gbl
+    from .root import gbl
     jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
 
@@ -344,7 +344,7 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
             else:
                 raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed. Please specify the JEC levels explicitly")
         jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
-        from cppyy import gbl
+        from .root import gbl
         if jecLevels:
             jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
             for jLev in jecLevels:
@@ -470,7 +470,7 @@ def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
                   _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") ]
     ## args are complete, add calculator and initiliaze
     from . import treefunctions as op
-    from cppyy import gbl
+    from .root import gbl
     roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
 

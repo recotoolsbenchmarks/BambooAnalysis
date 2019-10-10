@@ -107,7 +107,7 @@ _giFun = 0
 
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
-        from cppyy import gbl
+        from .root import gbl
         self.rootDF = gbl.RDataFrame(tree)
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
@@ -143,7 +143,7 @@ class DataframeBackend(FactoryBackend):
                 fullDecl = decl.replace("<<name>>", name)
 
             logger.debug("Defining new symbol with interpreter: {0}", fullDecl)
-            from cppyy import gbl
+            from .root import gbl
             gbl.gInterpreter.Declare(fullDecl)
             return name
 
@@ -320,7 +320,7 @@ class DataframeBackend(FactoryBackend):
 
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
-        from cppyy import gbl
+        from .root import gbl
         modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
         name = plot.name
         if variation != "nominal":

@@ -388,7 +388,7 @@ class CallMethod(TupleOp):
         mp = None
         if getFromRoot:
             try:
-                from cppyy import gbl
+                from .root import gbl
                 if "::" in name:
                     res = gbl
                     for tok in name.split("::"):

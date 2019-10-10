@@ -9,7 +9,7 @@ def json_lumimask():
     jsonName = os.path.join(testData, "Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt")
     runRange = (276831, 277420) ## 2016E
     import bamboo.treefunctions ## loads and includes, minimal alternative below
-    from cppyy import gbl
+    from bamboo.root import gbl
     #ROOT.gSystem.Load("libBambooLumiMask.so")
     #ROOT.gROOT.ProcessLine('#include "../ext/include/LumiMask.h"')
     yield gbl.LumiMask.fromJSON(jsonName, *runRange)

@@ -5,7 +5,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 
 @pytest.fixture(scope="module")
 def nanojetargs():
-    from cppyy import gbl
+    from bamboo.root import gbl
     res_t = getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016.root"))
     tup = f.Get("Events")
@@ -32,14 +32,14 @@ def nanojetargs():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_empty():
-    from cppyy import gbl
+    from bamboo.root import gbl
     import bamboo.treefunctions ## loads and includes
     calc = gbl.JMESystematicsCalculator()
     yield calc
 
 @pytest.fixture(scope="module")
 def jmesystcalc_smear():
-    from cppyy import gbl
+    from bamboo.root import gbl
     import bamboo.treefunctions
     calc = gbl.JMESystematicsCalculator()
     calc.setSmearing(os.path.join(testData, "Summer16_25nsV1_MC_PtResolution_AK4PFchs.txt"), os.path.join(testData, "Summer16_25nsV1_MC_SF_AK4PFchs.txt"), True, 0.2, 3.)
@@ -47,7 +47,7 @@ def jmesystcalc_smear():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_jec():
-    from cppyy import gbl
+    from bamboo.root import gbl
     import bamboo.treefunctions
     calc = gbl.JMESystematicsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
@@ -60,7 +60,7 @@ def jmesystcalc_jec():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_jesunc():
-    from cppyy import gbl
+    from bamboo.root import gbl
     import bamboo.treefunctions
     calc = gbl.JMESystematicsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()

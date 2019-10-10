@@ -1,8 +1,8 @@
-"""
-Bamboo
+""" Bamboo
 
 A high-level HEP analysis library for ROOT::RDataFrame
 
-See https://cp3-git.irmp.ucl.ac.be/pdavid/bamboo
+See https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/
 """
-__version__ = "0.1.0a1"
+import pkg_resources
+__version__ = pkg_resources.require("bamboo")[0].version

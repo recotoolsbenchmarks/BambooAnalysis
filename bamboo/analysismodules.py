@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os.path
 import re
+from timeit import default_timer as timer
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
@@ -76,6 +77,7 @@ class AnalysisModule(object):
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
+        parser.add_argument("-t", "--threads", type=int, help="Enable implicit multithreading, specify number of threads to launch")
         driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
@@ -160,6 +162,10 @@ class AnalysisModule(object):
                     sampleCfg = analysisCfg["samples"][self.args.sample]
                 else:
                     sampleCfg = None
+                if self.args.jobs:
+                    from cppyy import gbl
+                    logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
+                    gbl.ROOT.EnableImplicitMT(self.args.jobs)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
@@ -188,6 +194,10 @@ class AnalysisModule(object):
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
+                            if self.args.jobs:
+                                from cppyy import gbl
+                                logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
+                                gbl.ROOT.EnableImplicitMT(self.args.jobs)
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks
@@ -197,7 +207,7 @@ class AnalysisModule(object):
                             , "--module={0}".format(modAbsPath(self.args.module))
                             , "--distributed=worker"
                             , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
-                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else [])
+                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-t {self.args.threads}"] if self.args.threads else [])
                         tasks = []
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             split = 1
@@ -371,7 +381,11 @@ class HistogramsModule(AnalysisModule):
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
         outF = gbl.TFile.Open(outputFile, "RECREATE")
+        logger.info("Starting to define plots")
+        start = timer()
         self.plotList = self.definePlots(tree, noSel, sample=sample, sampleCfg=sampleCfg)
+        end = timer()
+        logger.info(f"Plots defined in {end - start:.2f}s")
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():
@@ -385,9 +399,13 @@ class HistogramsModule(AnalysisModule):
             logger.info("Systematic shape variations impacting any plots: {0}".format(", ".join(systNuis)))
 
         outF.cd()
+        logger.info("Starting to fill plots")
+        start = timer()
         for p in self.plotList:
             for h in backend.getPlotResults(p):
                 h.Write()
+        end = timer()
+        logger.info(f"Plots finished in {end - start:.2f}s")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
     # processTrees customisation points

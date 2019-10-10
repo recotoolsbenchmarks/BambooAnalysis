@@ -544,3 +544,32 @@ def combine(rng, N=None, pred=lambda *parts : True, sameIdxPred=lambda i1,i2: i1
     if len(rng) != N and len(rng) != 1:
         raise RuntimeError("If N(={0:d}) input ranges are given, only N-combinations can be made, not {1:d}".format(len(rng), N))
     return _to.Combine.fromRngFun(N, rng, pred, sameIdxPred=sameIdxPred) ## only implemented for 2 (same or different container)
+
+def systematic(nominal, name=None, **kwargs):
+    """ Construct an expression that will change under some systematic variations
+
+    This is useful when e.g. changing weights for some systematics. The expressions
+    for different variations are assumed (but not checked) to be of the same type, so
+    this should only be used for simple types (typically a number or a range of numbers);
+    containers etc. need to be taken into account in the decorators.
+
+    :Example:
+
+    >>> psWeight = op.systematic(tree.ps_nominal, name="pdf", up=tree.ps_up, down=tree.ps_down)
+    >>> addSys10percent = op.systematic(op.c_float(1.), name="additionalSystematic1", up=op.c_float(1.1), down=op.c_float(0.9))
+
+    :param nominal: nominal expression
+    :param name: name of the systematic uncertainty source
+    :param kwargs: alternative expressions. "up" and "down" (any capitalization) will be prefixed with name
+    """
+    if name is None:
+        raise ValueError("Systematic must have a name")
+    variations = dict()
+    for varNm,varExpr in kwargs.items():
+        if varNm.upper() == "UP":
+            variations["{0}up".format(name)] = _to.adaptArg(varExpr)
+        elif varNm.upper() == "DOWN":
+            variations["{0}down".format(name)] = _to.adaptArg(varExpr)
+        else:
+            variations[varNm] = _to.adaptArg(varExpr)
+    return _to.OpWithSyst(_to.adaptArg(nominal), name, variations=variations)

@@ -6,6 +6,7 @@ logger = bamboo.logging.getLogger(__name__)
 
 from itertools import chain
 from functools import partial
+import numpy as np
 
 from .plots import FactoryBackend, Selection
 from . import treefunctions as op
@@ -332,7 +333,7 @@ class DataframeBackend(FactoryBackend):
         if isinstance(binning, EquidistantBinning):
             return (binning.N, binning.mn, binning.mx)
         elif isinstance(binning, VariableBinning):
-            return (binning.N, binning.binEdges)
+            return (binning.N, np.array(binning.binEdges))
         else:
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
 

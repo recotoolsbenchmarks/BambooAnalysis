@@ -388,7 +388,7 @@ class HistogramsModule(AnalysisModule):
         for p in self.plotList:
             for h in backend.getPlotResults(p):
                 h.Write()
-        self.mergeCounters(outF, inputFiles)
+        self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
     # processTrees customisation points
     def prepareTree(self, tree, sample=None, sampleCfg=None):
@@ -418,13 +418,14 @@ class HistogramsModule(AnalysisModule):
         :param sampleCfg: that sample's entry in the configuration file
         """
         return [] ## plot list
-    def mergeCounters(self, outF, infileNames):
+    def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge counters
 
         should be implemented by concrete modules
 
         :param outF: output file (TFile pointer)
         :param infileNames: input file names
+        :param sample: sample name
         """
         pass
     def readCounters(self, resultsFile):
@@ -485,7 +486,7 @@ class NanoAODModule(AnalysisModule):
             from bamboo.analysisutils import addRochesterCorrectionCalculator
             addRochesterCorrectionCalculator(be, t._Muon, uName=sample, isMC=self.isMC(sample))
         return t, noSel, be, (t.run, t.luminosityBlock)
-    def mergeCounters(self, outF, infileNames):
+    def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge the ``Runs`` trees """
         from cppyy import gbl
         cruns = gbl.TChain("Runs")
@@ -580,7 +581,7 @@ class SkimmerModule(AnalysisModule):
         backend.writeSkim(finalSel, outputFile, treeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
 
         outF = gbl.TFile.Open(outputFile, "UPDATE")
-        self.mergeCounters(outF, inputFiles)
+        self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
 
     # processTrees customisation points

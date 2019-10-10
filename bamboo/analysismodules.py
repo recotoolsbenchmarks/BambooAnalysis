@@ -77,7 +77,7 @@ class AnalysisModule(object):
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
-        parser.add_argument("-j", "--jobs", type=int, help="Enable implicit multithreading, specify number of cores to use")
+        parser.add_argument("-t", "--threads", type=int, help="Enable implicit multithreading, specify number of threads to launch")
         driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
@@ -207,7 +207,7 @@ class AnalysisModule(object):
                             , "--module={0}".format(modAbsPath(self.args.module))
                             , "--distributed=worker"
                             , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
-                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-j {self.args.jobs}"] if self.args.jobs else [])
+                        ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-t {self.args.threads}"] if self.args.threads else [])
                         tasks = []
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             split = 1

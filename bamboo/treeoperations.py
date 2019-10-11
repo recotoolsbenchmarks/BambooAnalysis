@@ -1020,8 +1020,16 @@ class OpWithSyst(ForwardingOp):
         super(OpWithSyst, self).__init__(wrapped)
         self.systName = systName
         self.variations = variations
-    def changeVariation(self, newVar):
-        pass ## main interface method
+    def _clone(self, memo):
+        return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
+    def changeVariation(self, newVariation):
+        """ Assumed to be called on a fresh copy - *will* change the underlying value
+
+        Default implementation: assume variation contains alternative expression, so change the wrapped node
+        """
+        if newVariation not in self.variations:
+            raise ValueError("Invalid variation: {0}".format(newVariation))
+        self.wrapped = self.variations[newVariation]
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
     def _eq(self, other):

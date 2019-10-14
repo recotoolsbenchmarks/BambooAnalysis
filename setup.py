@@ -58,7 +58,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
 
-    url="https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/",
+    url="https://gitlab.cern.ch/cp3-cms/bamboo",
 
     author="Pieter David",
     author_email="pieter.david@cern.ch",

@@ -163,7 +163,7 @@ class AnalysisModule(object):
                 else:
                     sampleCfg = None
                 if self.args.jobs:
-                    from cppyy import gbl
+                    from .root import gbl
                     logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
                     gbl.ROOT.EnableImplicitMT(self.args.jobs)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
@@ -195,7 +195,7 @@ class AnalysisModule(object):
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
                             if self.args.jobs:
-                                from cppyy import gbl
+                                from .root import gbl
                                 logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
                                 gbl.ROOT.EnableImplicitMT(self.args.jobs)
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)

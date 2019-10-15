@@ -20,13 +20,13 @@
 # -- Project information -----------------------------------------------------
 
 project = 'bamboo'
-copyright = '2019, Pieter David'
-author = 'Pieter David'
+copyright = '2019, Université catholique de Louvain'
+author = 'Pieter David, the bamboo team'
 
 # The short X.Y version
-version = 'X.Y'
+version = '0.1'
 # The full version, including alpha/beta/rc tags
-release = 'X.Y.Zz'
+release = '0.1.0b2'
 
 
 # -- General configuration ---------------------------------------------------

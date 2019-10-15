@@ -1,7 +1,4 @@
-""" Setuptools-based setup module for bamboo
-
-derived from the pypa example, see https://github.com/pypa/sampleproject
-"""
+""" Setuptools-based setup module for bamboo """
 
 from setuptools import setup, find_packages
 import os, os.path
@@ -52,24 +49,24 @@ with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 projName = "bamboo"
-projVersion = "0.1.0b1"
+projVersion = "0.1.0b2"
 setup(
     name=projName,
     version=projVersion,
 
-    description="A high-level HEP analysis library for ROOT::RDataFrame",
+    description="A high-level HEP analysis library",
     long_description=long_description,
     long_description_content_type="text/markdown",
 
-    url="https://cp3-git.irmp.ucl.ac.be/pdavid/bamboo",
+    url="https://gitlab.cern.ch/cp3-cms/bamboo",
 
     author="Pieter David",
-    author_email="pieter.david@uclouvain.be",
+    author_email="pieter.david@cern.ch",
 
     license="GPL-3.0-or-later",
 
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 3 - Beta',
 
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
@@ -81,6 +78,7 @@ setup(
 
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
 

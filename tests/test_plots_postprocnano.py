@@ -18,6 +18,7 @@ def decoNano():
 def test(decoNano):
     # a somewhat realistic (but not very sensible) combination of selections and plots
     tup, noSel, be = decoNano
+    noSel = noSel.refine("mcWeight", weight=tup.genWeight)
     from bamboo import treefunctions as op
     from bamboo.plots import Plot, Selection, EquidistantBinning
     plots = []

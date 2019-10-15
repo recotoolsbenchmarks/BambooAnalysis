@@ -261,13 +261,13 @@ class ObjectProxy(NumberProxy):
         super(ObjectProxy, self).__init__(parent, typeName)
     @property
     def _typ(self):
-        from cppyy import gbl
+        from .root import gbl
         return getattr(gbl, self._typeName)
     def __getattr__(self, name):
         typ = self._typ
         if name not in dir(typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
-        from cppyy import gbl
+        from .root import gbl
         if hasattr(typ, name) and isinstance(getattr(typ, name), gbl.MethodProxy):
             return ObjectMethodProxy(self, name)
         else:
@@ -311,7 +311,7 @@ class VectorProxy(ObjectProxy,ListBase):
         if itemType:
             self.valueType = itemType
         else:
-            from cppyy import gbl
+            from .root import gbl
             vecClass = getattr(gbl, typeName)
             if hasattr(vecClass, "value_type"):
                 value = getattr(vecClass, "value_type")

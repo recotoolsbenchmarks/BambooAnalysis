@@ -6,7 +6,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 @pytest.fixture(scope="module")
 def decoNano():
     from bamboo import treefunctions as op
-    from cppyy import gbl
+    from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
     tree = f.Get("Events")
     from bamboo.treedecorators import decorateNanoAOD

@@ -6,7 +6,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 @pytest.fixture(scope="module")
 def decoNano():
     from bamboo import treefunctions as op
-    from cppyy import gbl
+    from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016.root"))
     tree = f.Get("Events")
     from bamboo.treedecorators import decorateNanoAOD
@@ -21,6 +21,7 @@ def decoNano():
 def test(decoNano):
     # a somewhat realistic (but not very sensible) combination of selections and plots
     tup, noSel, be = decoNano
+    noSel = noSel.refine("mcWeight", weight=tup.genWeight)
     from bamboo import treefunctions as op
     from bamboo.plots import Plot, Selection, EquidistantBinning
     from bamboo.analysisutils import forceDefine
@@ -38,4 +39,5 @@ def test(decoNano):
     cleanedJetsByDeepFlav = op.sort(cleanedJets, lambda jet: jet.btagDeepFlavB)
     hasMuJ = hasMuon.refine("hasMuonJ", cut=(op.rng_len(cleanedJets) > 0), weight=op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB))
     plots.append(Plot.make1D("hasMuonJ_prodBTags", op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB), hasMuJ, EquidistantBinning(1, 0., 1.), title="Product of jet b-tags", xTitle="X"))
+    plots.append(Plot.make1D("cleanedjet_pt", op.map(cleanedJets, lambda j : j.pt), noSel, EquidistantBinning(30, 30., 730.), title="Jet p_{T} (GeV)"))
     assert all(h for p in plots for h in be.getPlotResults(p))

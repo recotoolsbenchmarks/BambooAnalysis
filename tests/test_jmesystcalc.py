@@ -5,8 +5,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 
 @pytest.fixture(scope="module")
 def nanojetargs():
-    from cppyy import gbl
-    res_t = getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
+    from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016.root"))
     tup = f.Get("Events")
     tup.GetEntry(0)
@@ -32,23 +31,26 @@ def nanojetargs():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_empty():
-    from cppyy import gbl
-    import bamboo.treefunctions ## loads and includes
+    from bamboo.root import gbl, loadJMESystematicsCalculator
+    import bamboo.treefunctions
+    loadJMESystematicsCalculator()
     calc = gbl.JMESystematicsCalculator()
     yield calc
 
 @pytest.fixture(scope="module")
 def jmesystcalc_smear():
-    from cppyy import gbl
+    from bamboo.root import gbl, loadJMESystematicsCalculator
     import bamboo.treefunctions
+    loadJMESystematicsCalculator()
     calc = gbl.JMESystematicsCalculator()
     calc.setSmearing(os.path.join(testData, "Summer16_25nsV1_MC_PtResolution_AK4PFchs.txt"), os.path.join(testData, "Summer16_25nsV1_MC_SF_AK4PFchs.txt"), True, 0.2, 3.)
     yield calc
 
 @pytest.fixture(scope="module")
 def jmesystcalc_jec():
-    from cppyy import gbl
+    from bamboo.root import gbl, loadJMESystematicsCalculator
     import bamboo.treefunctions
+    loadJMESystematicsCalculator()
     calc = gbl.JMESystematicsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
     l1Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V20_MC_L1FastJet_AK4PFchs.txt"))
@@ -60,8 +62,9 @@ def jmesystcalc_jec():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_jesunc():
-    from cppyy import gbl
+    from bamboo.root import gbl, loadJMESystematicsCalculator
     import bamboo.treefunctions
+    loadJMESystematicsCalculator()
     calc = gbl.JMESystematicsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
     l1Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V20_MC_L1FastJet_AK4PFchs.txt"))

@@ -112,7 +112,7 @@ class AnalysisModule(object):
     def getATree(self):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
-            from cppyy import gbl
+            from .root import gbl
             tup = gbl.TChain(self.args.treeName)
             if not tup.Add(self.inputs[0], 0):
                 raise IOError("Could not open file {}".format(fName))
@@ -125,7 +125,7 @@ class AnalysisModule(object):
             analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
             smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
             logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
-            from cppyy import gbl
+            from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
             if not tup.Add(fName, 0):
                 raise IOError("Could not open file {}".format(fName))
@@ -163,7 +163,7 @@ class AnalysisModule(object):
                 else:
                     sampleCfg = None
                 if self.args.jobs:
-                    from cppyy import gbl
+                    from .root import gbl
                     logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
                     gbl.ROOT.EnableImplicitMT(self.args.jobs)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
@@ -195,7 +195,7 @@ class AnalysisModule(object):
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
                             if self.args.jobs:
-                                from cppyy import gbl
+                                from .root import gbl
                                 logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
                                 gbl.ROOT.EnableImplicitMT(self.args.jobs)
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
@@ -371,7 +371,7 @@ class HistogramsModule(AnalysisModule):
         add a lumi mask if requested, call :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots`,
         run over all files, and write the produced histograms to the output file.
         """
-        from cppyy import gbl
+        from .root import gbl
         tup = gbl.TChain(tree)
         for fName in inputFiles:
             if not tup.Add(fName, 0):
@@ -506,7 +506,7 @@ class NanoAODModule(AnalysisModule):
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge the ``Runs`` trees """
-        from cppyy import gbl
+        from .root import gbl
         cruns = gbl.TChain("Runs")
         for fn in infileNames:
             cruns.Add(fn)
@@ -516,7 +516,7 @@ class NanoAODModule(AnalysisModule):
     def readCounters(self, resultsFile):
         """ Sum over each leaf of the (merged) ``Runs`` tree (except ``run``) """
         runs = resultsFile.Get("Runs")
-        from cppyy import gbl
+        from .root import gbl
         if ( not runs ) or ( not isinstance(runs, gbl.TTree) ):
             raise RuntimeError("No tree with name 'Runs' found in {0}".format(resultsFile.GetName()))
         sums = dict()
@@ -583,7 +583,7 @@ class SkimmerModule(AnalysisModule):
         run over all files, and write the skimmed trees to the output file.
         """
         treeName = tree
-        from cppyy import gbl
+        from .root import gbl
         tup = gbl.TChain(treeName)
         for fName in inputFiles:
             if not tup.Add(fName, 0):

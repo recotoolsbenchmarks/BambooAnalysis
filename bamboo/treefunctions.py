@@ -2,34 +2,8 @@
 from . import treeoperations as _to
 from . import treeproxies as _tp
 
-def _load_extensions():
-    """Add extension libraries and necessary header files to the ROOT interpreter"""
-    import sys
-    import pkg_resources
-    import os.path
-    pkgRoot = pkg_resources.get_distribution("bamboo").location
-    from cppyy import gbl
-    gbl.gROOT.ProcessLine('#include "Math/VectorUtil.h"')
-    instPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
-    instInclude = os.path.join(instPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo")
-    if os.path.isdir(instInclude): ## installed mode
-        gbl.gInterpreter.AddIncludePath(instInclude)
-        libDir = pkgRoot
-    else: ## non-installed mode
-        libDir = os.path.join(pkgRoot, "build", "lib")
-        if not os.path.isdir(libDir):
-            raise RuntimeError("No directory {0} so running in local mode, but then build/lib need to be present. Did you run 'python setup.py build'?".format(libDir))
-        gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "build", "include"))
-        gbl.gInterpreter.AddIncludePath(os.path.join(pkgRoot, "cpp"))
-    gbl.gSystem.Load(os.path.join(libDir, "libBinnedValues"))
-    gbl.gSystem.Load(os.path.join(libDir, "libBambooLumiMask"))
-    gbl.gSystem.Load(os.path.join(libDir, "libJMEObjects"))
-    gbl.gSystem.Load(os.path.join(libDir, "libRoccoR"))
-    ## TODO combine into libBamboo, and "bamboo.h"?
-    for fname in ("bamboohelpers.h", "range.h", "scalefactors.h", "LumiMask.h", "JMESystematicsCalculator.h", "RochesterCorrectionCalculator.h"):
-        gbl.gROOT.ProcessLine('#include "{}"'.format(fname))
-    getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
-_load_extensions()
+from .root import loadBambooExtensions
+loadBambooExtensions()
 
 ## simple type support
 def c_bool(arg):

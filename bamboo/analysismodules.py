@@ -162,10 +162,10 @@ class AnalysisModule(object):
                     sampleCfg = analysisCfg["samples"][self.args.sample]
                 else:
                     sampleCfg = None
-                if self.args.jobs:
+                if self.args.threads:
                     from .root import gbl
-                    logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
-                    gbl.ROOT.EnableImplicitMT(self.args.jobs)
+                    logger.info(f"Enabling implicit MT for {self.args.threads} threads")
+                    gbl.ROOT.EnableImplicitMT(self.args.threads)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
             elif ( not self.args.distributed ) or self.args.distributed == "driver":
                 if len(self.args.input) != 1:
@@ -194,10 +194,10 @@ class AnalysisModule(object):
                             logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
                             if "runRange" in kwargs:
                                 kwargs["runRange"] = parseRunRange(kwargs["runRange"])
-                            if self.args.jobs:
+                            if self.args.threads:
                                 from .root import gbl
-                                logger.info(f"Enabling implicit MT for {self.args.jobs} threads")
-                                gbl.ROOT.EnableImplicitMT(self.args.jobs)
+                                logger.info(f"Enabling implicit MT for {self.args.threads} threads")
+                                gbl.ROOT.EnableImplicitMT(self.args.threads)
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks

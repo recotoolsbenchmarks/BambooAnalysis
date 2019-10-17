@@ -56,10 +56,6 @@ a local clone, such that you can use it to test and propose changes, using
 .. code-block:: sh
 
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git /path/to/your/bambooclone
-   # copy and patch some jet-related classes from CMSSW (requires cvmfs) --- temporary
-   pushd /path/to/your/bambooclone/ext
-   ./getjetclasses.sh
-   popd
    pip install /path/to/your/bambooclone ## e.g. ./bamboo (not bamboo - a package with that name exists)
 
 such that you can update later on with (inside ``/path/to/your/bambooclone``)
@@ -124,10 +120,6 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
-   # copy and patch some jet-related classes from CMSSW (requires cvmfs) --- temporary
-   pushd bambooclone/ext
-   ./getjetclasses.sh
-   popd
    pip install ./bamboo
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git
    cd plotIt/external

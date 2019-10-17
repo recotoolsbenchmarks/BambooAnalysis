@@ -56,7 +56,6 @@ def loadBambooExtensions():
 def loadJMESystematicsCalculator():
     loadLibrary("libJMEObjects")
     loadHeader("JMESystematicsCalculator.h")
-    loadHeader("RochesterCorrectionCalculator.h")
     getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
 
 def loadRochesterCorrectionCalculator():

@@ -14,6 +14,8 @@ endif()
 find_package(ROOT REQUIRED COMPONENTS Hist)
 find_package(Boost REQUIRED)
 
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc)
 target_compile_features(BinnedValues PRIVATE cxx_std_17)
 target_include_directories(BinnedValues PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)

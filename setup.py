@@ -112,6 +112,6 @@ setup(
             "build_dir" : ("setup.py", "doc/build")
             }
         },
-    headers=[ os.path.join(root, item) for incPath in ("cpp", os.path.join("ext", "include"))
-                for root, subFolder, files in os.walk(incPath) for item in files ],
+    headers=([ os.path.join(root, item) for root, subFolder, files in os.walk("cpp") for item in files ]
+            +[ os.path.join("build", "include", fnm) for fnm in ["FactorizedJetCorrectorCalculator.h", "FactorizedJetCorrector.h", "FormulaEvaluator.h", "JetCorrectionUncertainty.h", "JetCorrectorParameters.h", "JetCorrectorParametersHelper.h", "JetResolution.h", "JetResolutionObject.h", "SimpleJetCorrectionUncertainty.h", "SimpleJetCorrector.h", "Utilities.h", ] ]),
 )

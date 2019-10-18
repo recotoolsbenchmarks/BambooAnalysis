@@ -6,9 +6,16 @@ before_script:
   - python -m venv venv
   - source venv/bin/activate
 
-test:
+test_setup:
   tags:
     - cvmfs
   script:
     - python setup.py build
     - python setup.py test
+test_pip:
+  tags:
+    - cvmfs
+  script:
+    - pip install .
+    - cd tests
+    - pytest

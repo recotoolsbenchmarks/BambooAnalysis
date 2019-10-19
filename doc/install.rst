@@ -92,21 +92,21 @@ from picking up the wrong build directory).
 
 For combining the different histograms in stacks and producing pdf or png files,
 which is used in many analyses, the plotIt_ tool is used.
-It can be installed with
+It can be installed with cmake, e.g.
 
 .. code-block:: sh
 
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git /path/to/your/plotitclone
-   cd /path/to/your/plotitclone
-   cd external
-   ./build-external.sh
+   mkdir build-plotit
+   cd build-plotit
+   cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV /path/to/your/plotitclone
+   make -j2 install
    cd -
-   BOOST_ROOT=$CMAKE_PREFIX_PATH make -j4
-   cp plotIt bamboovenv/bin
 
-where the last command copies the ``plotIt`` executable inside the virtualenv
-executable directory such that it is picked up automatically (alternatively, its
-path can be passed to ``bambooRun`` with the ``--plotIt`` command-line option).
+where ``-DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV`` ensures that ``make install``
+will put the ``plotIt`` executable directly in the ``bin`` directory of the
+virtualenv (if not using a virtualenv, its path can be passed to ``bambooRun``
+with the ``--plotIt`` command-line option).
 
 Putting the above commands together, the following should give you a virtual
 environment with bamboo_, and a clone of bamboo_ and plotIt in case you need to
@@ -116,18 +116,20 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
 
    mkdir bamboodev
    cd bamboodev
+   # make a virtualenv
    source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
+   # clone and install bamboo
    git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
    pip install ./bamboo
+   # clone and install plotIt
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git
-   cd plotIt/external
-   ./build-external.sh
-   cd ..
-   BOOST_ROOT=$CMAKE_PREFIX_PATH make -j4
-   cd ..
-   cp plotIt/plotIt bamboovenv/bin
+   mkdir build-plotit
+   cd build-plotit
+   cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt
+   make -j2 install
+   cd -
 
 Test your setup
 ---------------

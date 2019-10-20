@@ -15,14 +15,14 @@ def chdirback(whereTo):
     yield
     os.chdir(cwd)
 
-import setuptools.command.build_clib
-class build_clib(setuptools.command.build_clib.build_clib):
+import setuptools.command.build_clib, setuptools.command.install
+class BuildClibCommand(setuptools.command.build_clib.build_clib):
     """ Build libraries with {"cmake" : sourcedir} in their build_info by running cmake in that directory """
     def build_libraries(self, libraries):
         for (lib_name, build_info) in libraries:
             if build_info.get("cmake"):
                 self.build_cmake(lib_name, build_info.get("cmake"))
-        super(build_clib, self).build_libraries([ (lib_name, build_info) for lib_name, build_info in libraries if not build_info.get("cmake") ])
+        super(BuildClibCommand, self).build_libraries([ (lib_name, build_info) for lib_name, build_info in libraries if not build_info.get("cmake") ])
 
     def build_cmake(self, name, cmPath):
         import pathlib
@@ -36,6 +36,13 @@ class build_clib(setuptools.command.build_clib.build_clib):
                 os.path.join(here, cmPath)])
             if not self.dry_run:
                 self.spawn(["cmake", "--build", ".", "--target", "install", "--config", buildType])
+
+class InstallCommand(setuptools.command.install.install):
+    """ Put the headers next to the python module """
+    def finalize_options(self):
+        ret = super(InstallCommand, self).finalize_options()
+        self.install_headers = os.path.join(self.install_purelib, "bamboo", "include")
+        return ret
 
 try:
     from sphinx.setup_command import BuildDoc
@@ -100,7 +107,8 @@ setup(
 
     libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
     cmdclass={
-        "build_clib" : build_clib,
+        "build_clib" : BuildClibCommand,
+        "install" : InstallCommand,
         "build_sphinx" : BuildDoc
         },
     command_options={

@@ -34,8 +34,7 @@ def loadBambooExtensions():
     import pkg_resources
     import os.path
     pkgRoot = pkg_resources.get_distribution("bamboo").location
-    instPrefix = os.path.dirname(os.path.dirname(os.path.dirname(pkgRoot)))
-    instInclude = os.path.join(instPrefix, "include", "site", "python{0.major}.{0.minor}".format(sys.version_info), "bamboo")
+    instInclude = os.path.join(pkgRoot, "bamboo", "include")
     if os.path.isdir(instInclude): ## installed mode
         addIncludePath(instInclude)
         libDir = pkgRoot

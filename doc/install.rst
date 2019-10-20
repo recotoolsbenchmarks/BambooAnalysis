@@ -270,6 +270,19 @@ If the builtin functionality is not sufficient, some hints on extending or
 modifying bamboo can be found in the :doc:`advanced topics<advanced>` and the
 :doc:`hacking guide<hacking>`.
 
+Machine learning packages
+-------------------------
+
+In order to evaluate machine learning classifiers, bamboo_ needs to find the
+necessary C(++) libraries, both when the extension libraries are compiled and
+at runtime (so they need to be installed before (re)installing bamboo_).
+For libtorch_ this is done by searching for the ``torch`` package
+using ``pkg_resources``, which should work whenever it is installed with pip.
+For Tensorflow-C_ there is currently no pip-installable package, so it will be
+searched for (by cmake and the dynamic library loader) in the default locations,
+supplemented with the currently active `virtual environment`_ (a script to
+install it directly there is bundled with the bamboo_ source distribution, in
+``ext/install_tensorflow-c.sh``).
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
@@ -282,6 +295,10 @@ modifying bamboo can be found in the :doc:`advanced topics<advanced>` and the
 .. _virtual environment: https://packaging.python.org/tutorials/installing-packages/#creating-virtual-environments
 
 .. _plotIt: https://github.com/cp3-llbb/plotIt
+
+.. _libtorch: https://pytorch.org/cppdocs/
+
+.. _tensorflowc: https://www.tensorflow.org/install/lang_c
 
 .. |---| unicode:: U+2014
    :trim:

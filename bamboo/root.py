@@ -32,6 +32,19 @@ def loadLibrary(libName):
     elif st == -2:
         raise RuntimeError("Version match for library {0}".format(libName))
 
+import functools
+class once:
+    """ Function decorator to make sure things are not loaded more than once """
+    def __init__(self, fun):
+        self.fun = fun
+        self.has_run = False
+        functools.update_wrapper(self, fun)
+    def __call__(self):
+        if not self.has_run:
+            self.has_run = True
+            return self.fun()
+
+@once
 def loadBambooExtensions():
     # Add extension libraries and necessary header files to the ROOT interpreter
     import sys
@@ -57,11 +70,13 @@ def loadBambooExtensions():
     for fname in ("bamboohelpers.h", "range.h", "LumiMask.h", "bamboorandom.h", "scalefactors.h", "BTagCalibrationStandalone.h"):
         loadHeader(fname)
 
+@once
 def loadJMESystematicsCalculators():
     loadLibrary("libJMEObjects")
     loadHeader("JMESystematicsCalculators.h")
     getattr(gbl, "JetVariationsCalculator::result_t") ## trigger dictionary generation
 
+@once
 def loadRochesterCorrectionCalculator():
     loadLibrary("libRoccoR")
     loadHeader("RochesterCorrectionCalculator.h")

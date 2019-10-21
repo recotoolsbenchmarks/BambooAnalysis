@@ -28,42 +28,17 @@ target_include_directories(BambooLumiMask PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRE
 target_link_libraries(BambooLumiMask Boost::boost)
 install(TARGETS BambooLumiMask LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-set(SRC_CMSJET
-  CMSJet/src/JetCorrectionUncertainty.cc
-  CMSJet/src/JetCorrectorParameters.cc
-  CMSJet/src/JetCorrectorParametersHelper.cc
-  CMSJet/src/JetResolution.cc
-  CMSJet/src/JetResolutionObject.cc
-  CMSJet/src/SimpleJetCorrectionUncertainty.cc
-  CMSJet/src/SimpleJetCorrector.cc
-  CMSJet/src/FactorizedJetCorrector.cc
-  CMSJet/src/FactorizedJetCorrectorCalculator.cc
-  CMSJet/src/formulaEvaluatorBase.cc
-  CMSJet/src/formulaConstantEvaluator.cc
-  CMSJet/src/formulaParameterEvaluator.cc
-  CMSJet/src/formulaVariableEvaluator.cc
-  CMSJet/src/FormulaEvaluator.cc
-  )
-set(CMSJET_HEADERS
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/FactorizedJetCorrectorCalculator.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/FactorizedJetCorrector.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/FormulaEvaluator.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/JetCorrectionUncertainty.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/JetCorrectorParameters.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/JetCorrectorParametersHelper.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/JetResolution.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/JetResolutionObject.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/SimpleJetCorrectionUncertainty.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/SimpleJetCorrector.h
-  ${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/Utilities.h
-  )
-add_custom_target(CMSJetSources COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/getjetclasses.sh COMMENT "Copying jet classes from CMSSW" BYPRODUCTS ${SRC_CMSJET} ${CMSJET_HEADERS})
-install(FILES ${CMSJET_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/jetclasses_filenames.txt FILENAMES_CMSJET_INC REGEX ".*/interface/.*")
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/jetclasses_filenames.txt FILENAMES_CMSJET_SRC REGEX ".*/src/.*")
+string(REGEX REPLACE "[^;]+/interface/([^;]+)" "${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include/\\1" INC_CMSJET "${FILENAMES_CMSJET_INC}")
+string(REGEX REPLACE "[^;]+/src/([^;]+)" "${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src/\\1" SRC_CMSJET "${FILENAMES_CMSJET_SRC}")
+add_custom_target(CMSJetSources COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/getjetclasses.sh COMMENT "Copying jet classes from CMSSW" BYPRODUCTS ${INC_CMSJET} ${SRC_CMSJET})
+install(FILES ${INC_CMSJET} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc ${CMSJET_HEADERS})
+add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc)
 add_dependencies(JMEObjects CMSJetSources)
 target_compile_features(JMEObjects PRIVATE cxx_std_17)
-target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include> $<INSTALL_INTERFACE:include>)
+target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src> $<INSTALL_INTERFACE:include>)
 target_link_libraries(JMEObjects ROOT::Hist Boost::boost)
 install(TARGETS JMEObjects LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

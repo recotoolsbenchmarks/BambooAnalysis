@@ -17,67 +17,32 @@ else
     wget -P "${2}" "${CMSSW_GITHUB_BASE}/${1}" 2> /dev/null || exit 1
   }
 fi
+
 anyWasModified=""
-
-function getheader {
-  local pkg="${1}"
-  local cls="${2}"
-  if [ ! -e "${DEST_INC}/${cls}.h" ]; then
-    get_cms "${pkg}/interface/${cls}.h" "${DEST_INC}"
+function get_file {
+  local fname="${1}"
+  local dest="${2}"
+  if [ ! -e "${dest}/$(basename ${fname})" ]; then
+    get_cms "${fname}" "${dest}"
     anyWasModified="yes"
   fi
-}
-function getheadernp {
-  local pkg="${1}"
-  local cls="${2}"
-  if [ ! -e "${DEST_INC}/${cls}.h" ]; then
-    get_cms "${pkg}/src/${cls}.h" "${DEST_INC}"
-    anyWasModified="yes"
-  fi
-}
-function getimplem {
-  local pkg="${1}"
-  local cls="${2}"
-  if [ ! -e "${DEST_SRC}/${cls}.cc" ]; then
-    get_cms "${pkg}/src/${cls}.cc" "${DEST_SRC}"
-    anyWasModified="yes"
-  fi
-}
-function getclass {
-  local pkg="${1}"
-  local cls="${2}"
-  getheader "${pkg}" "${cls}"
-  getimplem "${pkg}" "${cls}"
-}
-function getclassnp {
-  local pkg="${1}"
-  local cls="${2}"
-  getheadernp "${pkg}" "${cls}"
-  getimplem "${pkg}" "${cls}"
 }
 
-## JEC/JER-related classes
-getheader "CondFormats/JetMETObjects" "Utilities"
-jmoClassNames=(JetCorrectionUncertainty JetCorrectorParameters JetCorrectorParametersHelper JetResolutionObject SimpleJetCorrectionUncertainty SimpleJetCorrector FactorizedJetCorrector FactorizedJetCorrectorCalculator)
-for className in "${jmoClassNames[@]}"
+here=$(realpath $(dirname $0))
+
+## copy headers and implementation files
+while read filename
 do
-  getclass "CondFormats/JetMETObjects" "${className}"
-done
-getclass "JetMETCorrections/Modules" "JetResolution"
-## formula evaluator
-getclass "CommonTools/Utils" "FormulaEvaluator"
-getheadernp "CommonTools/Utils" "formulaBinaryOperatorEvaluator"
-getheadernp "CommonTools/Utils" "formulaFunctionOneArgEvaluator"
-getheadernp "CommonTools/Utils" "formulaFunctionTwoArgsEvaluator"
-getheadernp "CommonTools/Utils" "formulaUnaryMinusEvaluator"
-getclassnp "CommonTools/Utils" "formulaConstantEvaluator"
-getclassnp "CommonTools/Utils" "formulaEvaluatorBase"
-getclassnp "CommonTools/Utils" "formulaParameterEvaluator"
-getclassnp "CommonTools/Utils" "formulaVariableEvaluator"
+  if [[ "${filename}" == *"/interface/"* ]]; then
+    get_file "${filename}" "${DEST_INC}"
+  else
+    get_file "${filename}" "${DEST_SRC}"
+  fi
+done < "${here}/jetclasses_filenames.txt"
 
 ## now patch them
 if [ "${anyWasModified}" != "" ]; then
   pushd CMSJet > /dev/null
-  patch -p2 -i "$(dirname $0)/jetclasses.patch" > /dev/null
+  patch -p2 -i "${here}/jetclasses.patch" > /dev/null
   popd > /dev/null
 fi

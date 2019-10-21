@@ -122,7 +122,7 @@ setup(
         },
     headers=([ os.path.join(root, item) for incPath in ("cpp", os.path.join("ext", "include"))
                 for root, subFolder, files in os.walk(incPath) for item in files ]
-            +[ os.path.join("build", "include", os.path.basename(fnm))
+            +[ os.path.join("build", "include", os.path.basename(fnm.strip()))
                 for fnm in open(os.path.join(here, "ext", "jetclasses_filenames.txt"))
                 if os.path.basename(os.path.dirname(fnm)) == "interface" ]),
 )

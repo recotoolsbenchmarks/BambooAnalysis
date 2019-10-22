@@ -1,12 +1,9 @@
 import pytest
 import os.path
-import math
 
 testData = os.path.join(os.path.dirname(__file__), "data")
 
-def isclose_float(a, b):
-    from bamboo.root import gbl
-    return math.isclose(a, b, rel_tol=getattr(gbl, "std::numeric_limits<float>").epsilon())
+from helpers import isclose_float
 
 def makeParameters(**kwargs):
     """ Construct Parameters argument for BinnedValues """ 

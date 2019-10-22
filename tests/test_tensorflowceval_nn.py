@@ -1,5 +1,6 @@
 import os, os.path
 import pytest
+from helpers import isclose_float
 # check if libtensorflow can be found (duplicates loadTensorflowC, but cannot just try to load because libtorch should be loaded first)
 from bamboo.root import findLibrary
 tfc_found = findLibrary("libtensorflow")
@@ -27,7 +28,7 @@ def test_tfc_evalZero(tfc_nn1):
     for i in range(5):
         v_in.push_back(.7)
     v_out = tfc_nn1(v_in)
-    assert v_out.size() == 2
+    assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)
 
 def test_tfc_evalRandom(tfc_nn1):
     from bamboo.root import gbl
@@ -36,4 +37,4 @@ def test_tfc_evalRandom(tfc_nn1):
     for i in range(5):
         v_in.push_back(random.uniform(0., 1.))
     v_out = tfc_nn1(v_in)
-    assert v_out.size() == 2
+    assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)

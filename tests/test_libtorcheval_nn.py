@@ -1,5 +1,6 @@
 import os.path
 import pytest
+from helpers import isclose_float
 pytest.importorskip("torch")
 
 testData = os.path.join(os.path.dirname(__file__), "data")
@@ -19,7 +20,7 @@ def test_libtorch_evalZero(libtorch_nn1):
     for i in range(5):
         v_in.push_back(.7)
     v_out = libtorch_nn1(v_in)
-    assert v_out.size() == 2
+    assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)
 
 def test_libtorch_evalRandom(libtorch_nn1):
     from bamboo.root import gbl
@@ -28,4 +29,4 @@ def test_libtorch_evalRandom(libtorch_nn1):
     for i in range(5):
         v_in.push_back(random.uniform(0., 1.))
     v_out = libtorch_nn1(v_in)
-    assert v_out.size() == 2
+    assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)

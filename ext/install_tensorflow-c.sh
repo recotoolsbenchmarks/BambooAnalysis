@@ -1,5 +1,5 @@
-#!/usr/bin/env zsh
-if [ -z "${VIRTUAL_ENV}" ]; then
+#!/usr/bin/env bash
+if [[ -z "${VIRTUAL_ENV}" ]]; then
   echo "This script is only for installing tensorflow-c binaries in a virtualenv, please activate or set $VIRTUAL_ENV first"
   return 1
 fi

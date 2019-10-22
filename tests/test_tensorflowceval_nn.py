@@ -1,7 +1,14 @@
-import os.path
+import os, os.path
 import pytest
+# check if libtensorflow can be found (duplicates loadTensorflowC, but cannot just try to load because libtorch should be loaded first)
 from bamboo.root import findLibrary
-pytest.mark.skipif(not findLibrary("libtensorflow"))
+tfc_found = findLibrary("libtensorflow")
+if not tfc_found:
+    if "VIRTUAL_ENV" in os.environ:
+        tfclib_guessed_path = os.path.join(os.environ["VIRTUAL_ENV"], "lib", "libtensorflow.so")
+        if os.path.exists(tfclib_guessed_path):
+            tfc_found = tfclib_guessed_path
+pytestmark = pytest.mark.skipif(not tfc_found, reason="Tensorflow-C not found")
 
 testData = os.path.join(os.path.dirname(__file__), "data")
 

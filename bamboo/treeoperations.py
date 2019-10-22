@@ -565,11 +565,11 @@ class ExtVar(TupleOp):
     def get_cppStr(self, defCache=None):
         return self.name
 
-class DefinedVar(TupleOp):
+class DefinedSymbol(TupleOp):
     """ Defined variable (used by name), first use will trigger definition """
     __slots__ = ("typeName", "definition", "_nameHint")
     def __init__(self, typeName, definition, nameHint=None):
-        super(DefinedVar, self).__init__()
+        super(DefinedSymbol, self).__init__()
         self.typeName = typeName
         self.definition = definition
         self._nameHint = nameHint

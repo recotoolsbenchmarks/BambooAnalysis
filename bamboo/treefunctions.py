@@ -97,8 +97,17 @@ def static_cast(typeName, arg):
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elms, elmType=elmName).result
 def define(typeName, definition, nameHint=None):
-    """ Declare a C++ variable (that does not depend on the column values); returns the decorated result """
-    return _to.DefinedVar(typeName, definition, nameHint=nameHint).result
+    """ Define a variable as a symbol with the interpreter
+
+    :param typeName: result type name
+    :param definition: C++ definition string, with ``<<name>>`` instead of the variable name (which will be replaced by nameHint or a unique name)
+    :param nameHint: (optional) name for the variable
+
+    .. caution::
+
+        nameHint (if given) should be unique (for the sample), otherwise an exception will be thrown
+    """
+    return _to.DefinedSymbol(typeName, definition, nameHint=nameHint).result
 def defineOnFirstUse(sth):
     """
     Construct an expression that will be precalculated (with an RDataFrame::Define node) when first used
@@ -603,3 +612,75 @@ def systematic(nominal, name=None, **kwargs):
         else:
             variations[varNm] = _to.adaptArg(varExpr)
     return _to.SystAltOp(_to.adaptArg(nominal), name, variations).result
+
+class MVAEvaluator:
+    """ Small wrapper to make sure MVA evaluation is cached """
+    def __init__(self, evaluator):
+        self._evaluator = evaluator
+    def __call__(self, *inputs):
+        return defineOnFirstUse(self._evaluator.evaluate(initList("std::vector<float>", "float", (static_cast("float", iin) for iin in inputs))))
+
+_mvaExtMap = {
+    "Tensorflow" : [".pb"],
+    "Torch" : [".pt"],
+    "lwtnn" : [".json"]
+    }
+
+def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
+    """ Declare and initialize an MVA evaluator
+
+    The C++ object is defined (with :py:meth:`bamboo.treefunctions.define`),
+    and can be used as a callable to evaluate.
+    The result of any evaluation will be cached automatically.
+
+    Currently the following formats are supported:
+
+    * .pt (mvaType='Torch') lib pytorch script files (loaded with ``torch::jit::load``).
+       In this case no addtional arguments are required.
+    * .pb (mvaType='Tensorflow') tensorflow graph definition (loaded with Tensorflow-C).
+       The ``otherArgs`` keyword argument should be passed the names of the input and output nodes,
+       and the number of values for each.
+    * .json (mvaType='lwtnn') lwtnn json. The ``otherArgs`` keyword argument should be passed
+      the lists of input and output nodes/values, as C++ initializer list strings, e.g.
+      ``'{ { "node_0", "variable_0" }, { "node_0", "variable_1" } ... }'`` and
+      ``'{ "out_0", "out_1" }'``.
+
+    :param fileName: file with MVA weights and structure
+    :param mvaType: type of MVA, or library used to evaluate it (Tensorflow, Torch, or lwtnn).
+        If absent, this is guessed from the fileName extension
+    :param otherArgs: other arguments to construct the MVA evaluator (either as a string (safest), or as an iterable)
+    :param nameHint: name hint, see :py:meth:`bamboo.treefunctions.define`
+
+    :returns: a proxy to a method that takes the inputs as arguments, and returns a ``std::vector<float>`` of outputs
+
+    :Example:
+
+    >>> mu = tree.Muon[0]
+    >>> nn1 = mvaEvaluator("nn1.pt")
+    >>> Plot.make1D("mu_nn1", nn1(mu.pt, mu.eta, mu.phi), hasMu)
+    """
+    if mvaType == None:
+        import os.path
+        _,ext = os.path.splitext(fileName)
+        try:
+            mvaType = next(k for k,v in _mvaExtMap.items() if ext in v)
+        except StopIteration:
+            raise ValueError("Unknown extension {0!r}, please pass mvaType explicitly".format(ext))
+    if mvaType == "Tensorflow":
+        from bamboo.root import loadTensorflowC
+        loadTensorflowC()
+        cppType = "bamboo::TensorflowCEvaluator"
+        argStr = '"{0}", {1}'.format(fileName, (", ".join(repr(arg) for arg in otherArgs) if str(otherArgs) != otherArgs else otherArgs))
+    elif mvaType == "Torch":
+        from bamboo.root import loadLibTorch
+        loadLibTorch()
+        cppType = "bamboo::TorchEvaluator"
+        argStr = '"{0}"'.format(fileName)
+    elif mvaType == "lwtnn":
+        from bamboo.root import loadlwtnn
+        loadlwtnn()
+        cppType = "bamboo::LwtnnEvaluator"
+        argStr = '"{0}", {1}'.format(fileName, (", ".join(repr(arg) for arg in otherArgs) if str(otherArgs) != otherArgs else otherArgs))
+    else:
+        raise ValueError("Unknown MVA type: {0!r}".format(ext))
+    return MVAEvaluator(define(cppType, 'const auto <<name>> = {0}({1});'.format(cppType, argStr), nameHint=nameHint))

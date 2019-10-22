@@ -92,7 +92,7 @@ def loadRochesterCorrectionCalculator():
 
 @once
 def loadLibTorch():
-    if loadBambooTensorflowC.has_run:
+    if loadTensorflowC.has_run:
         raise RuntimeError("If loading both Tensorflow-C and libtorch, the latter should be loaded first")
     loadBambooExtensions()
     torchLib = findLibrary("libtorch")

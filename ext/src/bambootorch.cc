@@ -11,6 +11,8 @@ bamboo::TorchEvaluator::TorchEvaluator( const char* scriptName )
   : m_module{std::make_unique<torch::jit::script::Module>(torch::jit::load(std::string{scriptName}))}
 {}
 
+bamboo::TorchEvaluator::~TorchEvaluator() noexcept = default;
+
 bamboo::TorchEvaluator::output_t bamboo::TorchEvaluator::operator() ( bamboo::TorchEvaluator::input_t&& input ) const
 {
   std::vector<torch::jit::IValue> inputs{};

@@ -391,8 +391,14 @@ class Construct(TupleOp):
         return "{0}{{{1}}}".format(self.typeName, ", ".join(defCache(a) for a in self.args))
 
 def guessReturnType(mp):
-    if hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
-        toks = list(mp.func_doc.split())
+    from .root import gbl
+    oneDecl = None
+    if isinstance(mp, gbl.MethodProxy) and hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
+        oneDecl = mp.func_doc.split("\n")[0] # overloads should have the same return type
+    elif isinstance(mp, gbl.TemplateProxy):
+        oneDecl = mp.__doc__.split("\n")[0]
+    if oneDecl:
+        toks = list(oneDecl.split())
         ## left and right strip const * and &
         while toks[-1].rstrip("&") in ("", "const", "static"):
             toks = toks[:-1]

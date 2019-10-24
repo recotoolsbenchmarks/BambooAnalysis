@@ -26,7 +26,14 @@ public:
       int64_t nIn, int64_t nOut);
   ~TensorflowCEvaluator();
 
-  output_t operator() ( const input_t& input ) const;
+  output_t evaluate( const input_t& input ) const;
+
+  template<typename RANGE>
+  output_t evaluate( RANGE range ) const {
+    input_t input;
+    std::copy(std::begin(range), std::end(range), std::back_inserter(input));
+    return evaluate(input);
+  }
 private:
   TF_Graph* m_graph;
   TF_Session* m_session;

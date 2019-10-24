@@ -287,7 +287,7 @@ class ObjectProxy(NumberProxy):
         if name not in dir(typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
         from .root import gbl
-        if hasattr(typ, name) and isinstance(getattr(typ, name), gbl.MethodProxy):
+        if hasattr(typ, name) and ( isinstance(getattr(typ, name), gbl.MethodProxy) or isinstance(getattr(typ, name), gbl.TemplateProxy) ):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result

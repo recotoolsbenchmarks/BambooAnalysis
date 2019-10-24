@@ -54,7 +54,7 @@ bamboo::TensorflowCEvaluator::~TensorflowCEvaluator()
   TF_DeleteStatus(status);
 }
 
-bamboo::TensorflowCEvaluator::output_t bamboo::TensorflowCEvaluator::operator() ( const bamboo::TensorflowCEvaluator::input_t& input ) const
+bamboo::TensorflowCEvaluator::output_t bamboo::TensorflowCEvaluator::evaluate( const bamboo::TensorflowCEvaluator::input_t& input ) const
 {
   TF_Status* status = TF_NewStatus();
   if ( m_nIn != input.size() ) {

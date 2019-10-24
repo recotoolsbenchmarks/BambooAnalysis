@@ -13,7 +13,7 @@ bamboo::TorchEvaluator::TorchEvaluator( const char* scriptName )
 
 bamboo::TorchEvaluator::~TorchEvaluator() noexcept = default;
 
-bamboo::TorchEvaluator::output_t bamboo::TorchEvaluator::operator() ( bamboo::TorchEvaluator::input_t&& input ) const
+bamboo::TorchEvaluator::output_t bamboo::TorchEvaluator::evaluate( bamboo::TorchEvaluator::input_t&& input ) const
 {
   std::vector<torch::jit::IValue> inputs{};
   inputs.push_back(torch::from_blob(input.data(), {1,int(input.size())}));
@@ -28,11 +28,4 @@ bamboo::TorchEvaluator::output_t bamboo::TorchEvaluator::operator() ( bamboo::To
     out.push_back(output_a[0][i]);
   }
   return out;
-}
-
-
-bamboo::TorchEvaluator::output_t bamboo::TorchEvaluator::operator() ( const bamboo::TorchEvaluator::input_t& input ) const
-{
-  auto input_copy = input;
-  return operator() (std::move(input_copy));
 }

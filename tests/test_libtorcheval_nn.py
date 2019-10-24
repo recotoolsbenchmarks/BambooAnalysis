@@ -19,7 +19,7 @@ def test_libtorch_evalZero(libtorch_nn1):
     v_in = getattr(gbl, "std::vector<float>")()
     for i in range(5):
         v_in.push_back(.7)
-    v_out = libtorch_nn1(v_in)
+    v_out = libtorch_nn1.evaluate(v_in)
     assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)
 
 def test_libtorch_evalRandom(libtorch_nn1):
@@ -28,5 +28,5 @@ def test_libtorch_evalRandom(libtorch_nn1):
     v_in = getattr(gbl, "std::vector<float>")()
     for i in range(5):
         v_in.push_back(random.uniform(0., 1.))
-    v_out = libtorch_nn1(v_in)
+    v_out = libtorch_nn1.evaluate(v_in)
     assert ( v_out.size() == 2 ) and isclose_float(sum(v_out), 1.)

@@ -24,6 +24,7 @@ def test_getSimpleObjects(decoNano):
     assert decoNano.Photon[0]
     assert decoNano.SubJet[0]
     assert decoNano.FatJet[0]
+    assert decoNano.LHEScaleWeight[0]
 
 def test_getJet(decoNano):
     assert decoNano.Jet[0]

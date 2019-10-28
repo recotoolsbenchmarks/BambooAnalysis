@@ -165,7 +165,7 @@ class ArrayProxy(TupleBaseProxy):
         else:
             return GetItem(self, self.valueType, index).result
     def __len__(self):
-        return self._length.result
+        return self._length
     def __repr__(self):
         return "ArrayProxy({0!r}, {1!r}, {2!r})".format(self._parent, self._typeName, self._length)
 

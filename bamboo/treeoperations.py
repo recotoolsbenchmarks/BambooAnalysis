@@ -198,7 +198,7 @@ class GetArrayColumn(TupleOp):
     @property
     def result(self):
         from .treeproxies import makeProxy
-        return makeProxy(self.typeName, self, makeProxy(SizeType, self.length))
+        return makeProxy(self.typeName, self, length=makeProxy(SizeType, self.length))
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.typeName, self.name, self.length)
     def _eq(self, other):

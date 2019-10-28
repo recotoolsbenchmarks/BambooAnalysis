@@ -320,7 +320,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
     ## NOTE first attempt: fill all, take some out later
-    tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm))) for lvNm,lv in allTreeLeafs.items()))
+    tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm) if not lv.GetLeafCount()
+        else GetArrayColumn(lv.GetTypeName(), lvNm, GetColumn(allTreeLeafs[lv.GetLeafCount().GetName()].GetTypeName(), lv.GetLeafCount().GetName()))
+        )) for lvNm,lv in allTreeLeafs.items()))
     tree_postconstr = []
     addSetParentToPostConstr = partial(lambda act,obj : act.append(SetAsParent(obj)), tree_postconstr)
 

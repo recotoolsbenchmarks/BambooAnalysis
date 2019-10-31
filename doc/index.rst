@@ -7,6 +7,7 @@ Bamboo: A high-level HEP analysis library for ROOT::RDataFrame
 
    install
    userguide
+   recipes
    treefunctions
    apiref
 

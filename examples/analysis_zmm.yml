@@ -1,6 +1,9 @@
 tree: Events
 eras:
-  '2016': {}
+  '2016':
+    luminosity: 3104.509131800 ## 2016F only
+  '2017':
+    luminosity: 13.540 ## 2017F only
 samples:
   DoubleMuon_2016F:
     group: data
@@ -14,6 +17,18 @@ samples:
     db: das:/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/RunIISummer16NanoAODv4-PUMoriond17_Nano14Dec2018_102X_mcRun2_asymptotic_v6_ext2-v1/NANOAODSIM
     cross-section: 5765.400
     generated-events: genEventSumw
+  DoubleMuon_2017F:
+    gruop: data
+    era: '2017'
+    db: das:/DoubleMuon/Run2017F-Nano14Dec2018-v1/NANOAOD
+    run_range: [304911, 306462]
+    certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions17/13TeV/Final/Cert_294927-306462_13TeV_PromptReco_Collisions17_JSON.txt
+  DY_M50_2017:
+    group: DY
+    era: '2017'
+    db: das:/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIFall17NanoAODv4-PU2017_12Apr2018_Nano14Dec2018_new_pmx_102X_mc2017_realistic_v6_ext1-v1/NANOAODSIM
+    cross-section: 5765.400
+    generated-events: genEventSumw
 plotIt:
   configuration:
     width: 800
@@ -21,7 +36,6 @@ plotIt:
     luminosity-label: '%1$.2f fb^{-1} (13 TeV)'
     experiment: CMS
     extra-label: Bamboo test
-    luminosity: 3104.509131800 ## 2016F only
     luminosity-error: 0.027
     show-overflow: true
     error-fill-style: 3154

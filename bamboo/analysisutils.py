@@ -223,22 +223,23 @@ plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
         "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
         }
-def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., era=None, verbose=False):
-    ## TODO also pass the correct luminosity numbers
-    eras = []
-    if era is not None:
-        if str(era) == era:
-            eras.append(era)
-        else:
-            eras = eras["eras"]
+def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., eras=("all", None), verbose=False):
+    eraMode, eras = eras
+    if not eras: ## from config if not specified
+        eras = list(config["eras"].keys())
     plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
-    plotitCfg["configuration"]["root"] = os.path.relpath(resultsdir, workdir)
+    plotitCfg["configuration"].update({
+        "root" : os.path.relpath(resultsdir, workdir),
+        "eras" : eras,
+        "luminosity" : dict((era, config["eras"][era]["luminosity"]) for era in eras)
+        })
     plotit_files = dict()
     for smpN, smpCfg in config["samples"].items():
         if smpCfg.get("era") in eras:
             resultsName = "{0}.root".format(smpN)
             smpOpts = dict()
-            smpOpts["group"] = smpCfg["group"]
+            for ky in ("group", "era"):
+                smpOpts[ky] = smpCfg[ky]
             isMC = ( smpCfg["group"] != "data" )
             smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
@@ -266,22 +267,27 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     with open(cfgName, "w") as plotitFile:
         yaml.dump(plotitCfg, plotitFile)
 
-    plotsdir = os.path.join(workdir, "plots")
-    if os.path.exists(plotsdir):
-        logger.warning("Directory '{0}' already exists, previous plots will be overwritten".format(plotsdir))
-    else:
-        os.makedirs(plotsdir)
-
-    try:
-        plotItArgs = [plotIt, "-i", workdir, "-o", plotsdir, cfgName]
-        plotItLog = os.path.join(plotsdir, "out.log")
-        if verbose:
-            logger.debug("Running command `{0}`, with logfile {1}".format(" ".join(plotItArgs), plotItLog))
-        with open(plotItLog, "w") as logFile:
-            subprocess.check_call(plotItArgs, stdout=logFile)
-        logger.info("plotIt output is available in {0}".format(plotsdir))
-    except subprocess.CalledProcessError as ex:
-        logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
+    out_extraOpts = []
+    if eraMode in ("all", "combined"):
+        out_extraOpts.append((os.path.join(workdir, "plots"), []))
+    if eraMode in ("split", "all"):
+        for era in eras:
+            out_extraOpts.append((os.path.join(workdir, "plots_{0}".format(era)), ["-e", era]))
+    for plotsdir, extraOpts in out_extraOpts:
+        if os.path.exists(plotsdir):
+            logger.warning("Directory '{0}' already exists, previous plots will be overwritten".format(plotsdir))
+        else:
+            os.makedirs(plotsdir)
+        try:
+            plotItLog = os.path.join(plotsdir, "out.log")
+            plotItArgs = [plotIt, "-i", workdir, "-o", plotsdir]+extraOpts+[cfgName]
+            if verbose:
+                logger.debug("Running command `{0}`, with logfile {1}".format(" ".join(plotItArgs), plotItLog))
+            with open(plotItLog, "w") as logFile:
+                subprocess.check_call(plotItArgs, stdout=logFile)
+            logger.info("plotIt output is available in {0}".format(plotsdir))
+        except subprocess.CalledProcessError as ex:
+            logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
 def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
     """ Declare and add a JME systematic variations calculator

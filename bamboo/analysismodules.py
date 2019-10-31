@@ -47,6 +47,16 @@ def modAbsPath(modArg):
 def parseRunRange(rrStr):
     return tuple(int(t.strip()) for t in rrStr.split(","))
 
+def parseEras(eraStr):
+    if ":" in eraStr:
+        eraMode, eras = eraStr.split(":")
+        return (eraMode, list(eras.split(",")))
+    else:
+        if eraStr in ("all", "combined", "split"):
+            return (eraStr, None)
+        else:
+            return ("all", list(eraStr.split(",")))
+
 class AnalysisModule(object):
     """ Base analysis module
     
@@ -83,6 +93,7 @@ class AnalysisModule(object):
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
         driver.add_argument("--onlypost", action="store_true", help="Only run postprocessing step on previous results")
+        driver.add_argument("--eras", type=parseEras, default=("all", None), help="Select eras to consider, and which plots to make (format: '[all|split|combined]:[era1,era2...]')")
         worker = parser.add_argument_group("worker mode only (--distributed=worker) arguments")
         worker.add_argument("--treeName", type=str, default="Events", help="Tree name (default: Events)")
         worker.add_argument("--runRange", type=parseRunRange, help="Run range (format: 'firstRun,lastRun')")
@@ -297,6 +308,9 @@ class AnalysisModule(object):
         Should return a list of ``(inputs, output), kwargs, config``
         """
         tasks = []
+        sel_eras = analysisCfg["eras"].keys()
+        if self.args.eras[1]:
+            sel_eras = list(era for era in sel_eras if era in self.args.eras[1])
         for sName, sConfig in analysisCfg["samples"].items():
             opts = dict(extraOpts)
             if "certified_lumi_file" in sConfig:
@@ -308,7 +322,8 @@ class AnalysisModule(object):
             if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
                 logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
                 sInputFiles = sInputFiles[:self.args.maxFiles]
-            tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
+            if "era" not in sConfig or sConfig["era"] in sel_eras:
+                tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
@@ -467,12 +482,7 @@ class HistogramsModule(AnalysisModule):
             tup, smpName, smpCfg = self.getATree()
             tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
             self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
-        for eraName, eraCfg in config.get("eras", {}).items():
-            if eraName == "combined": ## TODO think harder what needs to go into plotit and what not
-                for cmbCfg in eraCfg:
-                    runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, era=cmbCfg, verbose=self.args.verbose)
-            else:
-                runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, era=eraName, verbose=self.args.verbose)
+        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

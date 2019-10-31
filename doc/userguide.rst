@@ -56,6 +56,11 @@ options (and individual modules can add more by implementing the
 * the ``--maxFiles`` option can be used to specify a maximum number of files
   to process for each sample, e.g. ``--maxFiles=1`` to check that the module
   runs correctly in all cases before submitting to a batch system
+* the ``--eras`` option specifies which of the eras from the configuration file
+  to consider, and which type of plots to make. The format is
+  ``[mode][:][era1,era2,...]``, where ``mode`` is one of ``split`` (plots for
+  each of the eras separately), ``combined`` (only plots for all eras combined)
+  or ``all`` (both of these, this is the default).
 
 The usual mode of operation is to parse the analysis configuration file,
 execute some code for every entry in each of the samples, and then perform some
@@ -109,11 +114,15 @@ because it can easily be parsed while also being very readable (see the
 `YAML Wikipedia page`_ for some examples and context) - it essentially becomes
 a nested dictionary, which can also contain lists.
 
-Two top-level keys are currently required: ``tree`` with the name of the TTree_
-inside the file (e.g. ``tree: Events`` for NanoAOD), ``samples``.
+Three top-level keys are currently required: ``tree`` with the name of the TTree_
+inside the file (e.g. ``tree: Events`` for NanoAOD), ``samples`` with a list of
+samples to consider, and ``eras``, with a list of data-taking periods and their
+integrated luminosity.
 For stacked histogram plots, a ``plotIt`` section should also be specified (the
 :py:func:`bamboo.analysisutils.runPlotIt` method will insert the ``files`` and
-``plots`` sections and run plotIt_ with the resulting configuration).
+``plots`` sections and run plotIt_ with the resulting configuration; depending
+on the ``--eras`` option passed, per-era or combined plots will be produced, or
+both, which is the default).
 
 Each entry in the ``samples`` dictionary (the keys are the names of the samples)
 is another dictionary. The files to processed can be specified directly as a
@@ -149,14 +158,15 @@ automatically (and added to the input sandbox for the worker tasks, if needed).
 
 For the formatting of the stack plots, each sample needs to be in a group (e.g.
 'data' for data etc.), which will be taken together as one contribution.
-An ``era`` key is also foreseen (to make 2016/2017/2018/combined plots) - but
-it is currently ignored.
+The ``era`` key specifies which era (one of those specified in the ``eras``
+section, see above) the sample corresponds to, and which luminosity value
+should be used for the normalisation.
 
 For the normalization of simulated samples in the stacks, the number of
 generated evens and cross-section are also needed. The latter should be
-specified as ``cross-section`` with the sample (in the same units as
-``luminosity`` in the ``configuration`` subsection of ``plotIt``), the former
-can be computed from the input files. For this, the
+specified as ``cross-section`` with the sample (in the same units as the
+``luminosity`` for the corresponding ``era``), the former can be computed from
+the input files. For this, the
 :py:class:`bamboo.analysismodules.HistogramsModule` base class will call the
 ``mergeCounters`` method when processing the samples, and the ``readCounters``
 method to read the values from the results file - for NanoAOD the former merges
@@ -167,29 +177,38 @@ For large samples, a ``split`` property can be specified, such that the input
 files are spread out over different batch jobs.
 A positive number is taken as the number of jobs to divide the inputs over,
 while a negative number gives the number of files per job (e.g. ``split: 3``
+An ``era`` key is also foreseen (to make 2016/2017/2018/combined plots) - but
+it is currently ignored.
 will create three jobs to process the sample, while ``split: -3`` will result
 in jobs that process three files each).
 
-All together, typical data and MC sample entries would look like
+All together a typical analysis YAML_ file would look like the following (but
+with many more sample blocks, and typically a few era blocks; the ``plotIt``
+section is left out for brevity).
 
 .. code-block:: yaml
 
-     SingleMuon_2016E:
-       db: das:/SingleMuon/Run2016E-Nano14Dec2018-v1/NANOAOD
-       files: dascache/SingleMuon_2016E.dat
-       run_range: [276831, 277420]
-       certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
-       era: 2016
-       group: data
+     tree: Events
+     eras:
+       '2016':
+         luminosity: 12.34
+     samples:
+       SingleMuon_2016E:
+         db: das:/SingleMuon/Run2016E-Nano14Dec2018-v1/NANOAOD
+         files: dascache/SingleMuon_2016E.dat
+         run_range: [276831, 277420]
+         certified_lumi_file: https://cms-service-dqm.web.cern.ch/cms-service-dqm/CAF/certification/Collisions16/13TeV/ReReco/Final/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt
+         era: 2016
+         group: data
 
-     DY_high_2017:
-       db: das:/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIFall17NanoAODv4-PU2017_12Apr2018_Nano14Dec2018_new_pmx_102X_mc2017_realistic_v6_ext1-v1/NANOAODSIM
-       files: dascache/DY_high_2017.dat
-       era: 2017
-       group: DY
-       cross-section: 5765.4
-       generated-events: genEventSumw
-       split: 3
+       DY_high_2017:
+         db: das:/DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIIFall17NanoAODv4-PU2017_12Apr2018_Nano14Dec2018_new_pmx_102X_mc2017_realistic_v6_ext1-v1/NANOAODSIM
+         files: dascache/DY_high_2017.dat
+         era: 2017
+         group: DY
+         cross-section: 5765.4
+         generated-events: genEventSumw
+         split: 3
 
 
 .. tip::

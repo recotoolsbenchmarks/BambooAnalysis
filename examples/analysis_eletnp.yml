@@ -1,6 +1,7 @@
 tree: Events
 eras:
-  '2016': {}
+  '2016':
+    luminosity: 35862.45
 samples:
   SingleElectron_2016C:
     #db: /SingleElectron/Run2016C-Nano14Dec2018-v1/NANOAOD
@@ -35,7 +36,6 @@ plotIt:
     luminosity-label: '%1$.2f fb^{-1} (13 TeV)'
     experiment: CMS
     extra-label: Work in progress
-    luminosity: 35862.45
     luminosity-error: 0.027
     show-overflow: true
     error-fill-style: 3154

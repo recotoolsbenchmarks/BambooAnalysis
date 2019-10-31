@@ -7,7 +7,7 @@ DEST_INC="CMSJet/include"
 DEST_SRC="CMSJet/src"
 mkdir -p "${DEST_INC}"
 mkdir -p "${DEST_SRC}"
-if [ -d "/cvmfs/cms.cern.ch" ]
+if [ -d "/cvmfs/cms.cern.ch/slc7_amd64_gcc700" ]
 then
   function get_cms {
     cp "${CMSSW_CVMFS_BASE}/src/${1}" "${2}"

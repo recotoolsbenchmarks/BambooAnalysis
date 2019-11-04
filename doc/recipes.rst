@@ -36,7 +36,7 @@ a certain set of these periods).
 The combination is done by either weighting or randomly sampling from the
 different periods, according to the fraction of the integrated luminosity in
 each (by passing ``combine="weight"`` or ``combine="sample"``, respectively).
-Jet flavour tagging and dilepton (e.g. trigger) scalefactors are can also be
+Jet flavour tagging and dilepton (e.g. trigger) scalefactors can also be
 specified by passing tuples of the light, c-jet and b-jet scalefactor paths,
 and tuples of first-if-leading, first-if-subleading, second-if-leading,
 and second-if-subleading (to be reviewed for NanoAOD) scalefactor paths,
@@ -63,9 +63,11 @@ included in an analysis on NanoAOD by defining
  # nested dictionary with path names of scalefactor JSON files
  # { tag : { selection : absole-json-path } }
  myScalefactors = {
-     "electron_2016_94" : dict((k,localize_myanalysis(v)) for k, v in dict(
-         ("id_{wp}".format(wp=wp.lower()), ("Electron_EGamma_SF2D_{wp}.json".format(wp=wp)))
-         for wp in ("Loose", "Medium", "Tight") ).items()),
+     "electron_2016_94" : {
+         "id_Loose"  : localize_myanalysis("Electron_EGamma_SF2D_Loose.json")
+         "id_Medium" : localize_myanalysis("Electron_EGamma_SF2D_Medium.json")
+         "id_Tight"  : localize_myanalysis("Electron_EGamma_SF2D_Tight.json")
+     },
      "btag_2016_94" : dict((k, (tuple(localize_myanalysis(fv) for fv in v))) for k,v in dict(
          ( "{algo}_{wp}".format(algo=algo, wp=wp),
            tuple("BTagging_{wp}_{flav}_{calib}_{algo}.json".format(wp=wp, flav=flav, calib=calib, algo=algo)
@@ -108,7 +110,7 @@ in data is very similar to applying a scalefactor, except that the efficiency
 correction is for the whole event or per-object |---| so the same code can be
 used.
 The ``makePUReWeightJSON.py`` script included in bamboo can be used to make
-a JSON file with weights out of a data pileup profile obtainedby running
+a JSON file with weights out of a data pileup profile obtained by running
 ``pileupcalc.py``
 (inside CMSSW, see the `pileupcalc documentation`_ for details), e.g. with
 something like
@@ -188,7 +190,7 @@ the reconstructed jet collection should be modified, the collection sorted,
 and any derived quantity re-evaluated.
 
 How to do this depends on the input trees: in production NanoAOD the modified
-momenta need to calculated using the jet energy correction parameters; it is
+momenta need to be calculated using the jet energy correction parameters; it is
 also possible to add them when post-processing with the
 `jetmetUncertainties module`_ of the NanoAODTools_ package.
 In the latter case the NanoAOD decoration method will detect the modified
@@ -251,7 +253,7 @@ fly, the different jet collections are available from ``t._Jet``, e.g.
 if it affects a plot, in case automatically producing the systematic variations
 is enabled (the collections from ``t._Jet`` will not be changed).
 The automatic calculation of systematic variations can be disabled globally
-or on a per-selection basis (sse above), and for on the fly calculation also by
+or on a per-selection basis (see above), and for on the fly calculation also by
 passing ``enableSystematics=[]`` to
 :py:meth:`bamboo.analysisutils.configureJets`).
 The jet collection as stored on the input file, finally, can be retrieved as

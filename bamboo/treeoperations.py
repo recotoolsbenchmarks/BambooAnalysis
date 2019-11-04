@@ -215,6 +215,8 @@ def adaptArg(arg, typeHint=None):
     elif typeHint is not None:
         if str(arg) == arg: ## string, needs quote
             return Const(typeHint, '"{}"'.format(arg))
+        elif isinstance(arg, bool):
+            return Const(typeHint, "true" if arg else "false")
         else:
             return Const(typeHint, arg)
     else:

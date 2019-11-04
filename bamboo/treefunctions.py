@@ -5,8 +5,6 @@ from . import treeproxies as _tp
 from .root import loadBambooExtensions
 loadBambooExtensions()
 
-from functools import partial
-
 ## simple type support
 def c_bool(arg):
     """ Construct a boolean constant """
@@ -440,7 +438,7 @@ def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
     return _to.Next.fromRngFun(rng, pred)
 
 ## range-to-range: selection, combinatorics, systematic variations
-def select(rng, pred=partial((lambda res,elm : res), c_bool(True))):
+def select(rng, pred=(lambda elm : c_bool(True))):
     """ Select elements from the range that pass a cut
 
     :param rng: input range
@@ -452,7 +450,7 @@ def select(rng, pred=partial((lambda res,elm : res), c_bool(True))):
     """
     return _to.Select.fromRngFun(rng, pred)
 
-def sort(rng, fun=partial((lambda res,elm : res), c_float(0.))):
+def sort(rng, fun=(lambda elm : c_float(0.))):
     """ Sort the range (ascendingly) by the value of a function applied on each element
 
     :param rng: input range
@@ -492,7 +490,7 @@ def rng_pickRandom(rng, seed=0):
     """
     return rng[_to.PseudoRandom(0, rng_len(rng), seed, isIntegral=True)]
 
-def combine(rng, N=None, pred=partial((lambda res,*parts : res), c_bool(True)), sameIdxPred=lambda i1,i2: i1 < i2):
+def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), sameIdxPred=lambda i1,i2: i1 < i2):
     """ Create N-particle combination from one or several ranges
 
     :param rng: range (or iterable of ranges) with basic objects to combine

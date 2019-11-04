@@ -7,8 +7,10 @@ Bamboo: A high-level HEP analysis library for ROOT::RDataFrame
 
    install
    userguide
-   recipes
    treefunctions
+   recipes
+   advanced
+   hacking
    apiref
 
 The RDataFrame_ class provides an efficient and flexible way to process

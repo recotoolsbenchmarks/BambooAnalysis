@@ -169,6 +169,11 @@ of the ``[das]`` section in the argument to ``-envConfig``):
 To run this on slurm it is sufficient to add ``--distributed=driver`` (a task
 with two jobs will be created, one for each sample sample).
 
+Tutorial
+--------
+
+TODO insert here, or merge with above
+
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 

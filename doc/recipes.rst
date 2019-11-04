@@ -1,5 +1,5 @@
-Recipes for common analysis tasks
-=================================
+Recipes for common tasks
+========================
 
 .. _recipescalefactors:
 
@@ -318,6 +318,7 @@ corrected muons are in ``tree.Muon``.
                configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
        return tree,noSel,be,lumiArgs
 
+.. _recipesplitsamplesubcomp:
 
 Splitting a sample into sub-components
 --------------------------------------
@@ -360,6 +361,40 @@ That information can then be retrieved in the analysis module through the ``samp
        return tree,noSel,be,lumiArgs
 
 
+.. _recipecmdlinearg:
+
+Adding command-line arguments
+-----------------------------
+
+The base :ref:`analysis module<uganalysismodule>`,
+:py:class:`bamboo.analysismodules.AnalysisModule`, calls the
+:py:meth:`~bamboo.analysismodules.AnalysisModule.addArgs` method (the default
+implementation does nothing) when constructing the command-line arguments
+parser (using the `argparse`_ module).
+Analysis modules can reimplement this method to specify more arguments, e.g.
+
+.. code-block:: python
+
+    class MyModule(...):
+
+        def addArgs(self, parser):
+            super(MyModule, self).addArgs(parser)
+            parser.add_argument("--whichPlots", type=str,
+                                default="control",
+                                help="Set of plots to produce")
+
+
+The parsed arguments are available under the ``args`` member variable, e.g.
+``self.args.whichPlots`` in the example above.
+The complete list of command-line options (including those specified in the
+analysis module) can be printed with ``bambooRun -h -m myModule.py.MyModule``.
+In fact the parser argument is an
+`argument group`_,
+so they are listed separately from those in the base class.
+This is also used to copy all user-defined arguments to the commands that are
+passed to the worker tasks, when running in distributed mode.
+
+
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _CP3-llbb framework: https://github.com/cp3-llbb/Framework
@@ -371,6 +406,10 @@ That information can then be retrieved in the analysis module through the ``samp
 .. _jetmetUncertainties module: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/master/python/postprocessing/modules/jme/jetmetUncertainties.py
 
 .. _muonScaleResProducer module: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/master/python/postprocessing/modules/common/muonScaleResProducer.py
+
+.. _argparse: https://docs.python.org/3/library/argparse.html
+
+.. _argument group: https://docs.python.org/3/library/argparse.html#argument-groups
 
 .. |---| unicode:: U+2014
    :trim:

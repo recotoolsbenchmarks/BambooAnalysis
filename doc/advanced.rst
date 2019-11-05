@@ -15,6 +15,7 @@ used in Delphes_ output trees can be added with
 
 .. code-block:: python
 
+    from bamboo.root import loadLibrary
     loadLibrary("libDelphes")
 
 In this specific case, this line should be added to the analysis module's

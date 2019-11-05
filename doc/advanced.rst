@@ -11,7 +11,8 @@ libraries or headers with the ROOT interpreter (PyROOT makes them directly
 accessible through the global namespace, which can be imported as ``gbl`` from
 :py:mod:`bamboo.root`.
 As an example, the library that contains the dictionaries for the classes
-used in Delphes_ output trees can be added with
+used in Delphes_ output trees can be added with the
+:py:meth:`bamboo.root.loadLibrary` method:
 
 .. code-block:: python
 
@@ -26,7 +27,36 @@ it from the :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree` or
 :py:meth:`~bamboo.analysismodules.HistogramsModule.processTrees` method
 (repeated loads should not cause problems).
 
-TODO: update when MVA PR is merged
+C++ methods can be used directly from an expression.
+Non-member methods that are known by the interpreter (e.g. because the
+corresponding header has been added with :py:meth:`bamboo.root.loadHeader`),
+can be retrieved with the :py:meth:`bamboo.treefunctions.extMethod`.
+
+It is often useful to define a class that stores some parameters, and then call
+a member method with event quantities to obtain a derived quantity (this is
+also the mechanism used for most of the builtin corrections).
+In order to use such a class, its header (and shared library, if necessary)
+should be loaded as above, and an instance defined with
+:py:meth:`bamboo.treefunctions.define`, e.g.
+
+.. code-block:: python
+
+    myCalc = op.define("MyCalculatorType", 'const auto <<name>> = MyCalculatorType("test");')
+    myCorrection = myCalc.evaluate(tree.Muon[0].pt, tree.Muon[1].pt)
+
+.. warning:: With implicit multi-threading enabled, only thread-safe methods may
+    be called in this way (e.g. const member methods, without global or member
+    variables used for caching).
+
+.. note:: The usual logic to avoid redefinition of these variables is applied.
+    In cases like above where all parameters are supplied at once, this will
+    work as expected.
+    If the calculator is further configured by calling member methods (it can
+    be accessed directly through PyROOT), it is safer to create a unique
+    instance for each sample, e.g. by adding a comment that contains the sample
+    name at the end of the declaration (an optional ``nameHint`` argument can
+    be given to make the generated code more readable, but this will be ignored
+    in case the declaration string is the same).
 
 .. _ugcutordering:
 

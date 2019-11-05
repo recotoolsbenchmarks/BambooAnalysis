@@ -65,6 +65,17 @@ def multiSwitch(*args):
     else:
         return switch(args[0][0], args[0][1], multiSwitch(*(args[1:])))
 def extMethod(name):
+    """ Retrieve a (non-member) C(++) method
+
+    :param name: name of the method
+
+    :returns: a method proxy, that can be called and returns a value decorated as the return type of the method
+
+    :Example:
+
+    >>> phi_0_2pi = op.extMethod("ROOT::Math::VectorUtil::Phi_0_2pi")
+    >>> dphi_2pi = phi_0_2pi(a.Phi()-b.Phi())
+    """
     return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
 def extVar(typeName, name):
     return _to.ExtVar(typeName, name).result

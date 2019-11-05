@@ -27,7 +27,7 @@ The :py:meth:`~bamboo.scalefactors.get_scalefactor` method constructs such
 objects from a nested dictionary such as the one in :py:mod:`bamboo.llbbSF`:
 the first key is a tag (as an example: "electron_2015_76", for electrons in
 2015 data, analysed with a ``CMSSW_7_6_X`` release) and the second key is an
-identifier of the selection they correspond to (e.g. ``id_loose``).
+identifier of the selection they correspond to (e.g. ``id_Loose``).
 The value inside this dictionary can be either a single path to a JSON file,
 or a list of ``(periods, path)`` pairs, where ``periods`` is a list of run periods, in case scalefactors for different
 running periods need to be combined (the ``periods`` keyword argument to
@@ -87,7 +87,7 @@ instances with
 .. code-block:: python
 
  electrons = op.select(t.Electron, lambda ele : op.AND(ele.cutBased >= 2, ele.p4.Pt() > 20., op.abs(ele.p4.Eta()) < 2.5))
- elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_loose"), systName="elID")
+ elLooseIDSF = get_scalefactor("lepton", ("electron_2016_94", "id_Loose"), systName="elID")
  hasTwoEl = noSel.refine("hasTwoEl", cut=[ op.rng_len(electrons) > 1 ],
                weight=[ elLooseIDSF(electrons[0]), elLooseIDSF(electrons[1]) ])
 

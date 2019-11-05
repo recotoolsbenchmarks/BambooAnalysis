@@ -55,7 +55,7 @@ a local clone, such that you can use it to test and propose changes, using
 
 .. code-block:: sh
 
-   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git /path/to/your/bambooclone
+   git clone -o upstream https://gitlab.cern.ch/cp3-cms/bamboo.git /path/to/your/bambooclone
    pip install /path/to/your/bambooclone ## e.g. ./bamboo (not bamboo - a package with that name exists)
 
 such that you can update later on with (inside ``/path/to/your/bambooclone``)
@@ -121,7 +121,7 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    # clone and install bamboo
-   git clone -o upstream git+ssh://git@gitlab.cern.ch:7999/cp3-cms/bamboo.git
+   git clone -o upstream https://gitlab.cern.ch/cp3-cms/bamboo.git
    pip install ./bamboo
    # clone and install plotIt
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git

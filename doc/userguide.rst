@@ -393,7 +393,6 @@ e.g. NanoAODv4 for
 `2018 data <https://cms-nanoaod-integration.web.cern.ch/integration/master-102X/data101X_doc.html>`_.
 
 
-
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _YAML: https://yaml.org

@@ -134,6 +134,8 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
 Test your setup
 ---------------
 
+TODO insert tutorial here (merge with existing)
+
 Now you can run a few simple tests on a CMS NanoAOD to see if the installation
 was successful.
 First, we can pretend we are a 'worker' task, which processes trees and outputs
@@ -168,11 +170,6 @@ of the ``[das]`` section in the argument to ``-envConfig``):
 
 To run this on slurm it is sufficient to add ``--distributed=driver`` (a task
 with two jobs will be created, one for each sample sample).
-
-Tutorial
---------
-
-TODO insert here, or merge with above
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html

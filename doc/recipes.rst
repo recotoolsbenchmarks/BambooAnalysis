@@ -394,6 +394,20 @@ so they are listed separately from those in the base class.
 This is also used to copy all user-defined arguments to the commands that are
 passed to the worker tasks, when running in distributed mode.
 
+.. _recipemvaevaluate:
+
+Evaluate an MVA classifier
+--------------------------
+
+TODO: add when PR is merged
+
+.. _recipemergedcategoryplots:
+
+Make combined plots for different selections
+--------------------------------------------
+
+TODO: add when PR is merged
+
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 

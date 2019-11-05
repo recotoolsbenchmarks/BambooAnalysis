@@ -25,6 +25,8 @@ it from the :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree` or
 :py:meth:`~bamboo.analysismodules.HistogramsModule.processTrees` method
 (repeated loads should not cause problems).
 
+TODO: update when MVA PR is merged
+
 .. _ugcutordering:
 
 Ordering selections and plots efficiently
@@ -151,3 +153,6 @@ The definition can be added explicitly under a selection by calling the
 .. _Delphes: https://cp3.irmp.ucl.ac.be/projects/delphes
 
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
+
+.. |---| unicode:: U+2014
+   :trim:

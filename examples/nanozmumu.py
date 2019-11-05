@@ -52,7 +52,7 @@ class NanoZMuMu(NanoAODHistoModule):
         return tree,noSel,be,lumiArgs
 
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
-        from bamboo.plots import Plot, EquidistantBinning
+        from bamboo.plots import Plot, SummedPlot, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
 
@@ -77,10 +77,11 @@ class NanoZMuMu(NanoAODHistoModule):
 
         twoMuTwoJetSel = twoMuSel.refine("twoMuonsTwoJets", cut=[ op.rng_len(jets) > 1 ])
 
-        plots.append(Plot.make1D("leadJetPT", jets[0].p4.Pt(), twoMuTwoJetSel,
-                EquidistantBinning(50, 0., 250.), title="Leading jet PT"))
-        plots.append(Plot.make1D("subleadJetPT", jets[1].p4.Pt(), twoMuTwoJetSel,
-                EquidistantBinning(50, 0., 250.), title="Subleading jet PT"))
+        leadjpt = Plot.make1D("leadJetPT", jets[0].p4.Pt(), twoMuTwoJetSel,
+                EquidistantBinning(50, 0., 250.), title="Leading jet PT")
+        subleadjpt = Plot.make1D("subleadJetPT", jets[1].p4.Pt(), twoMuTwoJetSel,
+                EquidistantBinning(50, 0., 250.), title="Subleading jet PT")
+        plots += [ leadjpt, subleadjpt, SummedPlot("twoLeadJetPT", [leadjpt, subleadjpt], xTitle="Leading two jet PTs") ]
 
         return plots
 

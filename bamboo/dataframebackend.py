@@ -113,6 +113,7 @@ class DataframeBackend(FactoryBackend):
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.plotResults = dict() ## plot name -> list of result pointers
         self.allSysts = dict()    ## all systematic uncertainties and variations impacting any plot
+        self.derivedPlots = []
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -318,6 +319,9 @@ class DataframeBackend(FactoryBackend):
 
         self.plotResults[plot.name] = plotRes
 
+    def addDerivedPlot(self, plot):
+        self.derivedPlots.append(plot)
+
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
         from .root import gbl
@@ -338,6 +342,8 @@ class DataframeBackend(FactoryBackend):
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
 
     def getPlotResults(self, plot):
+        if plot in self.derivedPlots and plot.name not in self.plotResults:
+            self.plotResults[plot.name] = plot.produceResults(self)
         return self.plotResults[plot.name]
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):

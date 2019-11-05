@@ -30,7 +30,8 @@ it from the :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree` or
 C++ methods can be used directly from an expression.
 Non-member methods that are known by the interpreter (e.g. because the
 corresponding header has been added with :py:meth:`bamboo.root.loadHeader`),
-can be retrieved with the :py:meth:`bamboo.treefunctions.extMethod`.
+can be retrieved with :py:meth:`bamboo.treefunctions.extMethod`, which returns
+a decorated version of the method.
 
 It is often useful to define a class that stores some parameters, and then call
 a member method with event quantities to obtain a derived quantity (this is

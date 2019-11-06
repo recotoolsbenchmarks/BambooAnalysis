@@ -2,7 +2,7 @@
 The :py:mod:`bamboo.plots` module provides high-level classes to represent
 and manipulate selections and plots.
 """
-__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection")
+__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "DerivedPlot", "SummedPlot")
 
 import logging
 logger = logging.getLogger(__name__)
@@ -352,8 +352,7 @@ class DerivedPlot:
         """
         Main interface method, called by the backend
 
-        :param fbe: reference to the backend (which can be used to retrieve
-        the results of the dependency plots)
+        :param fbe: reference to the backend (which can be used to retrieve the results of the dependency plots)
 
         :returns: an iterable with ROOT objects to save to the output file
         """

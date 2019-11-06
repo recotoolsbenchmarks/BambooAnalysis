@@ -427,6 +427,7 @@ contributions, it is sufficient to not add the latter to the plot list), e.g.
    mjj_elel = Plot.make1D("Mjj_ElEl", op.invariant_mass(jets[0].p4, jets[1].p4),
                           sel_elel, EquidistantBinning(50, 20., 120.))
    mjj_sum = SummedPlot("Mjj", [mjj_mumu, mjj_elel], title="m(jj)")
+   plots += [ mjj_mumu, mjj_elel, mjj_sum ] # produce all plots
 
 
 The other plot properties of a :py:class:`~bamboo.plots.SummedPlot` (titles,

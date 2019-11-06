@@ -399,14 +399,14 @@ passed to the worker tasks, when running in distributed mode.
 Evaluate an MVA classifier
 --------------------------
 
-TODO: add when PR is merged
+This feature is still under development, a recipe will be added here shortly
 
 .. _recipemergedcategoryplots:
 
 Make combined plots for different selections
 --------------------------------------------
 
-TODO: add when PR is merged
+This feature is still under development, a recipe will be added here shortly
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html

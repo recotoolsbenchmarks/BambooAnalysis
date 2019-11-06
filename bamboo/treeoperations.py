@@ -74,6 +74,12 @@ class TupleOp:
     def _eq(self, other):
         """ value-based __eq__ implementation - to be overridden by all subclasses (protects against hash collisions; hash and class are checked to be equal already) """
         return True
+    def get_cppStr(self, defCache=None):
+        """ Interface method: generate a C++ string from the operation
+
+        :param defCache: cache with defined operations and symbols; a minimal implementation is :py:class:`~bamboo.treeoperations.CppStrRedir` (which does not do any caching)
+        """
+        pass
 
 ## implementations are split out, see treeproxies
 class TupleBaseProxy:

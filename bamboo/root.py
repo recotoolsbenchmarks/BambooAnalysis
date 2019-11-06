@@ -1,7 +1,10 @@
 """
-Collect PyROOT imports, and utilities for loading libraries and headers
+The :py:mod:`bamboo.root` module collects a set of thin wrappers around ROOT
+methods, and centralizes the import of the Cling interpreter global namespace
+in PyROOT. For compatibility, it is recommended that user code uses
+``from bamboo.root import gbl`` rather than ``import ROOT as gbl`` or
+``from cppyy import gbl``.
 """
-__all__ = ("gbl",)
 ## workaround for https://sft.its.cern.ch/jira/browse/ROOT-10304, which affects only ROOT 6.18/XX
 import subprocess
 _rootVersion = subprocess.check_output(["root-config", "--version"]).decode().strip()
@@ -29,7 +32,7 @@ def loadLibrary(libName):
         raise RuntimeError("Version match for library {0}".format(libName))
 
 def loadBambooExtensions():
-    """Add extension libraries and necessary header files to the ROOT interpreter"""
+    # Add extension libraries and necessary header files to the ROOT interpreter
     import sys
     import pkg_resources
     import os.path

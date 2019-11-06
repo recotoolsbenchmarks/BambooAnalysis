@@ -24,7 +24,6 @@ Helper functions
 
 .. automodule:: bamboo.analysisutils
    :members:
-   :special-members: __init__
 
 Scale factors
 '''''''''''''
@@ -36,3 +35,9 @@ Scale factors
 
 .. |---| unicode:: U+2014
    :trim:
+
+ROOT utilities
+''''''''''''''
+
+.. automodule:: bamboo.root
+   :members:

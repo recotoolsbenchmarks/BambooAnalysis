@@ -466,10 +466,10 @@ Evaluate an MVA classifier
 Several external libraries can be used to evaluate the response of MVA
 classifiers inside expressions.
 For convenience, a uniform interface is defined that uses a vector of floats
-as input and output, with implementations available for `libtorch`_,
+as input and output, with implementations available for `PyTorch`_,
 `Tensorflow`_, and `lwtnn`_.
 When going through this interface, an evaluator object (see
-:ref:`this section<ugcppmodules:>` for an explanation) can be obtained through
+:ref:`this section<ugcppmodules>` for an explanation) can be obtained through
 the :py:meth:`bamboo.treefunctions.mvaEvaluator` method (see its documentation
 for a detailed description of the necessary arguments).
 
@@ -611,6 +611,12 @@ As an example, a simple visualisation of 2D histograms could be obtained with
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
 
 .. _plotIt: https://github.com/cp3-llbb/plotIt
+
+.. _PyTorch: https://pytorch.org/
+
+.. _Tensorflow: https://www.tensorflow.org/
+
+.. _lwtnn: https://github.com/lwtnn/lwtnn
 
 .. _this TorchScript tutorial: https://pytorch.org/tutorials/advanced/cpp_export.html#step-1-converting-your-pytorch-model-to-torch-script
 

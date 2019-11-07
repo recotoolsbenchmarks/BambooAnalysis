@@ -298,7 +298,7 @@ install it directly there is bundled with the bamboo_ source distribution, in
 
 .. _libtorch: https://pytorch.org/cppdocs/
 
-.. _tensorflowc: https://www.tensorflow.org/install/lang_c
+.. _tensorflow-c: https://www.tensorflow.org/install/lang_c
 
 .. |---| unicode:: U+2014
    :trim:

@@ -463,7 +463,26 @@ Below is an example of how this works:
 Evaluate an MVA classifier
 --------------------------
 
-This feature is still under development, a recipe will be added here shortly
+Several external libraries can be used to evaluate the response of MVA
+classifiers inside expressions.
+For convenience, a uniform interface is defined that uses a vector of floats
+as input and output, with implementations available for `libtorch`_,
+`Tensorflow`_, and `lwtnn`_.
+When going through this interface, an evaluator object (see
+:ref:`this section<ugcppmodules:>` for an explanation) can be obtained through
+the :py:meth:`bamboo.treefunctions.mvaEvaluator` method (see its documentation
+for a detailed description of the necessary arguments).
+
+.. code-block:: python
+
+    mu = tree.Muon[0]
+    nn1 = mvaEvaluator("nn1.pt")
+    Plot.make1D("mu_nn1", nn1(mu.pt, mu.eta, mu.phi), hasMu)
+
+Instructions to obtain a file with the neural network structure and weights for
+the different tools can be found in `this TorchScript tutorial`_,
+`the Tensorflow SavedModel documentation`_, and on `the lwtnn wiki`_,
+respectively.
 
 .. _recipemergedcategoryplots:
 
@@ -592,6 +611,12 @@ As an example, a simple visualisation of 2D histograms could be obtained with
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
 
 .. _plotIt: https://github.com/cp3-llbb/plotIt
+
+.. _this TorchScript tutorial: https://pytorch.org/tutorials/advanced/cpp_export.html#step-1-converting-your-pytorch-model-to-torch-script
+
+.. _the Tensorflow SavedModel documentation: https://www.tensorflow.org/guide/saved_model
+
+.. _the lwtnn wiki: https://github.com/lwtnn/lwtnn/wiki/Keras-Converter
 
 .. |---| unicode:: U+2014
    :trim:

@@ -111,3 +111,9 @@ def loadTensorflowC():
     loadLibrary("libtensorflow")
     loadLibrary("libBambooTensorflowC")
     loadHeader("bambootensorflowc.h")
+
+@once
+def loadlwtnn():
+    loadBambooExtensions()
+    loadLibrary("libBambooLwtnn")
+    loadHeader("bamboolwtnn.h")

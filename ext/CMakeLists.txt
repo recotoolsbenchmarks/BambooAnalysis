@@ -83,3 +83,18 @@ if(Torch_FOUND)
 else()
   message(STATUS "libTorch integration will not be built. Specify CMAKE_PREFIX_PATH with the libTorch prefix to include it")
 endif()
+
+find_package(lwtnn)
+if(lwtnn_FOUND)
+  add_library(BambooLwtnn SHARED src/bamboolwtnn.cc)
+  target_compile_features(BambooLwtnn PRIVATE cxx_std_17)
+  target_include_directories(BambooLwtnn
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+  target_link_libraries(BambooLwtnn lwtnn::lwtnn)
+  install(TARGETS BambooLwtnn
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  message(STATUS "Building lwtnn integration with lwtnn from ${lwtnn_INSTALL_DIR}")
+else()
+  message(STATUS "lwtnn integration will not be built")
+endif()

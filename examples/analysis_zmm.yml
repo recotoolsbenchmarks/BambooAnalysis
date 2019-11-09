@@ -3,7 +3,7 @@ eras:
   '2016':
     luminosity: 3104.509131800 ## 2016F only
   '2017':
-    luminosity: 13.540 ## 2017F only
+    luminosity: 13540. ## 2017F only
 samples:
   DoubleMuon_2016F:
     group: data

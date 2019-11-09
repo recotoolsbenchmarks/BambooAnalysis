@@ -227,7 +227,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
-    plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
+    plotitCfg = copy.deepcopy(config["plotIt"]) if plotIt in config else {"configuration":{}}
     plotitCfg["configuration"].update({
         "root" : os.path.relpath(resultsdir, workdir),
         "eras" : eras,
@@ -239,11 +239,14 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
             resultsName = "{0}.root".format(smpN)
             smpOpts = dict()
             for ky in ("group", "era"):
-                smpOpts[ky] = smpCfg[ky]
-            isMC = ( smpCfg["group"] != "data" )
+                if ky in smpCfg:
+                    smpOpts[ky] = smpCfg[ky]
+            isMC = ( smpCfg.get("group") != "data" )
             smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
-                smpOpts["cross-section"] = smpCfg["cross-section"]
+                if "cross-section" not in smpCfg:
+                    logger.warning("Sample {0} is of type MC, but no cross-section specified".format(smpN))
+                smpOpts["cross-section"] = smpCfg.get("cross-section", 1.)
                 from .root import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 try:
@@ -268,9 +271,9 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         yaml.dump(plotitCfg, plotitFile)
 
     out_extraOpts = []
-    if eraMode in ("all", "combined"):
+    if len(eras) > 1 and eraMode in ("all", "combined"):
         out_extraOpts.append((os.path.join(workdir, "plots"), []))
-    if eraMode in ("split", "all"):
+    if len(eras) == 1 or eraMode in ("split", "all"):
         for era in eras:
             out_extraOpts.append((os.path.join(workdir, "plots_{0}".format(era)), ["-e", era]))
     for plotsdir, extraOpts in out_extraOpts:

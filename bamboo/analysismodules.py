@@ -126,7 +126,7 @@ class AnalysisModule(object):
             from .root import gbl
             tup = gbl.TChain(self.args.treeName)
             if not tup.Add(self.inputs[0], 0):
-                raise IOError("Could not open file {}".format(fName))
+                raise IOError("Could not open file {}".format(self.inputs[0]))
             return tup, "", {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
             if len(self.args.input) != 1:

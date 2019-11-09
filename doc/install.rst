@@ -134,42 +134,70 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
 Test your setup
 ---------------
 
-TODO insert tutorial here (merge with existing)
-
 Now you can run a few simple tests on a CMS NanoAOD to see if the installation
-was successful.
-First, we can pretend we are a 'worker' task, which processes trees and outputs
-a file with histograms, with a test module like :py:mod:`examples.nanozmumu`:
+was successful. A minimal example is run by the following command:
 
 .. code-block:: sh
 
-   bambooRun -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu --distributed=worker --sample=DY_M50 /path/to/your/bambooclone/tests/data/DY_M50_2016.root -o testh1.root
+   bambooRun -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu /path/to/your/bambooclone/examples/test1.yml -o test1
 
-(``--distributed=worker`` is needed to interpret the positional arguments as
-input file names, in sequential mode (no ``--distributed`` option) and for
-the driver task (``--distributed=driver``) the positional argument is reserved
-for a yaml file that contains more information, such as input file locations
-for several samples, normalisation etc. - there are a few examples).
+which will run over a single sample of ten events and fill some histograms
+(in fact, only one event passes the selection, so they will not look very
+interesting).
+If you have a NanoAOD file with muon triggers around, you can put its path
+instead of the test file in the yml file and rerun to get a nicer plot (xrootd
+also works, but only for this kind of tests |---| in any practical case the
+performance benefit of having the files locally is worth the cost of replicating
+them).
 
-The normal way of running bamboo is with an ``analysis.yml`` file:
+Getting started
+---------------
+
+The test command above shows how bamboo is typically run: using the
+:ref:`bambooRun<ugbambooRun>` command, with a python module that specifies what
+to run, and an :ref:`analysis YAML file<uganalysisyaml>` that specifies which
+samples to process, and how to combine them in plots (there are several options
+to run a small test, or submit jobs to the batch system when processing a lot
+of samples).
+
+A more realistic analysis YAML configuration file is
+`bamboo/examples/analysis_zmm.yml <https://gitlab.cern.ch/cp3-cms/bamboo/blob/master/examples/analysis_zmm.yml>`_,
+which runs on a significant fraction of the 2016 and 2017 ``DoubleMuon`` data
+and the corresponding Drell-Yan simulated samples.
+Since the samples are specified by their DAS path in this case, the
+``dasgoclient`` executable and a valid grid proxy are needed for resolving
+those to files, and a :ref:`configuration file<ugenvconfig>` that describes the
+local computing environment (i.e. the root path of the local CMS grid storage,
+or the name of the redirector in case of using xrootd); examples are included
+for the UCLouvain-CP3 and CERN (lxplus/lxbatch) cases.
+
+The corresponding
+`python module <https://gitlab.cern.ch/cp3-cms/bamboo/blob/master/examples/nanozmumu.py>`_
+shows the typical structure of ever tighter event selections that derive from
+the base selection, which accepts all the events in the input, and plots that
+are defined based on these selection, and returned in a list from the main
+method (this corresponds to the pdf or png files that will be produced).
+
+The module deals with a decorated version of the tree, which can also be
+inspected from an IPython shell by using the ``-i`` option to ``bambooRun``,
+e.g.
 
 .. code-block:: sh
 
-   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/test_nanozmm.yml --envConfig=bamboo/examples/ingrid.ini -o test_nanozmm_1
+   bambooRun -i -m /path/to/your/bambooclone/examples/nanozmumu.py:NanoZMuMu /path/to/your/bambooclone/examples/test1.yml
 
-If all went well, you should have a (very low-statistics) dimuon Z peak plot in
-``test_nanozmm_1/plots/dimu_M.pdf``.
-There is also an example that does the same with about 3.1/fb of CMS dimuon data
-from 2016 (please note that this needs a valid grid proxy to retrieve the file
-lists, and the files to be avialable locally under the ``storageroot`` directory
-of the ``[das]`` section in the argument to ``-envConfig``):
+together with the helper methods defined on :doc:`this page<treefunctions>`,
+this allows to define a wide variety of selection requirements and variables.
 
-.. code-block:: sh
-
-   bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/analysis_zmm.yml --envConfig=bamboo/examples/ingrid.ini -o test_nanozmm_2
-
-To run this on slurm it is sufficient to add ``--distributed=driver`` (a task
-with two jobs will be created, one for each sample sample).
+The :doc:`user guide<userguide>` contains a much more detailed description of
+the different files and how they are used, and the
+:doc:`analysis recipes page<recipes>` provides more information about the
+bundled helper methods for common tasks.
+The :doc:`API reference<apiref>` describes all available user-facing methods
+and classes.
+If the builtin functionality is not sufficient, some hints on extending or
+modifying bamboo can be found in the :doc:`advanced topics<advanced>` and the
+:doc:`hacking guide<hacking>`.
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html

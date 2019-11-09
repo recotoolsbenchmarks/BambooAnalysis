@@ -134,7 +134,7 @@ class AnalysisModule(object):
             anaCfgName = self.args.input[0]
             envConfig = readEnvConfig(self.args.envConfig)
             analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-            smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
             logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))

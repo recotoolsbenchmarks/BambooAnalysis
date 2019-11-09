@@ -99,7 +99,7 @@ class AnalysisModule(object):
         worker.add_argument("--runRange", type=parseRunRange, help="Run range (format: 'firstRun,lastRun')")
         worker.add_argument("--certifiedLumiFile", type=str, help="(local) path of a certified lumi JSON file")
         worker.add_argument("--sample", type=str, help="Sample name (as in the samples section of the analysis configuration)")
-        worker.add_argument("--input", nargs="*", default="File with the list of files to read", dest="filelists")
+        worker.add_argument("--input", action="append", help="File with the list of files to read", dest="filelists")
         worker.add_argument("--anaConfig", type=str, default=None, help="Analysis description yml file provided to the driver")
         specific = parser.add_argument_group("module-specific arguments")
         self.addArgs(specific)
@@ -115,7 +115,7 @@ class AnalysisModule(object):
     @property
     def inputs(self):
         inputs = list(self.args.input)
-        if self.args.distributed == "worker":
+        if self.args.distributed == "worker" and self.args.filelists:
             for ifl in self.args.filelists:
                 with open(ifl) as iflf:
                     inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
@@ -127,7 +127,7 @@ class AnalysisModule(object):
             tup = gbl.TChain(self.args.treeName)
             if not tup.Add(self.inputs[0], 0):
                 raise IOError("Could not open file {}".format(fName))
-            return tup, {}
+            return tup, "", {}
         elif ( not self.args.distributed ) or self.args.distributed == "driver":
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")

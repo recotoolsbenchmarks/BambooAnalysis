@@ -3,6 +3,8 @@ import os.path
 import subprocess
 import shutil
 
+pytestmark = pytest.mark.skipif(shutil.which("bambooRun") is None, reason="bambooRun was not found")
+
 testData = os.path.join(os.path.dirname(__file__), "data")
 examples = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 

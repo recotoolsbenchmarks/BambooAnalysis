@@ -406,7 +406,37 @@ This feature is still under development, a recipe will be added here shortly
 Make combined plots for different selections
 --------------------------------------------
 
-This feature is still under development, a recipe will be added here shortly
+It is rather common to define categories with e.g. different lepton flavours
+and selections, but then make plots with the entries from these (disjoint)
+sets of events combined.
+Given the structure of the RDataFrame_ graph and the
+:py:class:`~bamboo.plots.Selection` tree, the most convenient way to achieve
+this is by defining the histograms for each category, and make a merged
+histogram later on.
+The :py:class:`~bamboo.plots.SummedPlot` class does exactly this, and since it
+presents the same interface to the analysis module as a regular
+:py:class:`~bamboo.plots.Plot`, it can simply be added to the same plot list
+(to produce only the combined plot and not those for the individual
+contributions, it is sufficient to not add the latter to the plot list), e.g.
+
+.. code-block:: python
+
+   from bamboo.plots import Plot, SummedPlot, EquidistantBinning
+   mjj_mumu = Plot.make1D("Mjj_MuMu", op.invariant_mass(jets[0].p4, jets[1].p4),
+                          sel_mumu, EquidistantBinning(50, 20., 120.))
+   mjj_elel = Plot.make1D("Mjj_ElEl", op.invariant_mass(jets[0].p4, jets[1].p4),
+                          sel_elel, EquidistantBinning(50, 20., 120.))
+   mjj_sum = SummedPlot("Mjj", [mjj_mumu, mjj_elel], title="m(jj)")
+   plots += [ mjj_mumu, mjj_elel, mjj_sum ] # produce all plots
+
+
+The other plot properties of a :py:class:`~bamboo.plots.SummedPlot` (titles,
+labels etc.) can be specified with keyword arguments to the constructor;
+otherwise they are taken from the first component plot.
+
+.. note:: :py:class:`~bamboo.plots.SummedPlot` simply adds up the histograms,
+   it is up to the user to make sure an event can only enter one of the
+   categories, if this is what it is used for.
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
@@ -425,6 +455,7 @@ This feature is still under development, a recipe will be added here shortly
 
 .. _argument group: https://docs.python.org/3/library/argparse.html#argument-groups
 
+.. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
+
 .. |---| unicode:: U+2014
    :trim:
-

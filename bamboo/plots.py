@@ -2,7 +2,7 @@
 The :py:mod:`bamboo.plots` module provides high-level classes to represent
 and manipulate selections and plots.
 """
-__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection")
+__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "DerivedPlot", "SummedPlot")
 
 import logging
 logger = logging.getLogger(__name__)
@@ -17,6 +17,10 @@ class FactoryBackend(object):
     def addSelection(self, selection):
         pass
     def addPlot(self, plot):
+        pass
+    def addDerivedPlot(self, plot):
+        pass
+    def getPlotResults(self, plot):
         pass
     @staticmethod
     def create(tree):
@@ -309,3 +313,88 @@ class Selection(object):
         else:
             from .treeproxies import makeConst
             return adaptArg(makeConst(1., "float"), typeHint="float")
+
+class DerivedPlot:
+    """
+    Base class for a plot with results based on other plots' results
+
+    The two main characteristics are an interface method
+    :py:meth:`~bamboo.plots.DerivedPlot.produceResults`,
+    which is called by the backend to retrieve the derived results,
+    and a :py:attr:`~bamboo.plots.DerivedPlot.dependencies` attribute that lists
+    the :py:class:`~bamboo.plots.Plot`-like objects this one depends on (which
+    may be used e.g. to order operations).
+    The other necessary properties (binnings, titles, labels, etc.) are taken
+    from the keyword arguments to the constructor, or the first dependency.
+
+    Typical use cases are summed histograms, alternative or additional methods
+    to calculate or combine some systematic uncertainties etc. (the results are
+    combined for different subjobs with hadd, so derived quantities that require
+    the full statistics should be calculated from the postprocessing step).
+    """
+    def __init__(self, name, dependencies, **kwargs):
+        self.name = name
+        self.dependencies = dependencies
+        self.binnings = kwargs.get("binnings", dependencies[0].binnings)
+        self.axisTitles = kwargs.get("axisTitles",
+                tuple([ kwargs.get("{0}Title".format(ax), dependencies[0].axisTitles[i])
+                    for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
+        self.axisBinLabels = kwargs.get("axisBinLabels",
+                tuple([ kwargs.get("{0}BinLabels".format(ax), dependencies[0].axisBinLabels[i])
+                    for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
+        self.plotopts = kwargs.get("plotopts", dict())
+        # register with backend
+        dependencies[0].selection._fbe.addDerivedPlot(self)
+    @property
+    def variables(self):
+        return [ None for x in self.binnings ]
+    def produceResults(self, fbe):
+        """
+        Main interface method, called by the backend
+
+        :param fbe: reference to the backend (which can be used to retrieve the results of the dependency plots)
+
+        :returns: an iterable with ROOT objects to save to the output file
+        """
+        return []
+    def collectDependencyResults(self, fbe):
+        """ helper method: collect all results of the dependencies
+
+        :returns: ``[ (nominalResult, {"variation" : variationResult}) ]``
+        """
+        res_dep = []
+        for dep in self.dependencies:
+            resNom = None
+            resPerVar = {}
+            for res in fbe.getPlotResults(dep):
+                if "__" not in res.GetName():
+                    assert resNom is None
+                    resNom = res
+                else:
+                    resVar = res.GetName().split("__")[1]
+                    resPerVar[resVar] = res
+            res_dep.append((resNom, resPerVar))
+        return res_dep
+
+class SummedPlot(DerivedPlot):
+    """ A :py:class:`~bamboo.plots.DerivedPlot` implementation that sums histograms """
+    def __init__(self, name, termPlots, **kwargs):
+        super(SummedPlot, self).__init__(name, termPlots, **kwargs)
+    def produceResults(self, fbe):
+        res_dep = self.collectDependencyResults(fbe)
+        # list all variations (some may not be there for all)
+        allVars = set()
+        for _,resVar in res_dep:
+            allVars.update(resVar.keys())
+        # sum nominal
+        hNom = res_dep[0][0].Clone(self.name)
+        for ihn,_ in res_dep[1:]:
+            hNom.Add(ihn.GetPtr())
+        results = [ hNom ]
+        # sum variations (using nominal if not present for some)
+        for vn in allVars:
+            hVar = res_dep[0][1].get(vn, res_dep[0][0]).Clone("__".join((self.name, vn)))
+            for ihn,ihv in res_dep[1:]:
+                hVar.Add(ihv.get(vn, ihn).GetPtr())
+            results.append(hVar)
+        return results

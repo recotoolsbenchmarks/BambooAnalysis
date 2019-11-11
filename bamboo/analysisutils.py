@@ -154,7 +154,7 @@ def parseAnalysisConfig(anaCfgName, resolveFiles=True, redodbqueries=False, over
             for smpName, smpCfg in analysisCfg["samples"].items())
     return analysisCfg
 
-def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
+def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
     """ Helper method: get a file from any sample (minimizing the risk of errors)
 
     Tries to find any samples with:
@@ -168,7 +168,7 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
     ## list of files -> return 1st
     for smpNm,smpCfg in samples.items():
         if ( "files" in smpCfg ) and ( str(smpCfg["files"]) != smpCfg["files"] ):
-            return smpNm,smpCfg,smpCfg["files"][0]
+            return smpNm,smpCfg,(smpCfg["files"][0] if os.path.isabs(smpCfg["files"][0]) else os.path.join(cfgDir, smpCfg["files"][0]))
     ## try to get them from a cache file or database (ordered by less-to-more risky)
     failed_names = set()
     for method, condition in [
@@ -180,7 +180,7 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
         for smpNm,smpCfg in samples.items():
             if smpNm not in failed_names and condition(smpCfg):
                 try:
-                    smpCfg = sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig)
+                    smpCfg = sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir)
                     return smpNm,smpCfg,smpCfg["files"][0]
                 except Exception as ex:
                     failed_names.add(smpNm)
@@ -227,7 +227,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
-    plotitCfg = (copy.deepcopy(config["plotIt"]) if "plotIt" in config else dict())
+    plotitCfg = copy.deepcopy(config["plotIt"]) if plotIt in config else {"configuration":{}}
     plotitCfg["configuration"].update({
         "root" : os.path.relpath(resultsdir, workdir),
         "eras" : eras,
@@ -239,11 +239,14 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
             resultsName = "{0}.root".format(smpN)
             smpOpts = dict()
             for ky in ("group", "era"):
-                smpOpts[ky] = smpCfg[ky]
-            isMC = ( smpCfg["group"] != "data" )
+                if ky in smpCfg:
+                    smpOpts[ky] = smpCfg[ky]
+            isMC = ( smpCfg.get("group") != "data" )
             smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
-                smpOpts["cross-section"] = smpCfg["cross-section"]
+                if "cross-section" not in smpCfg:
+                    logger.warning("Sample {0} is of type MC, but no cross-section specified".format(smpN))
+                smpOpts["cross-section"] = smpCfg.get("cross-section", 1.)
                 from .root import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 try:
@@ -268,9 +271,9 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         yaml.dump(plotitCfg, plotitFile)
 
     out_extraOpts = []
-    if eraMode in ("all", "combined"):
+    if len(eras) > 1 and eraMode in ("all", "combined"):
         out_extraOpts.append((os.path.join(workdir, "plots"), []))
-    if eraMode in ("split", "all"):
+    if len(eras) == 1 or eraMode in ("split", "all"):
         for era in eras:
             out_extraOpts.append((os.path.join(workdir, "plots_{0}".format(era)), ["-e", era]))
     for plotsdir, extraOpts in out_extraOpts:

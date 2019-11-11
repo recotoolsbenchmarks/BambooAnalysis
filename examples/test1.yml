@@ -1,0 +1,11 @@
+tree: Events
+eras:
+  '1':
+    luminosity: 1
+samples:
+  DY_M50_test:
+    era: '1'
+    type: mc
+    files: [ ../tests/data/DY_M50_2016.root ]
+    generated-events: genEventSumw
+    cross-section: 1

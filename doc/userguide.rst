@@ -16,6 +16,8 @@ plots from them it is sufficient to make your analysis module inherit from
 Other types of trees can be included in a similar way, but a bit of development
 is needed to provided a more convenient way to do so (help welcome).
 
+.. _ugbambooRun:
+
 Running bambooRun
 -----------------
 

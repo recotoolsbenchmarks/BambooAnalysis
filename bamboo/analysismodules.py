@@ -370,11 +370,11 @@ class HistogramsModule(AnalysisModule):
         """ Interactively inspect a decorated input tree
 
         Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
-        ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
+        ``noSel`` (root selection), ``backend``, ``runAndLS`` (e.g. ``(runExpr, lumiBlockExpr)``)
         (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
         """
         tup, smpName, smpCfg = self.getATree()
-        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
         import bamboo.treefunctions as op
         import IPython
         IPython.embed()
@@ -576,11 +576,11 @@ class SkimmerModule(AnalysisModule):
         """ Inte ## TODO fully genericractively inspect a decorated input tree
 
         Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
-        ``noSel`` (root selection), ``backend``, ``runExpr`` and ``lumiBlockExpr``
+        ``noSel`` (root selection), ``backend``, and ``runAndLS`` (e.g. ``(runExpr, lumiBlockExpr)``)
         (the inputs for the lumi mask), and ``op`` (:py:mod:`bamboo.treefunctions`).
         """
         tup, smpName, smpCfg = self.getATree()
-        tree, noSel, backend, (runExpr, lumiBlockExpr) = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
         import bamboo.treefunctions as op
         import IPython
         IPython.embed()

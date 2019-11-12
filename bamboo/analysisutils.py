@@ -217,7 +217,7 @@ def readEnvConfig(explName=None):
                 return res
             except Exception as ex:
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
-    raise RuntimeError("No valid config file found")
+    logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),

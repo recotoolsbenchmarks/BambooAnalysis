@@ -232,7 +232,7 @@ class AnalysisModule(object):
                             for i,chunk in enumerate(chunks):
                                 cfn = os.path.join(workdir, "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
                                 writeFileList(chunk, cfn)
-                                cmds.append(" ".join(commArgs+[
+                                cmds.append(" ".join([str(a) for a in commArgs] + [
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
                                     ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
                                     ))
@@ -359,6 +359,7 @@ class HistogramsModule(AnalysisModule):
         self.plotDefaults = {}
 
     def addArgs(self, parser):
+        super(HistogramsModule, self).addArgs(parser)
         parser.add_argument("--plotIt", type=str, default="plotIt", help="plotIt executable to use (default is taken from $PATH)")
 
     def initialize(self):
@@ -564,12 +565,13 @@ class SkimmerModule(AnalysisModule):
         super(SkimmerModule, self).__init__(args)
 
     def addArgs(self, parser):
+        super(SkimmerModule, self).addArgs(parser)
         parser.add_argument("--keepOriginalBranches", action="store_true", help="Keep all original branches (in addition to those defined by the module)")
         parser.add_argument("--maxSelected", type=int, default=-1, help="Maximum number of accepted events (default: -1 for all)")
 
     def initialize(self):
         """ initialize """
-        if self.args.distributed == "worker" and len(self.args.input) == 0:
+        if self.args.distributed == "worker" and len(self.inputs) == 0:
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):
@@ -602,7 +604,7 @@ class SkimmerModule(AnalysisModule):
         if certifiedLumiFile:
             noSel = addLumiMask(noSel, certifiedLumiFile, runRange=runRange, runAndLS=runAndLS)
 
-        finalSel, brToKeep = self.defineSkimSelection(tree, noSel, sample=sample)
+        finalSel, brToKeep = self.defineSkimSelection(tree, noSel, sample=sample, sampleCfg=sampleCfg)
         defBr = dict((k,v) for k,v in brToKeep.items() if v is not None)
         origBr = list(k for k,v in brToKeep.items() if v is None)
 

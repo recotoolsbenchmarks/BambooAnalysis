@@ -130,6 +130,7 @@ public:
 
   iterator begin() const { return IndexRangeIterator<IDX>(m_min, m_max); }
   iterator end  () const { return IndexRangeIterator<IDX>(m_max, m_max); }
+  std::size_t size() const { return m_max-m_min; }
 private:
   IDX m_min;
   IDX m_max;

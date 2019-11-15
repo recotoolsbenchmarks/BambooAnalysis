@@ -168,7 +168,7 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
     ## list of files -> return 1st
     for smpNm,smpCfg in samples.items():
         if ( "files" in smpCfg ) and ( str(smpCfg["files"]) != smpCfg["files"] ):
-            return smpNm,smpCfg,(smpCfg["files"][0] if os.path.isabs(smpCfg["files"][0]) else os.path.join(cfgDir, smpCfg["files"][0]))
+            return smpNm,smpCfg,(smpCfg["files"][0] if (os.path.isabs(smpCfg["files"][0]) or urllib.parse.urlparse(smpCfg["files"][0]).scheme) else os.path.join(cfgDir, smpCfg["files"][0]))
     ## try to get them from a cache file or database (ordered by less-to-more risky)
     failed_names = set()
     for method, condition in [

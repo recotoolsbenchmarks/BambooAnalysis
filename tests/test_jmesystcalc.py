@@ -30,6 +30,36 @@ def nanojetargsMC16():
            genjet_pt, genjet_eta, genjet_phi, genjet_mass)
 
 @pytest.fixture(scope="module")
+def nanojetargsMC16_postvalues():
+    from bamboo.root import gbl
+    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
+    tup = f.Get("Events")
+    tup.GetEntry(0)
+    i = 0
+    while tup.nJet < 5:
+        i += 1
+        tup.GetEntry(i)
+    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
+    jet_pt   = RVec_float(tup.Jet_pt, tup.nJet)
+    jet_eta  = RVec_float(tup.Jet_eta, tup.nJet)
+    jet_phi  = RVec_float(tup.Jet_phi, tup.nJet)
+    jet_mass = RVec_float(tup.Jet_mass, tup.nJet)
+    jet_rawFactor = RVec_float(tup.Jet_rawFactor, tup.nJet)
+    jet_area = RVec_float(tup.Jet_area, tup.nJet)
+    genjet_pt   = RVec_float(tup.GenJet_pt, tup.nJet)
+    genjet_eta  = RVec_float(tup.GenJet_eta, tup.nJet)
+    genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
+    genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
+    ## results to compare to
+    jet_pt_nom = RVec_float(tup.Jet_pt_nom, tup.nJet)
+    yield ((jet_pt, jet_eta, jet_phi, jet_mass,
+            jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
+            tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
+            genjet_pt, genjet_eta, genjet_phi, genjet_mass),
+           (jet_pt_nom,)
+          )
+
+@pytest.fixture(scope="module")
 def jmesystcalc_empty():
     from bamboo.root import gbl, loadJMESystematicsCalculator
     import bamboo.treefunctions
@@ -97,3 +127,18 @@ def test_jmesystcalcMC16_nano_jec(jmesystcalcMC16_jec, nanojetargsMC16):
 def test_jmesystcalcMC16_nano_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16):
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
     assert res
+
+import math
+def isclose_float(a, b):
+    from bamboo.root import gbl
+    return math.isclose(a, b, rel_tol=getattr(gbl, "std::numeric_limits<float>").epsilon())
+
+def get_pts(modifKin):
+    return [ modifKin.momenta()[i].Pt() for i in modifKin.indices() ]
+
+def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
+    nanojetargsMC16, postValues = nanojetargsMC16_postvalues
+    res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
+    (jet_pt_nom,) = postValues
+    print(get_pts(res["nominal"]), jet_pt_nom)
+    assert all(isclose_float(a,b) for a,b in zip(jet_pt_nom, get_pts(res["nominal"])))

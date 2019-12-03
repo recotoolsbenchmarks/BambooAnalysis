@@ -291,7 +291,6 @@ class TasksMonitor(object):
             logger.error("The full list of commands that failed or was not run is:\n{0}".format(
                 "\n".join(failedCommands)))
             collectResult["success"] = False
-            collectResult["failedCommands"] = failedCommands
             failedCommandsPerCluster = defaultdict(list)
             for task in self.tasks:
                 failedCommandsPerCluster[task.jobCluster] += task.failedCommands

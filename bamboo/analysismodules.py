@@ -269,14 +269,10 @@ class AnalysisModule(object):
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
                         if not collectResult["success"]:
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
-                            filesToMerge = set()
-                            for cmd in collectResult["failedCommands"]:
-                                result = re.search(r'--output=(.*)\.root', cmd)
-                                if result is not None:
-                                    filesToMerge.add(result.group(1) + ".root")
                             haddCmds = []
-                            for outputFile in filesToMerge:
-                                haddCmds.append("hadd {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
+                            for tsk,((inputs, outputFile), kwargs) in zip(tasks, taskArgs):
+                                if tsk.failedCommands:
+                                    haddCmds.append("hadd -f {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
                             logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
                             logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             return

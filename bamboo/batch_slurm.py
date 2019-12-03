@@ -80,9 +80,12 @@ class CommandListJob(CommandListJobBase):
                     submitLoggerFun(ln)
                 submitLoggerFun("==========     END   slurm_submit output     ==========")
 
+    def _arrayIndex(self, command):
+        return self.commandList.index(command)+1
+
     def _commandOutDir(self, command):
         """ Output directory for a given command """
-        return os.path.join(self.workDirs["out"], str(self.commandList.index(command)+1))
+        return os.path.join(self.workDirs["out"], str(self._arrayIndex(command)))
 
     def commandOutFiles(self, command):
         """ Output files for a given command """
@@ -172,15 +175,14 @@ class CommandListJob(CommandListJobBase):
             self._statuses[i] = status
 
     def commandStatus(self, command):
-        return self.subjobStatus(self.commandList.index(command)+1)
+        return self.subjobStatus(self._arrayIndex(command))
 
     def getLogFile(self, command):
-        return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self.commandList.index(command)+1))
+        return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self._arrayIndex(command)))
 
     def getResubmitCommand(self, failedCommands):
-        commandArray = [ str(self.commandList.index(cmd)+1) for cmd in failedCommands ]
         sbatchOpts = [
-              "--array={}".format(",".join(commandArray))
+              "--array={}".format(",".join(str(self._arrayIndex(cmd)) for cmd in failedCommands))
             , "--partition={}".format(self.cfg.sbatch_partition)
             , "--qos={}".format(self.cfg.sbatch_qos)
             ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])

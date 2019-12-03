@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os.path
 import re
+import datetime
 from timeit import default_timer as timer
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
@@ -212,7 +213,7 @@ class AnalysisModule(object):
                             self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
                     else:
                         ## construct the list of tasks
-                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction
+                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime
                         commArgs = [
                               "bambooRun"
                             , "--module={0}".format(modAbsPath(self.args.module))
@@ -267,6 +268,17 @@ class AnalysisModule(object):
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
                         clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
+
+                        if any(not tsk.failedCommands for tsk in tasks):
+                            ## Print time report (possibly more later)
+                            logger.info("Average runtime for successful tasks (to further tune job splitting):")
+                            for tsk in tasks:
+                                if not tsk.failedCommands:
+                                    totTime = sum((next(clus for clus in clusJobs if cmd in clus.commandList).getRuntime(cmd) for cmd in tsk.commandList), datetime.timedelta())
+                                    nTasks = len(tsk.commandList)
+                                    smpName = next(arg for arg in tsk.commandList[0].split() if arg.startswith("--sample=")).split("=")[1]
+                                    logger.info(" - {0}: {1} ({2:d} jobs, total: {3})".format(smpName, format_runtime(totTime/nTasks), nTasks, format_runtime(totTime)))
+
                         if not collectResult["success"]:
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
                             haddCmds = []

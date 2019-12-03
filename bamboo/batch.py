@@ -13,6 +13,14 @@ from threading import Event
 import signal
 from collections import defaultdict
 
+def format_runtime(td):
+    sec = td.total_seconds()
+    mins = sec // 60
+    sec -= mins*60
+    hrs = mins // 60
+    mins -= hrs*60
+    return "{0:02.0f}:{1:02.0f}:{2:02.3f}".format(hrs, mins, sec)
+
 class CommandListJob(object):
     """ Interface/base for 'backend' classes to create a job cluster/array from a list of commands (each becoming a subjob) """
     def __init__(self, commandList, workDir=None, workdir_default_pattern="batch_work"):
@@ -52,6 +60,9 @@ class CommandListJob(object):
         pass
     def getResubmitCommand(self, failedCommands):
         """ return a suggestion command the user should run to resubmit a job array with only the failed commands """
+        pass
+    def getRuntime(self, commands):
+        """ get the runtime of a command (should be valid when finished) """
         pass
 
     ## helper methods

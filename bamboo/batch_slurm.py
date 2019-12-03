@@ -188,6 +188,20 @@ class CommandListJob(CommandListJobBase):
             ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
         return ["sbatch"]+sbatchOpts+[self.slurmScript]
 
+    def getRuntime(self, command):
+        sacctCmdArgs = ["sacct", "-n", "--format", "Elapsed", "-j", "{0}_{1:d}".format(self.clusterId, self._arrayIndex(command))]
+        elapsed = subprocess.check_output(sacctCmdArgs).decode().split("\n")[0].strip()
+        dys, ms = 0, 0
+        if "-" not in elapsed:
+            elapsed = "0-{0}".format(elapsed)
+            dys, elapsed = (tk.strip() for tk in elapsed.split("-"))
+            dys = int(dys)
+        if "." in elapsed:
+            elapsed, ms = (tk.strip() for tk in elapsed.split("."))
+            ms = int(ms)
+        import datetime
+        return (datetime.datetime.strptime(elapsed, "%H:%M:%S")-datetime.datetime(1900, 1, 1)) + datetime.timedelta(days=dys, milliseconds=ms)
+
 def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
     if batchConfig:
         if not configOpts:

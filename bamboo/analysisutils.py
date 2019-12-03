@@ -336,7 +336,10 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
     :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
     :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
     """
-    variations = getattr(tree, "_{0}".format(jetsName))
+    calcAttName = "_{0}".format(jetsName)
+    if not hasattr(tree, calcAttName):
+        raise RuntimeError("No _{0} attribute available, pleasue make sure the decorations define this (e.g. by adding \"{0}\" to ``self.calcToAdd`` for a NanoAODModule, or to the ``addCalculators`` argument to ``decorateNanoAOD``, if called explicitly)")
+    variations = getattr(tree, calcAttName)
     calc = variations.calc
     from .jetdatabasecache import JetDatabaseCache
     if smear is not None:

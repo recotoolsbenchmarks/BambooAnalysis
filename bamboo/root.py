@@ -63,3 +63,4 @@ def loadJMESystematicsCalculator():
 def loadRochesterCorrectionCalculator():
     loadLibrary("libRoccoR")
     loadHeader("RochesterCorrectionCalculator.h")
+    getattr(gbl, "RochesterCorrectionCalculator::result_t") ## trigger dictionary generation

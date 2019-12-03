@@ -141,7 +141,7 @@ class Action(object):
     """ interface for job finalization """
     def getActions(self):
         """ interface method """
-        pass
+        return []
     def perform(self):
         """ interface method """
         return False
@@ -163,8 +163,7 @@ class HaddAction(Action):
             return []
         elif len(self.commandList) == 1: ## move
             cmd = self.commandList[0]
-            for outf in self.jobCluster.commandOutFiles(cmd):
-                return [ ["mv", outf, self.outDir] ]
+            return [ ["mv", outf, self.outDir] for outf in self.jobCluster.commandOutFiles(cmd) ]
         else:                            ## merge
             actions = []
             ## collect for each output file name which jobs produced one

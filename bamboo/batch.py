@@ -13,6 +13,14 @@ from threading import Event
 import signal
 from collections import defaultdict
 
+def format_runtime(td):
+    sec = td.total_seconds()
+    mins = sec // 60
+    sec -= mins*60
+    hrs = mins // 60
+    mins -= hrs*60
+    return "{0:02.0f}:{1:02.0f}:{2:02.3f}".format(hrs, mins, sec)
+
 class CommandListJob(object):
     """ Interface/base for 'backend' classes to create a job cluster/array from a list of commands (each becoming a subjob) """
     def __init__(self, commandList, workDir=None, workdir_default_pattern="batch_work"):
@@ -52,6 +60,9 @@ class CommandListJob(object):
         pass
     def getResubmitCommand(self, failedCommands):
         """ return a suggestion command the user should run to resubmit a job array with only the failed commands """
+        pass
+    def getRuntime(self, commands):
+        """ get the runtime of a command (should be valid when finished) """
         pass
 
     ## helper methods
@@ -141,7 +152,7 @@ class Action(object):
     """ interface for job finalization """
     def getActions(self):
         """ interface method """
-        pass
+        return []
     def perform(self):
         """ interface method """
         return False
@@ -163,8 +174,7 @@ class HaddAction(Action):
             return []
         elif len(self.commandList) == 1: ## move
             cmd = self.commandList[0]
-            for outf in self.jobCluster.commandOutFiles(cmd):
-                return [ ["mv", outf, self.outDir] ]
+            return [ ["mv", outf, self.outDir] for outf in self.jobCluster.commandOutFiles(cmd) ]
         else:                            ## merge
             actions = []
             ## collect for each output file name which jobs produced one
@@ -291,7 +301,6 @@ class TasksMonitor(object):
             logger.error("The full list of commands that failed or was not run is:\n{0}".format(
                 "\n".join(failedCommands)))
             collectResult["success"] = False
-            collectResult["failedCommands"] = failedCommands
             failedCommandsPerCluster = defaultdict(list)
             for task in self.tasks:
                 failedCommandsPerCluster[task.jobCluster] += task.failedCommands

@@ -237,6 +237,21 @@ class ContainerGroupItemProxy(TupleBaseProxy):
         super(ContainerGroupItemProxy, self).__init__("struct", parent=parent)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._idx)
+    @property
+    def isValid(self):
+        return self._idx.result != -1
+    @property
+    def idx(self):
+        return self._idx.result
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            raise RuntimeError("Cannot compare proxies of different types: {0} and {1}".format(other.__class__.__name__, self.__class__.__name__))
+        if self._parent._base != other._parent._base:
+            raise RuntimeError("Cannot compare elements from different containers")
+        return self._idx.result == other._idx.result
+    def __ne__(self, other):
+        from bamboo.treefunctions import NOT
+        return NOT(self == other)
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """

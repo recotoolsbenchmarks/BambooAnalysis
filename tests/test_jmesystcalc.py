@@ -20,6 +20,7 @@ def nanojetargsMC16():
     jet_mass = RVec_float(tup.Jet_mass, tup.nJet)
     jet_rawFactor = RVec_float(tup.Jet_rawFactor, tup.nJet)
     jet_area = RVec_float(tup.Jet_area, tup.nJet)
+    seed = (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0)
     genjet_pt   = RVec_float(tup.GenJet_pt, tup.nJet)
     genjet_eta  = RVec_float(tup.GenJet_eta, tup.nJet)
     genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
@@ -27,7 +28,7 @@ def nanojetargsMC16():
     yield (jet_pt, jet_eta, jet_phi, jet_mass,
            jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
            tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
-           genjet_pt, genjet_eta, genjet_phi, genjet_mass)
+           seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass)
 
 @pytest.fixture(scope="module")
 def nanojetargsMC16_postvalues():
@@ -46,17 +47,28 @@ def nanojetargsMC16_postvalues():
     jet_mass = RVec_float(tup.Jet_mass, tup.nJet)
     jet_rawFactor = RVec_float(tup.Jet_rawFactor, tup.nJet)
     jet_area = RVec_float(tup.Jet_area, tup.nJet)
+    seed = (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0)
     genjet_pt   = RVec_float(tup.GenJet_pt, tup.nJet)
     genjet_eta  = RVec_float(tup.GenJet_eta, tup.nJet)
     genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
     genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
     ## results to compare to
-    jet_pt_nom = RVec_float(tup.Jet_pt_nom, tup.nJet)
+    jet_pt_vars = {
+        "nominal" : RVec_float(tup.Jet_pt_nom    , tup.nJet),
+        "jerup"   : RVec_float(tup.Jet_pt_jerUp  , tup.nJet),
+        "jerdown" : RVec_float(tup.Jet_pt_jerDown, tup.nJet)
+        }
+    from itertools import chain
+    jet_pt_vars.update(dict(chain.from_iterable(
+        { "jes{0}up".format(src) : RVec_float(getattr(tup, "Jet_pt_jes{0}Up".format(src)), tup.nJet),
+          "jes{0}down".format(src) : RVec_float(getattr(tup, "Jet_pt_jes{0}Down".format(src)), tup.nJet),
+        }.items() for src in ("AbsoluteStat", "AbsoluteScale")
+        )))
     yield ((jet_pt, jet_eta, jet_phi, jet_mass,
             jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
             tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
-            genjet_pt, genjet_eta, genjet_phi, genjet_mass),
-           (jet_pt_nom,)
+            seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass),
+           jet_pt_vars
           )
 
 @pytest.fixture(scope="module")
@@ -131,7 +143,7 @@ def test_jmesystcalcMC16_nano_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16):
 import math
 def isclose_float(a, b):
     from bamboo.root import gbl
-    return math.isclose(a, b, rel_tol=getattr(gbl, "std::numeric_limits<float>").epsilon())
+    return math.isclose(a, b, rel_tol=2.*getattr(gbl, "std::numeric_limits<float>").epsilon())
 
 def get_pts(modifKin):
     return [ modifKin.momenta()[i].Pt() for i in modifKin.indices() ]
@@ -139,6 +151,6 @@ def get_pts(modifKin):
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
-    (jet_pt_nom,) = postValues
-    print(get_pts(res["nominal"]), jet_pt_nom)
-    assert all(isclose_float(a,b) for a,b in zip(jet_pt_nom, get_pts(res["nominal"])))
+    for ky,postVals in postValues.items():
+        print(ky, get_pts(res[ky]), postVals)
+        assert all(isclose_float(a,b) for a,b in zip(postVals, get_pts(res[ky])))

@@ -2,7 +2,7 @@
 
 #include "kinematicvariations.h"
 
-#include <random>
+#include "TRandom3.h"
 #include <map>
 #include <boost/container/flat_map.hpp>
 #include "JetResolution.h"
@@ -55,6 +55,7 @@ public:
       const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
       const float met_phi, const float met_pt, const float sumEt,
+      const std::uint32_t seed,
       // TODO unclustered?
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
       );
@@ -72,7 +73,7 @@ private:
   result_entry_t convertToModifKin( const std::vector<Jet>& jets ) const;
   std::size_t findGenMatch( const LorentzVector& p4, const ROOT::VecOps::RVec<LorentzVector>& genp4, const float resolution ) const;
 
-  result_t produceModifiedCollections( const ROOT::VecOps::RVec<LorentzVector>& jetp4, const ROOT::VecOps::RVec<double>& jet_rawfactor, const p4compv_t& jet_area, const float rho, const ROOT::VecOps::RVec<LorentzVector>& genp4 );
+  result_t produceModifiedCollections( const ROOT::VecOps::RVec<LorentzVector>& jetp4, const ROOT::VecOps::RVec<double>& jet_rawfactor, const p4compv_t& jet_area, const float rho, const std::uint32_t seed, const ROOT::VecOps::RVec<LorentzVector>& genp4 );
 
   // config options
   bool m_doSmearing{false}, m_smearDoGenMatch; // TODO default: yes, yes
@@ -80,7 +81,7 @@ private:
   // parameters and helpers
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;
-  mutable std::mt19937 m_random; // for resolution
+  mutable TRandom3 m_random; // for resolution
   struct jetcorrdeleter { void operator()(FactorizedJetCorrectorCalculator*) const; };
   // TODO if these would have pure interface functions operator() and produceModifiedCollections could be const (and largely thread-safe)
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;

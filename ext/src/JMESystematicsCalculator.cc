@@ -28,6 +28,7 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
     const float met_phi, const float met_pt, const float sumEt,
+    const std::uint32_t seed,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {
   ROOT::VecOps::RVec<LorentzVector> jetP4;
@@ -45,18 +46,17 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   for ( const auto rawcorr : jet_rawcorr ) {
     jet_rawfactor.push_back(1.-rawcorr);
   }
-  return produceModifiedCollections(jetP4, jet_rawfactor, jet_area, rho, genP4);
+  return produceModifiedCollections(jetP4, jet_rawfactor, jet_area, rho, seed, genP4);
 }
 
 namespace {
-  float jetSmearFactor( float pt, float eOrig, float genPt, float ptRes, float sfUncert, std::mt19937& randgen )
+  float jetSmearFactor( float pt, float eOrig, float genPt, float ptRes, float sfUncert, float rand )
   {
     float smear = 1.;
     if ( genPt > 0. ) {
       smear = 1. + (sfUncert-1.)*(pt - genPt)/pt;
     } else if ( sfUncert > 1. ) {
-      std::normal_distribution<> d(0, ptRes*std::sqrt(sfUncert*sfUncert-1.));
-      smear = 1.+d(randgen);
+      smear = 1. + rand*std::sqrt(sfUncert*sfUncert-1.);
     }
     if ( smear*eOrig < 1.e-2 ) {
       smear = 1.e-2/eOrig;
@@ -110,7 +110,7 @@ std::size_t JMESystematicsCalculator::findGenMatch( const JMESystematicsCalculat
 
 JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedCollections (
     const ROOT::VecOps::RVec<JMESystematicsCalculator::LorentzVector>& jet_p4,
-    const ROOT::VecOps::RVec<double>& jet_rawfactor, const JMESystematicsCalculator::p4compv_t& jet_area, float rho,
+    const ROOT::VecOps::RVec<double>& jet_rawfactor, const JMESystematicsCalculator::p4compv_t& jet_area, float rho, const std::uint32_t seed,
     const ROOT::VecOps::RVec<JMESystematicsCalculator::LorentzVector>& genjet_p4 )
 {
   LogDebug << "JME:: hello from produceModifiedCollections. Got " << jet_p4.size() << " jets" << std::endl;
@@ -126,54 +126,9 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   LogDebug << "JME:: MET sum (px,py)=(" << orig_sumpx << ", " << orig_sumpy << ") sumET=" << orig_sumet << std::endl;
   std::vector<Jet> jNom;
   jNom.reserve(jet_p4.size());
-  // smearing and JER
-  if ( ! m_doSmearing ) {
-    for ( std::size_t i{0}; i != jet_p4.size(); ++i ) {
-      jNom.emplace_back(i, jet_p4[i].Pt(), jet_p4[i].Eta(), jet_p4[i].Phi(), jet_p4[i].M());
-    }
-    LogDebug << "JME:: No smearing" << std::endl;
-  } else {
-    LogDebug << "JME:: Smearing" << std::endl;
-    std::vector<Jet> jJerDown, jJerUp;
-    jJerDown.reserve(jet_p4.size());
-    jJerUp.reserve(jet_p4.size());
-    for ( std::size_t ij{0}; ij != jet_p4.size(); ++ij ) {
-      const float ptOrig = jet_p4[ij].Pt();
-      const float eOrig = jet_p4[ij].E();
-      LorentzVector pNom{jet_p4[ij]}, pDown{jet_p4[ij]}, pUp{jet_p4[ij]};
-      if ( ptOrig > 0. ) {
-        JME::JetParameters jPar{
-            {JME::Binning::JetPt , ptOrig},
-            {JME::Binning::JetEta, jet_p4[ij].Eta()},
-            {JME::Binning::Rho   , rho} };
-        const auto ptRes  = m_jetPtRes.getResolution(jPar);
-        LogDebug << "JME:: ";
-        float genPt = -1;
-        if ( m_smearDoGenMatch ) {
-          const auto iGen = findGenMatch(jet_p4[ij], genjet_p4, ptRes*ptOrig);
-          if ( iGen != genjet_p4.size() ) {
-            genPt = genjet_p4[iGen].Pt();
-            LogDebug << "genPt=" << genPt;
-          }
-        }
-        LogDebug << "  scalefactors are NOMINAL=" << m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL) << ", DOWN=" << m_jetEResSF.getScaleFactor(jPar, Variation::DOWN) << ", UP=" << m_jetEResSF.getScaleFactor(jPar, Variation::UP) << std::endl;
-        pNom  *= jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), m_random);
-        pDown *= jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), m_random);
-        pUp   *= jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), m_random);
-
-      }
-      jNom    .emplace_back(ij, pNom );
-      jJerDown.emplace_back(ij, pDown);
-      jJerUp  .emplace_back(ij, pUp  );
-    }
-    sort(jNom);
-    sort(jJerDown);
-    sort(jJerUp);
-    out["jerdown"] = convertToModifKin(jJerDown);
-    out["jerup"]   = convertToModifKin(jJerUp  );
-    LogDebug << "JME:: Done with smearing" << std::endl;
+  for ( std::size_t i{0}; i != jet_p4.size(); ++i ) {
+    jNom.emplace_back(i, jet_p4[i].Pt(), jet_p4[i].Eta(), jet_p4[i].Phi(), jet_p4[i].M());
   }
-  // TODO for MET: propagate pt differences (sum of pts - sum of pts?) can be done afterwards then
   if ( m_jetCorrector ) {
     LogDebug << "JME:: reapplying JEC" << std::endl;
     FactorizedJetCorrectorCalculator::VariableValues vals;
@@ -187,7 +142,66 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
         j.p4 *= jet_rawfactor[j.i]*corr;
       }
     }
+#ifdef BAMBOO_JME_DEBUG
+    LogDebug << "JME:: with reapplied JEC: ";
+    for ( const auto& j : jNom ) {
+      LogDebug << "(PT=" << j.p4.Pt() << ", ETA=" << j.p4.Eta() << ", PHI=" << j.p4.Phi() << ", M=" << j.p4.M() << ")" << j.i << "  ";
+    }
+    LogDebug << std::endl;
+#endif
+  } else {
+    LogDebug << "JME:: Not reapplying JEC" << std::endl;
+  }
+  // smearing and JER
+  if ( m_doSmearing ) {
+    LogDebug << "JME:: Smearing (seed=" << seed << ")" << std::endl;
+    m_random.SetSeed(seed);
+    std::vector<Jet> jJerDown, jJerUp;
+    jJerDown.reserve(jet_p4.size());
+    jJerUp.reserve(jet_p4.size());
+    for ( auto& j : jNom ) {
+      const float ptOrig = j.p4.Pt();
+      const float eOrig = j.p4.E();
+      LorentzVector pDown{j.p4}, pUp{j.p4};
+      if ( j.p4.Pt() > 0. ) {
+        JME::JetParameters jPar{
+            {JME::Binning::JetPt , j.p4.Pt()},
+            {JME::Binning::JetEta, j.p4.Eta()},
+            {JME::Binning::Rho   , rho} };
+        const auto ptRes  = m_jetPtRes.getResolution(jPar);
+        LogDebug << "JME:: JetParameters: pt=" << j.p4.Pt() << ", eta=" << j.p4.Eta() << ", rho=" << rho << "; ptRes=" << ptRes << std::endl;
+        LogDebug << "JME:: ";
+        float genPt = -1;
+        if ( m_smearDoGenMatch ) {
+          const auto iGen = findGenMatch(j.p4, genjet_p4, ptRes*ptOrig);
+          if ( iGen != genjet_p4.size() ) {
+            genPt = genjet_p4[iGen].Pt();
+            LogDebug << "genPt=" << genPt;
+          }
+        }
+        const auto rand = ( genPt < 0. ) ? m_random.Gaus(0, ptRes) : -1.;
+        LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
+        const auto smearFactor_nom  = jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
+        const auto smearFactor_down = jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
+        const auto smearFactor_up   = jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
+        LogDebug << "  scalefactors are NOMINAL=" << m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL) << ", DOWN=" << m_jetEResSF.getScaleFactor(jPar, Variation::DOWN) << ", UP=" << m_jetEResSF.getScaleFactor(jPar, Variation::UP) << std::endl;
+        LogDebug << "  smearfactors are NOMINAL=" << smearFactor_nom << ", DOWN=" << smearFactor_down << ", UP=" << smearFactor_up << std::endl;
+        j.p4  *= smearFactor_nom ;// jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
+        pDown *= smearFactor_down;// jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
+        pUp   *= smearFactor_up  ;// jetSmearFactor(ptOrig, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
+      }
+      jJerDown.emplace_back(j.i, pDown);
+      jJerUp  .emplace_back(j.i, pUp  );
+    }
     sort(jNom);
+    sort(jJerDown);
+    sort(jJerUp);
+    out["jerdown"] = convertToModifKin(jJerDown);
+    out["jerup"]   = convertToModifKin(jJerUp  );
+    LogDebug << "JME:: Done with smearing" << std::endl;
+  } else {
+    sort(jNom); // only now, to keep the same seeds as in NanoAODTools
+    LogDebug << "JME:: No smearing" << std::endl;
   }
   out["nominal"] = convertToModifKin(jNom);
 

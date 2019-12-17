@@ -301,17 +301,21 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
     :param isMC: MC or not
     """
     from . import treeoperations as _top
+    from . import treefunctions as op # first to load default headers/libs, if still needed
     from itertools import repeat
     aJet = variProxy.orig[0]
     args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
     args += [ _top.GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
     if isMC:
-        aGJet = variProxy._parent.GenJet[0]
+        evt = variProxy._parent
+        args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
+                    op.switch(op.rng_len(variProxy.orig) != 0, variProxy.orig[0].eta/.01, 0.)))
+        aGJet = evt.GenJet[0]
         args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
     else:
+        args.append(_top.makeConst(0, "unsigned")) # no seed
         args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
     ## load necessary library and header(s)
-    from . import treefunctions as op # first to load default headers/libs, if still needed
     from .root import loadJMESystematicsCalculator, gbl
     loadJMESystematicsCalculator()
     ## define calculator and initialize

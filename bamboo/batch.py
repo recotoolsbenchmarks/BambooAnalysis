@@ -314,13 +314,12 @@ class TasksMonitor(object):
 def splitInChunks(theList, nChunks=None, chunkLength=None):
     if ( nChunks is None ) == ( chunkLength is None ):
         raise ValueError("One and only one of nChunks or chunkLength should be specified, got {0} and {1}".format(nChunks, chunkLength))
-    from itertools import islice
     N = len(theList)
     if nChunks is not None:
         import math
         chunkLength = int(math.ceil(1.*N/nChunks))
     for iStart, iStop in zip(range(0, len(theList), chunkLength), range(chunkLength, len(theList)+chunkLength, chunkLength)):
-        yield islice(theList, iStart, min(iStop,N))
+        yield theList[iStart:min(iStop,N)]
 
 def writeFileList(fileList, outName):
     if os.path.isfile(outName):

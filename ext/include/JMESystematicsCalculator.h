@@ -12,10 +12,9 @@ class FactorizedJetCorrectorCalculator;
 
 class JMESystematicsCalculator {
 public:
-  using result_entry_t = rdfhelpers::ModifiedKinCollection;
-  using result_t = boost::container::flat_map<std::string,result_entry_t>;
-  using p4compv_t = ROOT::VecOps::RVec<float>;
-  using LorentzVector = result_entry_t::LorentzVector;
+  using result_t = rdfhelpers::ModifiedPtMCollection;
+  using LorentzVector = result_t::LorentzVector;
+  using p4compv_t = result_t::p4compv_t;
 
   JMESystematicsCalculator() {}
 
@@ -28,7 +27,7 @@ public:
     m_jetPtRes   = JME::JetResolution(ptResolution);
     m_jetEResSF = JME::JetResolutionScaleFactor(ptResolutionSF);
     m_smearDoGenMatch = doGenMatch;
-    m_genMatch_dRmax = genMatch_maxDR;
+    m_genMatch_dR2max = genMatch_maxDR*genMatch_maxDR;
     m_genMatch_dPtmax = genMatch_maxDPT;
   }
 
@@ -59,25 +58,13 @@ public:
       // TODO unclustered?
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
       );
-  // TODO interface for Framework+TTWAnalysis
-  // result_t operator() ( const std::vector<JMESystematicsCalculator::LorentzVector>& jet_p4, const std::vector<float>& jet_rawfactor, const std::vector<float>& jet_area, const float rho, const std::vector<JMESystematicsCalculator::LorentzVector>& genjet_p4 ) const;
 
 private:
-  struct Jet {
-    std::size_t i;
-    LorentzVector p4;
-    Jet(std::size_t i_, const LorentzVector& p4_) : i(i_), p4(p4_) {}
-    Jet(std::size_t i_, float pt, float eta, float phi, float m) : i(i_), p4(pt, eta, phi, m) {}
-  };
-  void sort(std::vector<Jet>&) const;
-  result_entry_t convertToModifKin( const std::vector<Jet>& jets ) const;
-  std::size_t findGenMatch( const LorentzVector& p4, const ROOT::VecOps::RVec<LorentzVector>& genp4, const float resolution ) const;
-
-  result_t produceModifiedCollections( const ROOT::VecOps::RVec<LorentzVector>& jetp4, const ROOT::VecOps::RVec<double>& jet_rawfactor, const p4compv_t& jet_area, const float rho, const std::uint32_t seed, const ROOT::VecOps::RVec<LorentzVector>& genp4 );
+  std::size_t findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const;
 
   // config options
   bool m_doSmearing{false}, m_smearDoGenMatch; // TODO default: yes, yes
-  float m_genMatch_dRmax, m_genMatch_dPtmax;   // TODO default: R/2 (0.2) and 3
+  float m_genMatch_dR2max, m_genMatch_dPtmax;  // TODO default: R/2 (0.2) and 3
   // parameters and helpers
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;

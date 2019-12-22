@@ -7,24 +7,6 @@
 
 namespace rdfhelpers {
 
-class ModifiedKinCollection {
-public:
-  using LorentzVector = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>;
-  using Indices = ROOT::VecOps::RVec<std::size_t>;
-  using Momenta  = ROOT::VecOps::RVec<LorentzVector>;
-
-  ModifiedKinCollection() = default;
-  ModifiedKinCollection( const Indices& indices, const Momenta& momenta )
-    : m_indices(indices), m_momenta(momenta) {}
-  ModifiedKinCollection( Indices&& indices, Momenta&& momenta )
-    : m_indices(indices), m_momenta(momenta) {}
-  const Indices& indices() const { return m_indices; }
-  const Momenta& momenta() const { return m_momenta; }
-private:
-  Indices m_indices;
-  Momenta m_momenta;
-}; // TODO make a jet-specific version with MET
-
 class ModifiedPtCollection { // map of variation collections
 public:
   using LorentzVector = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>;
@@ -47,12 +29,14 @@ public:
     const p4compv_t& eta () const { return m_parent.eta(); }
     const p4compv_t& phi () const { return m_parent.phi(); }
     const p4compv_t& mass() const { return m_parent.mass(); }
+    std::size_t size() const { return m_pt.size(); }
   private:
     const ModifiedPtCollection& m_parent;
     const p4compv_t& m_pt;
   };
 
   Variation operator[] (const std::string& name) const { return Variation(*this, m_variations.at(name)); }
+  std::size_t size() const { return m_variations.size(); }
 private:
   boost::container::flat_map<std::string,p4compv_t> m_variations;
   p4compv_t m_eta, m_phi, m_mass;
@@ -79,6 +63,7 @@ public:
     const p4compv_t& eta () const { return m_parent.eta(); }
     const p4compv_t& phi () const { return m_parent.phi(); }
     const p4compv_t& mass() const { return m_mass; }
+    std::size_t size() const { return m_pt.size(); }
   private:
     const ModifiedPtMCollection& m_parent;
     const p4compv_t& m_pt;
@@ -89,6 +74,7 @@ public:
     const auto& varPM = m_variations.at(name);
     return Variation(*this, varPM.first, varPM.second);
   }
+  std::size_t size() const { return m_variations.size(); }
 private:
   boost::container::flat_map<std::string,std::pair<p4compv_t,p4compv_t>> m_variations;
   p4compv_t m_eta, m_phi;

@@ -145,12 +145,9 @@ def isclose_float(a, b):
     from bamboo.root import gbl
     return math.isclose(a, b, rel_tol=2.*getattr(gbl, "std::numeric_limits<float>").epsilon())
 
-def get_pts(modifKin):
-    return [ modifKin.momenta()[i].Pt() for i in modifKin.indices() ]
-
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
     for ky,postVals in postValues.items():
-        print(ky, get_pts(res[ky]), postVals)
-        assert all(isclose_float(a,b) for a,b in zip(postVals, get_pts(res[ky])))
+        print(ky, res[ky].pt(), postVals)
+        assert all(isclose_float(a,b) for a,b in zip(postVals, res[ky].pt()))

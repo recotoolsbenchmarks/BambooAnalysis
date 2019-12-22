@@ -35,7 +35,7 @@ public:
     const p4compv_t& m_pt;
   };
 
-  Variation operator[] (const std::string& name) const { return Variation(*this, m_variations.at(name)); }
+  Variation at(const std::string& name) const { return Variation(*this, m_variations.at(name)); }
   std::size_t size() const { return m_variations.size(); }
 private:
   boost::container::flat_map<std::string,p4compv_t> m_variations;
@@ -70,7 +70,7 @@ public:
     const p4compv_t& m_mass;
   };
 
-  Variation operator[] (const std::string& name) const {
+  Variation at(const std::string& name) const {
     const auto& varPM = m_variations.at(name);
     return Variation(*this, varPM.first, varPM.second);
   }

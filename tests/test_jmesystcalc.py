@@ -149,5 +149,5 @@ def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_pos
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
     for ky,postVals in postValues.items():
-        print(ky, res[ky].pt(), postVals)
-        assert all(isclose_float(a,b) for a,b in zip(postVals, res[ky].pt()))
+        print(ky, res.at(ky).pt(), postVals)
+        assert all(isclose_float(a,b) for a,b in zip(postVals, res.at(ky).pt()))

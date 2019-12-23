@@ -1,4 +1,4 @@
-#include "JMESystematicsCalculator.h"
+#include "JMESystematicsCalculators.h"
 
 #include "Math/VectorUtil.h"
 #include "FactorizedJetCorrectorCalculator.h"
@@ -82,7 +82,7 @@ std::size_t JetMETVariationsCalculatorBase::findGenMatch(const float pt, const f
   return igBest;
 }
 
-JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedCollections(
+JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollections(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
     const std::uint32_t seed,
@@ -196,7 +196,7 @@ JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedColl
   return out;
 }
 
-std::vector<std::string> JMESystematicsCalculator::availableProducts() const
+std::vector<std::string> JetVariationsCalculator::availableProducts() const
 {
   std::vector<std::string> products = { "nominal" };
   if ( m_doSmearing ) {

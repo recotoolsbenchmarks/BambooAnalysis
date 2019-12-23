@@ -316,11 +316,11 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
         args.append(_top.makeConst(0, "unsigned")) # no seed
         args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
     ## load necessary library and header(s)
-    from .root import loadJMESystematicsCalculator, gbl
-    loadJMESystematicsCalculator()
+    from .root import loadJMESystematicsCalculators, gbl
+    loadJMESystematicsCalculators()
     ## define calculator and initialize
-    jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
+    jetcalcName = be.symbol("JetVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jetVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy.initCalc(op.extVar("JetVariationsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
 
 def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections

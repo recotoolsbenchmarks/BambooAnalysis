@@ -53,12 +53,12 @@ protected:
   //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with
 };
 
-class JMESystematicsCalculator : public JetMETVariationsCalculatorBase {
+class JetVariationsCalculator : public JetMETVariationsCalculatorBase {
 public:
   using result_t = rdfhelpers::ModifiedPtMCollection;
   using LorentzVector = result_t::LorentzVector;
 
-  JMESystematicsCalculator() = default;
+  JetVariationsCalculator() = default;
 
   std::vector<std::string> availableProducts() const;
   // interface for NanoAOD

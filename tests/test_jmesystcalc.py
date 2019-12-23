@@ -71,27 +71,27 @@ def nanojetargsMC16_postvalues():
 
 @pytest.fixture(scope="module")
 def jmesystcalc_empty():
-    from bamboo.root import gbl, loadJMESystematicsCalculator
+    from bamboo.root import gbl, loadJMESystematicsCalculators
     import bamboo.treefunctions
-    loadJMESystematicsCalculator()
-    calc = gbl.JMESystematicsCalculator()
+    loadJMESystematicsCalculators()
+    calc = gbl.JetVariationsCalculator()
     yield calc
 
 @pytest.fixture(scope="module")
 def jmesystcalcMC16_smear():
-    from bamboo.root import gbl, loadJMESystematicsCalculator
+    from bamboo.root import gbl, loadJMESystematicsCalculators
     import bamboo.treefunctions
-    loadJMESystematicsCalculator()
-    calc = gbl.JMESystematicsCalculator()
+    loadJMESystematicsCalculators()
+    calc = gbl.JetVariationsCalculator()
     calc.setSmearing(os.path.join(testData, "Summer16_25nsV1_MC_PtResolution_AK4PFchs.txt"), os.path.join(testData, "Summer16_25nsV1_MC_SF_AK4PFchs.txt"), True, 0.2, 3.)
     yield calc
 
 @pytest.fixture(scope="module")
 def jmesystcalcMC16_jec():
-    from bamboo.root import gbl, loadJMESystematicsCalculator
+    from bamboo.root import gbl, loadJMESystematicsCalculators
     import bamboo.treefunctions
-    loadJMESystematicsCalculator()
-    calc = gbl.JMESystematicsCalculator()
+    loadJMESystematicsCalculators()
+    calc = gbl.JetVariationsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
     l1Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V11_MC_L1FastJet_AK4PFchs.txt"))
     l2Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V11_MC_L2Relative_AK4PFchs.txt"))
@@ -103,10 +103,10 @@ def jmesystcalcMC16_jec():
 
 @pytest.fixture(scope="module")
 def jmesystcalcMC16_jesunc():
-    from bamboo.root import gbl, loadJMESystematicsCalculator
+    from bamboo.root import gbl, loadJMESystematicsCalculators
     import bamboo.treefunctions
-    loadJMESystematicsCalculator()
-    calc = gbl.JMESystematicsCalculator()
+    loadJMESystematicsCalculators()
+    calc = gbl.JetVariationsCalculator()
     jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
     l1Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V11_MC_L1FastJet_AK4PFchs.txt"))
     l2Param = gbl.JetCorrectorParameters(os.path.join(testData, "Summer16_07Aug2017_V11_MC_L2Relative_AK4PFchs.txt"))

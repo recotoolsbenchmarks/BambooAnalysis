@@ -55,10 +55,10 @@ def loadBambooExtensions():
     for fname in ("bamboohelpers.h", "range.h", "scalefactors.h", "LumiMask.h"):
         loadHeader(fname)
 
-def loadJMESystematicsCalculator():
+def loadJMESystematicsCalculators():
     loadLibrary("libJMEObjects")
-    loadHeader("JMESystematicsCalculator.h")
-    getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
+    loadHeader("JMESystematicsCalculators.h")
+    getattr(gbl, "JetVariationsCalculator::result_t") ## trigger dictionary generation
 
 def loadRochesterCorrectionCalculator():
     loadLibrary("libRoccoR")

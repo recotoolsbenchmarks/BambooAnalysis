@@ -35,7 +35,7 @@ string(REGEX REPLACE "[^;]+/src/([^;]+)" "${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src
 add_custom_target(CMSJetSources COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/getjetclasses.sh COMMENT "Copying jet classes from CMSSW" BYPRODUCTS ${INC_CMSJET} ${SRC_CMSJET})
 install(FILES ${INC_CMSJET} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc)
+add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculators.cc)
 add_dependencies(JMEObjects CMSJetSources)
 target_compile_features(JMEObjects PRIVATE cxx_std_17)
 target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src> $<INSTALL_INTERFACE:include>)

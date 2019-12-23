@@ -213,4 +213,3 @@ def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postv
         print(ky, res.pt(idx), post_pt)
         print(ky, res.phi(idx), post_phi)
         assert isclose_float(res.pt(idx), post_pt, tol=3.) and isclose_float(res.phi(idx), post_phi, tol=3.)
-    assert False

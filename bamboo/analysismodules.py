@@ -555,7 +555,10 @@ class NanoAODModule(AnalysisModule):
             for cn, vals in sums.items():
                 if hasattr(vals, "__iter__"):
                     entryvals = getattr(runs, cn)
-                    for i in range(len(vals)):
+                    ## warning and workaround (these should be consistent for all NanoAODs in a sample)
+                    if len(vals) != len(entryvals):
+                        logger.error("Runs tree: array of sums {0} has a different length in entry {1:d}: {2:d} (expected {3:d})".format(cn, entry, len(entryvals), len(vals)))
+                    for i in range(min(len(vals), len(entryvals))):
                         vals[i] += entryvals[i]
                 else:
                     sums[cn] += getattr(runs, cn)

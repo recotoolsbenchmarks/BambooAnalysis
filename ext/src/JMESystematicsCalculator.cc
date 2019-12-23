@@ -85,7 +85,6 @@ std::size_t JMESystematicsCalculator::findGenMatch(const float pt, const float e
 JMESystematicsCalculator::result_t JMESystematicsCalculator::produceModifiedCollections(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
-    const float met_phi, const float met_pt, const float sumEt,
     const std::uint32_t seed,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {

@@ -305,7 +305,7 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
     from itertools import repeat
     aJet = variProxy.orig[0]
     args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
-    args += [ _top.GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
+    args.append(_top.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
     if isMC:
         evt = variProxy._parent
         args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",

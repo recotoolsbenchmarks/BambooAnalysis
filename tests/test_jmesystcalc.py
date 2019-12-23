@@ -27,7 +27,6 @@ def nanojetargsMC16():
     genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
     yield (jet_pt, jet_eta, jet_phi, jet_mass,
            jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
-           tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
            seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass)
 
 @pytest.fixture(scope="module")
@@ -66,7 +65,6 @@ def nanojetargsMC16_postvalues():
         )))
     yield ((jet_pt, jet_eta, jet_phi, jet_mass,
             jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
-            tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
             seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass),
            jet_vars
           )

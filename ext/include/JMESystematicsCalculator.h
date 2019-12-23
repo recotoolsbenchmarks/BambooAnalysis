@@ -39,13 +39,6 @@ public:
         std::forward_as_tuple(name),
         std::forward_as_tuple(params));
   }
-  // TODO retire in favour of the one above?
-  void addJESUncertainty(const std::string& name, const std::string& fileName, const std::string& section="__default__")
-  {
-    m_jesUncSources.emplace(std::piecewise_construct,
-        std::forward_as_tuple(name),
-        std::forward_as_tuple(JetCorrectorParameters(fileName, ( section != "__default__" ? section : name ))));
-  }
 
   std::vector<std::string> availableProducts() const;
 
@@ -53,9 +46,7 @@ public:
   result_t produceModifiedCollections(
       const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
-      const float met_phi, const float met_pt, const float sumEt,
       const std::uint32_t seed,
-      // TODO unclustered?
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
       );
 
@@ -63,8 +54,8 @@ private:
   std::size_t findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const;
 
   // config options
-  bool m_doSmearing{false}, m_smearDoGenMatch; // TODO default: yes, yes
-  float m_genMatch_dR2max, m_genMatch_dPtmax;  // TODO default: R/2 (0.2) and 3
+  bool m_doSmearing{false}, m_smearDoGenMatch; // default: yes, yes
+  float m_genMatch_dR2max, m_genMatch_dPtmax;  // default: R/2 (0.2) and 3
   // parameters and helpers
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;

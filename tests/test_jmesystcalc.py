@@ -53,22 +53,22 @@ def nanojetargsMC16_postvalues():
     genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
     genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
     ## results to compare to
-    jet_pt_vars = {
-        "nominal" : RVec_float(tup.Jet_pt_nom    , tup.nJet),
-        "jerup"   : RVec_float(tup.Jet_pt_jerUp  , tup.nJet),
-        "jerdown" : RVec_float(tup.Jet_pt_jerDown, tup.nJet)
+    jet_vars = {
+        "nominal" : (RVec_float(tup.Jet_pt_nom    , tup.nJet), RVec_float(tup.Jet_mass_nom    , tup.nJet)),
+        "jerup"   : (RVec_float(tup.Jet_pt_jerUp  , tup.nJet), RVec_float(tup.Jet_mass_jerUp  , tup.nJet)),
+        "jerdown" : (RVec_float(tup.Jet_pt_jerDown, tup.nJet), RVec_float(tup.Jet_mass_jerDown, tup.nJet))
         }
     from itertools import chain
-    jet_pt_vars.update(dict(chain.from_iterable(
-        { "jes{0}up".format(src) : RVec_float(getattr(tup, "Jet_pt_jes{0}Up".format(src)), tup.nJet),
-          "jes{0}down".format(src) : RVec_float(getattr(tup, "Jet_pt_jes{0}Down".format(src)), tup.nJet),
+    jet_vars.update(dict(chain.from_iterable(
+        { "jes{0}up".format(src) : tuple(RVec_float(getattr(tup, "Jet_{0}_jes{1}Up".format(ivar, src)), tup.nJet) for ivar in ("pt", "mass")),
+          "jes{0}down".format(src) : tuple(RVec_float(getattr(tup, "Jet_{0}_jes{1}Down".format(ivar, src)), tup.nJet) for ivar in ("pt", "mass")),
         }.items() for src in ("AbsoluteStat", "AbsoluteScale")
         )))
     yield ((jet_pt, jet_eta, jet_phi, jet_mass,
             jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
             tup.MET_phi, tup.MET_pt, tup.MET_sumEt,
             seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass),
-           jet_pt_vars
+           jet_vars
           )
 
 @pytest.fixture(scope="module")
@@ -148,6 +148,7 @@ def isclose_float(a, b):
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
-    for ky,postVals in postValues.items():
-        print(ky, res.at(ky).pt(), postVals)
-        assert all(isclose_float(a,b) for a,b in zip(postVals, res.at(ky).pt()))
+    for ky,(post_pt, post_mass) in postValues.items():
+        print(ky, res.at(ky).pt(), post_pt)
+        print(ky, res.at(ky).mass(), post_mass)
+        assert all(isclose_float(a,b) for a,b in zip(post_pt, res.at(ky).pt())) and all(isclose_float(a,b) for a,b in zip(post_mass, res.at(ky).mass()))

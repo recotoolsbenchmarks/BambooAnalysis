@@ -309,7 +309,7 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
     if isMC:
         evt = variProxy._parent
         args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
-                    op.switch(op.rng_len(variProxy.orig) != 0, variProxy.orig[0].eta/.01, 0.)))
+                    op.switch(op.rng_len(variProxy.orig) != 0, variProxy.orig[0].eta/.01, op.c_float(0.))))
         aGJet = evt.GenJet[0]
         args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
     else:

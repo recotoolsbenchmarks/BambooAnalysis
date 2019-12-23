@@ -104,18 +104,6 @@ class itemObjProxy(object): ## re-construct an object that was split in arrays
     def __get__(self, inst, cls):
         return Construct(self.typeName, tuple(arg[inst._idx] for arg in self.args)).result
 
-class varItemProxy(object):
-    def __init__(self, op):
-        self.op = op
-    def __get__(self, inst, cls):
-        return self.op[inst._parent._parent.result.indices()[inst._idx]]
-class varItemRefProxy(object):
-    def __init__(self, op, getTarget):
-        self.op = op
-        self.getTarget = getTarget
-    def __get__(self, inst, cls):
-        return self.getTarget(inst)[self.op[inst._parent._parent.result.indices()[inst._idx]]]
-
 class altProxy(object): ## grouped: instance has the branch map
     def __init__(self, name, op):
         self.name = name
@@ -299,24 +287,6 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         def __call__(self, me):
             return getattr(self._parent, self.name).orig
 
-    def _translate_to_var(itm_dict, toSkip=None, addToPostConstr=None):
-        ## translate attributes NOTE there may be a more elegant solution to this,
-        ## like moving the logic into ContainerGroupItemProxy
-        ## (similar to ListBase: know about the base collection and the final index there as well)
-        itm_dict_var = dict()
-        for nm,itmAtt in itm_dict.items():
-            if isinstance(itmAtt, itemProxy): ## regular branch, change just index
-                itm_dict_var[nm] = varItemProxy(itmAtt.op)
-            elif isinstance(itmAtt, itemRefProxy):
-                itm_dict_var[nm] = varItemRefProxy(itmAtt.op, itmAtt.getTarget)
-            elif isinstance(itmAtt, funProxy) and toSkip is not None and nm in toSkip:
-                pass ## ok to skip
-            elif isinstance(itmAtt, str): ## __doc__
-                itm_dict_var[nm] = itmAtt
-            else:
-                raise RuntimeError("Cannot translate attribute {0} for variations yet".format(nm))
-        return itm_dict_var
-
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
     ## NOTE first attempt: fill all, take some out later
@@ -442,11 +412,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         if addCalculators and sizeNm in addCalculators:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
-            itm_dict_var = _translate_to_var(itm_dict, toSkip=("p4",), addToPostConstr=addSetParentToPostConstr)
-            itm_dict_var["p4"] = funProxy(lambda inst : inst._parent._parent.result.momenta()[inst._idx])
             for p4AttN in p4AttNames: # pt -> p4.Pt() etc.; mass -> p4.M()
-                itm_dict_var[p4AttN] = funProxy(partial((lambda lAttNm,inst : getattr(inst.p4, lAttNm)()), ("M" if p4AttN == "mass" else p4AttN.capitalize())))
-            varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict_var)
+                itm_dict[p4AttN] = funProxy(partial((lambda lAttNm,inst : getattr(inst._parent._parent.result, lAttNm)()[inst._idx]), p4AttN))
+            varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
             tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, withSystName=grpNm[1:])
         elif sizeNm in cnt_readVar:

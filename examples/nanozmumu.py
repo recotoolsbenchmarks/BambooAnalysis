@@ -61,7 +61,7 @@ class NanoZMuMu(NanoAODHistoModule):
         ## calculate (corrected) muon 4-momenta before accessing them
         forceDefine(t._Muon.calcProd, noSel)
 
-        muons = op.select(t.Muon, lambda mu : mu.p4.Pt() > 20.)
+        muons = op.select(t.Muon, lambda mu : mu.pt > 20.)
 
         twoMuSel = noSel.refine("twoMuons", cut=[ op.rng_len(muons) > 1 ])
         plots.append(Plot.make1D("dimu_M", op.invariant_mass(muons[0].p4, muons[1].p4), twoMuSel,
@@ -71,15 +71,15 @@ class NanoZMuMu(NanoAODHistoModule):
         ## more optimization will be needed with systematics etc.
         forceDefine(t._Jet.calcProd, twoMuSel)
 
-        jets = op.select(t.Jet, lambda j : j.p4.Pt() > 20.)
+        jets = op.select(t.Jet, lambda j : j.pt > 20.)
         plots.append(Plot.make1D("nJets", op.rng_len(jets), twoMuSel,
                 EquidistantBinning(10, 0., 10.), title="Number of jets"))
 
         twoMuTwoJetSel = twoMuSel.refine("twoMuonsTwoJets", cut=[ op.rng_len(jets) > 1 ])
 
-        leadjpt = Plot.make1D("leadJetPT", jets[0].p4.Pt(), twoMuTwoJetSel,
+        leadjpt = Plot.make1D("leadJetPT", jets[0].pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="Leading jet PT")
-        subleadjpt = Plot.make1D("subleadJetPT", jets[1].p4.Pt(), twoMuTwoJetSel,
+        subleadjpt = Plot.make1D("subleadJetPT", jets[1].pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="Subleading jet PT")
         plots += [ leadjpt, subleadjpt, SummedPlot("twoLeadJetPT", [leadjpt, subleadjpt], xTitle="Leading two jet PTs") ]
 
@@ -90,7 +90,7 @@ class SkimNanoZMuMu(NanoAODSkimmerModule):
         super(SkimNanoZMuMu, self).__init__(args)
     def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):
         from bamboo import treefunctions as op
-        muons = op.select(tree.Muon, lambda mu : op.AND(mu.p4.Pt() > 20., op.abs(mu.p4.Eta()) < 2.4))
+        muons = op.select(tree.Muon, lambda mu : op.AND(mu.pt > 20., op.abs(mu.eta) < 2.4))
         hasTwoMu = noSel.refine("hasTwoMu", cut=(op.rng_len(muons) >= 2))
         varsToKeep = {"nMuon": None, "Muon_eta": None, "Muon_pt": None} ## from input file
         varsToKeep["nSelMuons"] = op.static_cast("UInt_t", op.rng_len(muons)) ## TBranch doesn't accept size_t

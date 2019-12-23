@@ -452,14 +452,13 @@ class CalcCollectionProxy(TupleBaseProxy,ListBase):
     ## TODO make a jet specialisation (add MET deco)
     """ Collection with a selection and modified branches """
     def __init__(self, parent, base, itemType=None):
-        ## parent has a member indices() and one for each of modBranches
         ListBase.__init__(self)
         self.orig = base
         self.valueType = base.valueType ## for ListBase
         self.itemType = itemType ## for actual items
         super(CalcCollectionProxy, self).__init__(self.valueType, parent=parent)
     def __len__(self):
-        return self._parent.result.indices().__len__()
+        return self.orig.__len__() ## does not modify length
     def _getItem(self, index):
         return self.itemType(self, index)
     def __repr__(self):

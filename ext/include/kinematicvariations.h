@@ -12,6 +12,7 @@ public:
   using LorentzVector = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>;
   using p4compv_t = ROOT::VecOps::RVec<float>;
 
+  ModifiedPtCollection() = default;
   ModifiedPtCollection(p4compv_t eta, p4compv_t phi, p4compv_t mass) : m_eta(eta), m_phi(phi), m_mass(mass) {}
   void add(const std::string& name, p4compv_t pt)
   {
@@ -47,6 +48,7 @@ public:
   using LorentzVector = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>;
   using p4compv_t = ROOT::VecOps::RVec<float>;
 
+  ModifiedPtMCollection() = default;
   ModifiedPtMCollection(p4compv_t eta, p4compv_t phi) : m_eta(eta), m_phi(phi) {}
   void add(const std::string& name, p4compv_t pt, p4compv_t mass)
   {

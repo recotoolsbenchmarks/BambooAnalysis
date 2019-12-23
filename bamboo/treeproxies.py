@@ -84,6 +84,8 @@ for nm,(opNm,outType) in {
           "__truediv__" : ("floatdiv", floatType)
         , "__floordiv__": ("divide"  , None)
         , "__mod__"     : ("mod"     , None)
+        , "__lshift__"  : ("lshift"  , None)
+        , "__rshift__"  : ("rshift"  , None)
         , "__and__"     : ("band"    , None)
         , "__or__"      : ("bor"     , None)
         , "__xor__"     : ("bxor"    , None)
@@ -98,6 +100,8 @@ for nm,(opNm,outType) in {
           "__rtruediv__" : ("floatdiv", floatType)
         , "__rfloordiv__": ("divide"  , None)
         , "__rmod__"     : ("mod"     , None)
+        , "__rlshift__"  : ("lshift"  , None)
+        , "__rrshift__"  : ("rshift"  , None)
         }.items():
     setattr(IntProxy, nm, functools.partialmethod(
         (lambda self, oN, oT, other : self._binaryOp(oN, other, outType=oT, reverseOrder=True)),

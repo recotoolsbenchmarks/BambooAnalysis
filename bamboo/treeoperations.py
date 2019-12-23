@@ -250,6 +250,8 @@ mathOpFuns_cppStr = {
     , "bor"  : lambda cppStr,*args : "( {0} )".format(" | ".join(cppStr(a) for a in args))
     , "bxor"  : lambda cppStr,*args : "( {0} )".format(" ^ ".join(cppStr(a) for a in args))
     , "bnot" : lambda cppStr,a : "( ~ {0} )".format(cppStr(a))
+    , "lshift" : lambda cppStr,a1,a2 : "( {0}<<{1} )".format(cppStr(a1), cppStr(a2))
+    , "rshift" : lambda cppStr,a1,a2 : "( {0}>>{1} )".format(cppStr(a1), cppStr(a2))
     #
     , "abs"   : lambda cppStr,arg : "std::abs( {0} )".format(cppStr(arg))
     , "sqrt"  : lambda cppStr,arg : "std::sqrt( {0} )".format(cppStr(arg))

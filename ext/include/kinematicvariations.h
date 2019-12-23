@@ -82,4 +82,33 @@ private:
   p4compv_t m_eta, m_phi;
 };
 
+class ModifiedMET {
+public:
+  using compv_t = ROOT::VecOps::RVec<float>;
+
+  ModifiedMET() = default;
+  // initialize with the nominal value for all variations
+  ModifiedMET(std::size_t n, float px_nom, float py_nom)
+    : m_px(n, px_nom), m_py(n, py_nom) {}
+
+  std::size_t size() const { return m_px.size(); }
+  const compv_t& px() const { return m_px; }
+  const compv_t& py() const { return m_py; }
+  float px (std::size_t i) const { return m_px[i]; }
+  float py (std::size_t i) const { return m_py[i]; }
+  float pt (std::size_t i) const { return std::sqrt(m_px[i]*m_px[i]+m_py[i]*m_py[i]); }
+  float phi(std::size_t i) const { return std::atan2(m_py[i], m_px[i]); }
+
+  void setXY(std::size_t i, float dpx, float dpy) {
+    m_px[i] = dpx;
+    m_py[i] = dpy;
+  }
+  void addR_proj(std::size_t i, float cosphi, float sinphi, float dp) {
+    m_px[i] += dp*cosphi;
+    m_py[i] += dp*sinphi;
+  }
+private:
+  compv_t m_px;
+  compv_t m_py;
+};
 };

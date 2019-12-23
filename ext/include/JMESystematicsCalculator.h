@@ -10,15 +10,12 @@
 #include "JetCorrectionUncertainty.h"
 class FactorizedJetCorrectorCalculator;
 
-class JMESystematicsCalculator {
+class JetMETVariationsCalculatorBase {
 public:
-  using result_t = rdfhelpers::ModifiedPtMCollection;
-  using LorentzVector = result_t::LorentzVector;
-  using p4compv_t = result_t::p4compv_t;
+  using p4compv_t = ROOT::VecOps::RVec<float>;
 
-  JMESystematicsCalculator() {}
-
-  ~JMESystematicsCalculator();
+  JetMETVariationsCalculatorBase() = default;
+  ~JetMETVariationsCalculatorBase();
 
   // set up smearing (and JER systematics)
   void setSmearing(const std::string& ptResolution, const std::string& ptResolutionSF, bool doGenMatch, float genMatch_maxDR=-1., float genMatch_maxDPT=-1.)
@@ -39,18 +36,7 @@ public:
         std::forward_as_tuple(name),
         std::forward_as_tuple(params));
   }
-
-  std::vector<std::string> availableProducts() const;
-
-  // interface for NanoAOD
-  result_t produceModifiedCollections(
-      const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
-      const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
-      const std::uint32_t seed,
-      const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
-      );
-
-private:
+protected:
   std::size_t findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const;
 
   // config options
@@ -65,4 +51,21 @@ private:
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;
   std::map<std::string,JetCorrectionUncertainty> m_jesUncSources;
   //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with
+};
+
+class JMESystematicsCalculator : public JetMETVariationsCalculatorBase {
+public:
+  using result_t = rdfhelpers::ModifiedPtMCollection;
+  using LorentzVector = result_t::LorentzVector;
+
+  JMESystematicsCalculator() = default;
+
+  std::vector<std::string> availableProducts() const;
+  // interface for NanoAOD
+  result_t produceModifiedCollections(
+      const p4compv_t& jet_rawpt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
+      const p4compv_t& jet_rawfactor, const p4compv_t& jet_area, const float rho,
+      const std::uint32_t seed,
+      const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
+      );
 };

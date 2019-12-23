@@ -11,17 +11,17 @@
 #define LogDebug if (false) std::cout
 #endif
 
-JMESystematicsCalculator::~JMESystematicsCalculator()
+JetMETVariationsCalculatorBase::~JetMETVariationsCalculatorBase()
 {}
 
-void JMESystematicsCalculator::setJEC(const std::vector<JetCorrectorParameters>& jecParams)
+void JetMETVariationsCalculatorBase::setJEC(const std::vector<JetCorrectorParameters>& jecParams)
 {
   if ( ! jecParams.empty() ) {
     m_jetCorrector = std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter>{new FactorizedJetCorrectorCalculator(jecParams)};
   }
 }
 
-void JMESystematicsCalculator::jetcorrdeleter::operator() (FactorizedJetCorrectorCalculator* ptr) const
+void JetMETVariationsCalculatorBase::jetcorrdeleter::operator() (FactorizedJetCorrectorCalculator* ptr) const
 { delete ptr; }
 
 namespace {
@@ -58,7 +58,7 @@ namespace {
 
 // TODO with orig MET and jets (sumpx,sumpy): calc modif MET(sig), produce bigger results type
 
-std::size_t JMESystematicsCalculator::findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const
+std::size_t JetMETVariationsCalculatorBase::findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const
 {
   auto dr2Min = std::numeric_limits<float>::max();
   std::size_t igBest{gen_pt.size()};

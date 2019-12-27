@@ -257,13 +257,13 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
         for var,vop in vAtts.items():
             if var not in brMapMap:
                 brMapMap[var] = {}
-            brMapMap[var][attNm] = vop
+            brMapMap[var][attNm] = getCol(vop)
     ## nominal: with systematic variations (all are valid, but not all need to modify)
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltColumnOp(
             getCol(vAtts[nomName]), systName,
-            dict((var, getCol(vop).name) for var,vop in vAtts.items() if var not in exclVars),
+            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
             valid=[ var for var in allVars if var in vAtts ],
             ))
         for attNm,vAtts in var_atts.items())

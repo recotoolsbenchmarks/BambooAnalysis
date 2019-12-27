@@ -512,7 +512,8 @@ class CalcVariationsBase:
         for ky in self.brMapMap[self.withSystName].keys():
             origOp = self.brMapMap[self.withSystName][ky]
             self.brMapMap[self.withSystName][ky] = SystAltColumnOp(
-                    self.brMapMap["nominal"][ky], origOp.systName, origOp.nameMap,
+                    self.brMapMap["nominal"][ky], origOp.systName,
+                    dict((var, brMap[ky]) for var,brMap in self.brMapMap.items() if var not in (self.withSystName, "nominal", "raw")),
                     valid=[ vr for vr in avail if vr != "nominal" ])
 
 class CalcLeafGroupVariations(AltLeafGroupVariations, CalcVariationsBase):

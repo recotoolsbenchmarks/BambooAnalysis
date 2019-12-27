@@ -1062,19 +1062,19 @@ class ScaleFactorWithSystOp(OpWithSyst):
             self.wrapped.args[-1].name = newVariation
 
 class SystAltColumnOp(OpWithSyst):
-    """ Change the column name """
-    def __init__(self, wrapped, name, nameMap, valid=None):
+    """ Change the wrapped operation (from a map) """
+    def __init__(self, wrapped, name, varMap, valid=None):
         super(SystAltColumnOp, self).__init__(wrapped, name)
-        self.variations = valid if valid else list(nameMap.keys())
-        self.nameMap = nameMap
+        self.variations = valid if valid else list(varMap.keys())
+        self.varMap = varMap
     def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict(self.nameMap), valid=list(self.variations))
+        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict((nm, vop.clone(memo=memo)) for nm,vop in self.varMap.items()), valid=list(self.variations))
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newVariation not in self.variations:
             raise ValueError("Invalid branch name: {0}".format(newVariation))
-        if newVariation in self.nameMap:
-            self.wrapped.name = self.nameMap[newVariation]
+        if newVariation in self.varMap:
+            self.wrapped = self.varMap[newVariation]
 
 def collectSystVars(exprs):
     systVars = {}

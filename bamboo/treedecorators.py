@@ -109,14 +109,14 @@ class altProxy(object): ## grouped: instance has the branch map
         self.name = name
         self.op = op
     def __get__(self, inst, cls):
-        return inst.brMap.get(self.name, self.op)
+        return inst.brMap.get(self.name, self.op).result
 
 class altItemProxy(object): ## collection carries branch map (instance comes from collection.__getitem__)
     def __init__(self, name, op):
         self.name = name
         self.op = op
     def __get__(self, inst, cls):
-        return inst._parent.brMap.get(self.name, self.op)[inst._idx]
+        return inst._parent.brMap.get(self.name, self.op).result[inst._idx]
 
 def decorateTTW(aTree, description=None):
     ## NOTE: WORK IN PROGRESS
@@ -255,7 +255,7 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
             getCol(vAtts[nomName]), systName,
             dict((var, getCol(vop).name) for var,vop in vAtts.items() if var not in exclVars),
             valid=[ var for var in allVars if var in vAtts ],
-            ).result)
+            ))
         for attNm,vAtts in var_atts.items())
     return cls_alt, brMapMap
 

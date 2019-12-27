@@ -25,7 +25,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 smearTag = "Summer16_25nsV1_MC"
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
-            configureJets(tree, "Jet", "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
+            configureJets(tree._Jet, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
             configureMET(tree._MET, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
 
             mcWgts = [ tree.genWeight ]
@@ -45,10 +45,10 @@ class NanoZMuMu(NanoAODHistoModule):
                 elif "2016G" in sample or "2016H" in sample:
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
-                configureJets(tree, "Jet", "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
+                configureJets(tree._Jet, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
 
         if era == "2016":
-            configureRochesterCorrection(tree._Muon.calc, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))
+            configureRochesterCorrection(tree._Muon, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))
 
         return tree,noSel,be,lumiArgs
 

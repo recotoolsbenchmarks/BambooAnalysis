@@ -56,7 +56,6 @@ protected:
 class JetVariationsCalculator : public JetMETVariationsCalculatorBase {
 public:
   using result_t = rdfhelpers::ModifiedPtMCollection;
-  using LorentzVector = result_t::LorentzVector;
 
   JetVariationsCalculator() = default;
 

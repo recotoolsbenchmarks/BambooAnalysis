@@ -320,7 +320,7 @@ def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
     loadJMESystematicsCalculators()
     ## define calculator and initialize
     jetcalcName = be.symbol("JetVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jetVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy.initCalc(op.extVar("JetVariationsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
+    variProxy._initCalc(op.extVar("JetVariationsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
 
 def addType1METSystematicsCalculator(be, jetsProxy, metProxy, uName="", isMC=False):
     """ Declare and add a MET systematic variations calculator
@@ -357,11 +357,10 @@ def addType1METSystematicsCalculator(be, jetsProxy, metProxy, uName="", isMC=Fal
     metcalcName = be.symbol("Type1METVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_Type1METVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
     metProxy._initCalc(op.extVar("Type1METVariationsCalculator", metcalcName), calcHandle=getattr(gbl, metcalcName), args=args)
 
-def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
+def configureJets(variations, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
 
-    :param tree: tree proxy for which to configure a jet collection
-    :param jetsName: name of the jet branches (``tree.{jetsName}`` is assumed to be the nominal jet collection, and ``tree.{_jetsName}`` the corresponding variations proxy, as in the NanoAOD decorations)
+    :param variations: jet variations proxy, e.g. ``tree._Jet``
     :param jetType: jet type, e.g. AK4PFchs
     :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
     :param jec: tag of the new JEC to apply, or for the JES uncertainties (pass an empty list to jecLevels to produce only the latter without reapplying the JEC)
@@ -375,10 +374,6 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
     :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
     :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
     """
-    calcAttName = "_{0}".format(jetsName)
-    if not hasattr(tree, calcAttName):
-        raise RuntimeError("No _{0} attribute available, pleasue make sure the decorations define this (e.g. by adding \"{0}\" to ``self.calcToAdd`` for a NanoAODModule, or to the ``addCalculators`` argument to ``decorateNanoAOD``, if called explicitly)")
-    variations = getattr(tree, calcAttName)
     calc = variations.calc
     from .jetdatabasecache import JetDatabaseCache
     if smear is not None:
@@ -410,18 +405,15 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
             for src in jesUncertaintySources:
                 params = gbl.JetCorrectorParameters(plf, src)
                 calc.addJESUncertainty(src, params)
-    jets = getattr(tree, jetsName)
-    if jets is not None:
-        avail = variations.available
-        if enableSystematics is None:
-            enable = [ vari for vari in avail if vari != "nominal" ]
-        else:
-            if str(enableSystematics) == enableSystematics:
-                enableSystematics = [enableSystematics]
-            enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
-        jets.op.variations = enable
-        jets.op.systName = jetsName
+    variations._initFromCalc()
+    if enableSystematics is not None:
+        if str(enableSystematics) == enableSystematics:
+            enableSystematics = [enableSystematics]
+        avail = list(variations.calc.availableProducts())
+        enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         if enable:
+            for opWithSyst in variations.brMapMap[variations.withSystName].values():
+                opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
             logger.info("Enabled systematic variations for {0} collection: {1}".format(jetsName, " ".join(enable)))
 
 def configureMET(variations, jetType, jec=None, smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
@@ -592,14 +584,15 @@ def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
     loadRochesterCorrectionCalculator()
     ## define calculator and initialize
     roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
+    variProxy._initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
 
-def configureRochesterCorrection(calc, paramsFile):
+def configureRochesterCorrection(variations, paramsFile):
     """ Apply the Rochester correction for muons
 
-    :param calc: calculator (t._Muon.calc for NanoAOD)
+    :param variations: muon variatons proxy, e.g. ``tree.._Muon`` for NanoAOD
     :param paramsFile: path of the text file with correction parameters
     """
     if not os.path.exists(paramsFile):
         raise ValueError("File {0} not found".format(paramsFile))
-    calc.setRochesterCorrection(paramsFile)
+    variations.calc.setRochesterCorrection(paramsFile)
+    variations._initFromCalc()

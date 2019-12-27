@@ -1,5 +1,7 @@
 #include "JMESystematicsCalculators.h"
 
+#include <Math/GenVector/LorentzVector.h>
+#include <Math/GenVector/PtEtaPhiM4D.h>
 #include "Math/VectorUtil.h"
 #include "FactorizedJetCorrectorCalculator.h"
 
@@ -90,9 +92,10 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
     const std::uint32_t seed,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {
+  const auto nVariations = 1+( m_doSmearing ? 2 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(JER up/down)+2*len(JES)
   LogDebug << "JME:: hello from produceModifiedCollections. Got " << jet_pt.size() << " jets" << std::endl;
   const auto nJets = jet_pt.size();
-  result_t out{jet_eta, jet_phi};
+  result_t out{nVariations, jet_pt, jet_mass};
   p4compv_t pt_nom{jet_pt}, mass_nom{jet_mass};
   if ( m_jetCorrector ) {
     LogDebug << "JME:: reapplying JEC" << std::endl;
@@ -120,13 +123,14 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
     LogDebug << "JME:: Not reapplying JEC" << std::endl;
   }
   // smearing and JER
+  std::size_t iVar = 1; // after nominal
   if ( m_doSmearing ) {
     LogDebug << "JME:: Smearing (seed=" << seed << ")" << std::endl;
     m_random.SetSeed(seed);
     p4compv_t pt_jerUp{pt_nom}, mass_jerUp{mass_nom};
     p4compv_t pt_jerDown{pt_nom}, mass_jerDown{mass_nom};
     for ( std::size_t i{0}; i != nJets; ++i ) {
-      const float eOrig = LorentzVector(pt_nom[i], jet_phi[i], jet_eta[i], mass_nom[i]).E();
+      const float eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>(pt_nom[i], jet_phi[i], jet_eta[i], mass_nom[i]).E();
       if ( pt_nom[i] > 0. ) {
         JME::JetParameters jPar{
             {JME::Binning::JetPt , pt_nom[i]},
@@ -158,13 +162,13 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
         mass_jerUp[i]   *= smearFactor_up;
       }
     }
-    out.add("jerdown", pt_jerDown, mass_jerDown);
-    out.add("jerup"  , pt_jerUp  , mass_jerUp  );
+    out.set(iVar++, pt_jerUp  , mass_jerUp  );
+    out.set(iVar++, pt_jerDown, mass_jerDown);
     LogDebug << "JME:: Done with smearing" << std::endl;
   } else {
     LogDebug << "JME:: No smearing" << std::endl;
   }
-  out.add("nominal", pt_nom, mass_nom);
+  out.set(0, pt_nom, mass_nom);
 
   // JES uncertainties
   for ( auto& jesUnc : m_jesUncSources ) {
@@ -180,17 +184,19 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
       pt_jesUp[i]     *= (1.+delta);
       mass_jesUp[i]   *= (1.+delta);
     }
-    out.add("jes"+jesUnc.first+"down", pt_jesDown, mass_jesDown);
-    out.add("jes"+jesUnc.first+"up"  , pt_jesUp  , mass_jesUp  );
+    out.set(iVar++, pt_jesUp  , mass_jesUp  );
+    out.set(iVar++, pt_jesDown, mass_jesDown);
   }
 
 #ifdef BAMBOO_JME_DEBUG
+  assert(iVar == out.size());
   LogDebug << "JME:: returning " << out.size() << " modified jet collections" << std::endl;
-  for ( const auto& entryName : availableProducts() ) {
-    LogDebug << "JME:: " << entryName << ": ";
-    const auto& entry = out.at(entryName);
-    for ( std::size_t i{0}; i != nJets; ++i ) {
-      LogDebug << "(PT=" << entry.pt()[i] << ", ETA=" << entry.eta()[i] << ", PHI=" << entry.phi()[i] << ", M=" << entry.mass()[i] << ") ";
+  const auto varNames = availableProducts();
+  assert(varNames.size() == nVariations);
+  for ( std::size_t i{0}; i != nVariations; ++i ) {
+    LogDebug << "JME:: Jet_" << varNames[i] << ": ";
+    for ( std::size_t j{0}; j != nJets; ++j ) {
+      LogDebug << "(PT=" << out.pt(i)[j] << ", ETA=" << jet_eta[j] << ", PHI=" << jet_phi[j] << ", M=" << out.mass(i)[j] << ") ";
     }
     LogDebug << std::endl;
   }

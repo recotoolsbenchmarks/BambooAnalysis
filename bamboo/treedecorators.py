@@ -50,6 +50,13 @@ def getMETVarName_calc(nm):
     if nm in ("pt", "phi"):
         return nm, "raw"
 
+def getJetEnergyVarName_calc(nm):
+    if nm in ("pt", "mass"):
+        return nm, "raw"
+def getMuonMomentumVarName_calc(nm):
+    if nm == "pt":
+        return nm, "raw"
+
 ## TODO: make configurable
 def getJetMETVarName_postproc(nm):
     if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) == 2:
@@ -253,7 +260,6 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
             brMapMap[var][attNm] = vop
     ## nominal: with systematic variations (all are valid, but not all need to modify)
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
-    logger.debug("{0} variations read from branches: {1} (nominal: {2!r})".format(name, allVars, nomName))
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltColumnOp(
             getCol(vAtts[nomName]), systName,
@@ -376,6 +382,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             nomSystProxy = varsProxy["nomWithSyst"]
             addSetParentToPostConstr(nomSystProxy)
             tree_dict[grpNm[1:]] = nomSystProxy
+            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
         else:
             tree_dict[grpNm] = grp_proxy
 
@@ -426,11 +433,26 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         if addCalculators and sizeNm in addCalculators:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
-            for p4AttN in p4AttNames: # pt -> p4.Pt() etc.; mass -> p4.M()
-                itm_dict[p4AttN] = funProxy(partial((lambda lAttNm,inst : getattr(inst._parent._parent.result, lAttNm)()[inst._idx]), p4AttN))
-            varItemType = type("Var{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
+            if sizeNm == "nJet":
+                altItemType, brMapMap = _makeAltClassAndMaps(
+                        grpNm, itm_dict, getJetEnergyVarName_calc,
+                        systName="jet", nomName="raw", exclVars=("raw",),
+                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
+                        )
+            elif sizeNm == "nMuon":
+                altItemType, brMapMap = _makeAltClassAndMaps(
+                        grpNm, itm_dict, getMuonMomentumVarName_calc,
+                        systName="muon", nomName="raw", exclVars=("raw",),
+                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
+                        )
+            else:
+                raise RuntimeError("Adding a calculator for collection {0} is not supported (yet)".format(sizeNm))
             grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
-            tree_dict[grpNm] = CalcVariations(None, coll_orig, varItemType=varItemType, withSystName=grpNm[1:])
+            varsProxy = CalcCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType, withSystName="nomWithSyst")
+            tree_dict[grpNm] = varsProxy
+            nomSystProxy = varsProxy["nomWithSyst"]
+            addSetParentToPostConstr(nomSystProxy)
+            tree_dict[grpNm[1:]] = nomSystProxy
         elif sizeNm in cnt_readVar:
             coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
             addSetParentToPostConstr(coll_orig)
@@ -447,6 +469,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
             addSetParentToPostConstr(nomSystProxy)
             tree_dict[grpNm[1:]] = nomSystProxy
+            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
         else:
             tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
 

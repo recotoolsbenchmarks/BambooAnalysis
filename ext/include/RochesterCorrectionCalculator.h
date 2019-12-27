@@ -1,7 +1,6 @@
 #pragma once
 
 #include "kinematicvariations.h"
-#include <boost/container/flat_map.hpp>
 #include <memory>
 #include <random>
 #include <Rtypes.h>
@@ -10,8 +9,7 @@ class RoccoR;
 class RochesterCorrectionCalculator {
 public:
   using result_t = rdfhelpers::ModifiedPtCollection;
-  using LorentzVector = result_t::LorentzVector;
-  using p4compv_t = result_t::p4compv_t;
+  using p4compv_t = result_t::compv_t;
 
   RochesterCorrectionCalculator() {}
 

@@ -423,51 +423,6 @@ class SliceProxy(TupleBaseProxy,ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r}, valueType={4!r})".format(self.__class__.__name__, self._parent, self._begin, self._end, self.valueType)
 
-class CalcVariations(TupleBaseProxy):
-    def __init__(self, parent, orig, varItemType=None, withSystName=None):
-        self.orig = orig
-        self.varItemType = varItemType if varItemType else orig.valuetype
-        self.calc = None
-        self.calcProd = None
-        self.withSystName = withSystName
-        super(CalcVariations, self).__init__("CalcVariations", parent=parent)
-    @property
-    def available(self):
-        return list(self.calc.availableProducts())
-    def initCalc(self, calcProxy, calcHandle=None, args=None):
-        self.calc = calcHandle ## handle to the actual module object
-        self.calcProd = calcProxy.produceModifiedCollections(*args)
-        setattr(self._parent, self.withSystName,
-            CalcCollectionProxy(
-                SystModifiedCollectionOp(
-                    self.calcProd.at(makeConst("nominal", "std::string")).op,
-                    None, self.available),
-                self.orig, itemType=self.varItemType))
-    def __getitem__(self, key):
-        if not self.calc:
-            raise RuntimeError("CalcVariations calculator first needs to be initialized")
-        if not isinstance(key, str):
-            raise ValueError("Getting variation with non-string key {0!r}".format(key))
-        if self.calc and key not in self.available:
-            raise KeyError("Modified collection with name {0!r} will not be produced, please check the configuration".format(key))
-        return CalcCollectionProxy(self.calcProd.at(makeConst(key, "std::string")).op, self.orig, itemType=self.varItemType)
-
-class CalcCollectionProxy(TupleBaseProxy,ListBase):
-    ## TODO make a jet specialisation (add MET deco)
-    """ Collection with a selection and modified branches """
-    def __init__(self, parent, base, itemType=None):
-        ListBase.__init__(self)
-        self.orig = base
-        self.valueType = base.valueType ## for ListBase
-        self.itemType = itemType ## for actual items
-        super(CalcCollectionProxy, self).__init__(self.valueType, parent=parent)
-    def __len__(self):
-        return self.orig.__len__() ## does not modify length
-    def _getItem(self, index):
-        return self.itemType(self, index)
-    def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self.itemType)
-
 class AltLeafVariations(TupleBaseProxy):
     """ Branch with alternative names """
     def __init__(self, parent, brMap, typeName):
@@ -539,8 +494,8 @@ class AltCollectionProxy(TupleBaseProxy, ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
 
-## for calc base class - actually all of this should be generic, so calcleafgroupvariations can be essentially empty after that (reuse in CalcCollectionVariations : that base and altcollectionvariatoins)
-class CalcVariationsBase: ## extra base for AltCollectionVariations or AltLeafGroupVariations with calculator
+class CalcVariationsBase:
+    """ extra base class for AltCollectionVariations or AltLeafGroupVariations with calculator """
     def __init__(self, withSystName=None):
         self.calc = None
         self.calcProd = None
@@ -564,6 +519,12 @@ class CalcLeafGroupVariations(AltLeafGroupVariations, CalcVariationsBase):
     """ Set of groups with alternative names for some branches, with calculator """
     def __init__(self, parent, orig, brMapMap, altProxyType, withSystName=None):
         super(CalcLeafGroupVariations, self).__init__(parent, orig, brMapMap, altProxyType)
+        CalcVariationsBase.__init__(self, withSystName=withSystName)
+
+class CalcCollectionVariations(AltCollectionVariations, CalcVariationsBase):
+    """ Set of collections with alternative names for some branches, with calculator """
+    def __init__(self, parent, orig, brMapMap, altItemType=None, withSystName=None):
+        super(CalcCollectionVariations, self).__init__(parent, orig, brMapMap, altItemType=altItemType)
         CalcVariationsBase.__init__(self, withSystName=withSystName)
 
 class CombinationProxy(TupleBaseProxy):

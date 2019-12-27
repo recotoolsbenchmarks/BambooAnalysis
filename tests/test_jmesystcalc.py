@@ -199,10 +199,12 @@ def isclose_float(a, b, tol=1.):
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
     res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
+    names = list(jmesystcalcMC16_jesunc.availableProducts())
     for ky,(post_pt, post_mass) in postValues.items():
-        print(ky, res.at(ky).pt(), post_pt)
-        print(ky, res.at(ky).mass(), post_mass)
-        assert all(isclose_float(a,b, tol=2.) for a,b in zip(post_pt, res.at(ky).pt())) and all(isclose_float(a,b, tol=2.) for a,b in zip(post_mass, res.at(ky).mass()))
+        idx = names.index(ky)
+        print(ky, res.pt(idx), post_pt)
+        print(ky, res.mass(idx), post_mass)
+        assert all(isclose_float(a,b, tol=2.) for a,b in zip(post_pt, res.pt(idx))) and all(isclose_float(a,b, tol=2.) for a,b in zip(post_mass, res.mass(idx)))
 
 def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postvalues):
     nanoMETargsMC16, postValues = nanoMETargsMC16_postvalues

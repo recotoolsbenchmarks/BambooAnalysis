@@ -26,13 +26,13 @@ void RochesterCorrectionCalculator::roccordeleter::operator() (RoccoR* ptr) cons
 RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(
       const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const
 {
+  const auto nVariations = 1;
   LogDebug << "Rochester:: hello from produceModifiedCollections. Got " << muon_pt.size() << " muons" << std::endl;
-  result_t out{muon_eta, muon_phi, muon_mass};
+  result_t out{nVariations, muon_pt};
   if ( ! m_roccor ) {
     LogDebug << "Rochester:: No correction" << std::endl;
-    out.add("nominal", muon_pt);
   } else {
-    result_t::p4compv_t nom_pt = muon_pt;
+    p4compv_t nom_pt = muon_pt;
     if ( muon_genIdx.empty() ) { // DATA
       for ( std::size_t i{0}; i < muon_pt.size(); ++i ) {
         const auto sf = m_roccor->kScaleDT(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i]);
@@ -53,7 +53,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceMo
         }
       }
     }
-    out.add("nominal", nom_pt);
+    out.set(0, nom_pt);
   }
   return out;
 }

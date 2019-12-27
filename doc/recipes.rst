@@ -229,14 +229,14 @@ uncertainties to 2016 MC:
            era = sampleCfg["era"]
            if era == "2016":
                if self.isMC(sample): # can be inferred from sample name
-                   configureJets(tree, "Jet", "AK4PFchs",
+                   configureJets(tree._Jet, "AK4PFchs",
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
                        mayWriteCache=isNotWorker)
                else:
                    if "2016G" in sample or "2016H" in sample:
-                       configureJets(tree, "Jet", "AK4PFchs",
+                       configureJets(tree._Jet, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker)
                    elif ...: ## other 2016 periods
@@ -300,7 +300,7 @@ method.
 The on the fly calculator can be configured with the
 :py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,
 as in the example below.
-``tree._Muon.calc`` points directly to the C++ calculator module; the
+``tree._Muon`` keeps track of everything related to the calculator; the
 uncorrected muon collection can be found in ``tree._Muon.orig``, and the
 corrected muons are in ``tree.Muon``.
 
@@ -315,7 +315,7 @@ corrected muons are in ``tree.Muon``.
            from bamboo.analysisutils import configureRochesterCorrection
            era = sampleCfg["era"]
            if era == "2016":
-               configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
+               configureRochesterCorrection(tree._Muon, "RoccoR2016.txt")
        return tree,noSel,be,lumiArgs
 
 .. _recipesplitsamplesubcomp:

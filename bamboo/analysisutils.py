@@ -292,8 +292,8 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         except subprocess.CalledProcessError as ex:
             logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
-def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
-    """ Declare and add a JME systematic variations calculator
+def addJetsSystematicsCalculator(be, variProxy, uName="", isMC=False):
+    """ Declare and add a jets systematic variations calculator
 
     :param be: backend pointer
     :param variProxy: CalcVariations proxy (t._Jet)

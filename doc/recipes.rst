@@ -181,8 +181,8 @@ In this example, we assume that the collections ``taus``, ``electrons``, and
 
 .. _recipejetsystematics:
 
-Jet systematics
----------------
+Jet and MET systematics
+-----------------------
 
 For propagating uncertainties related to the jet energy calibration, and the
 difference in jet energy resolution between data and simulation, each jet in
@@ -207,14 +207,20 @@ attribute of the analysis module, from its constructor or
 :py:attr:`bamboo.NanoAODModule.prepareTree` will pass this to the
 :py:meth:`bamboo.treedecorators.decorateNanoAOD` method and add the calculator
 module.
+Similarly, to have all these variations propagated to the missing transverse
+momentum, ``"MET"`` should be added to the
+:py:attr:`~bamboo.NanoAODModule.addToCalc` attribute.
 
-With the default settings, only the nominal jet collection is produced.
-The :py:meth:`bamboo.analysisutils.configureJets` provides a
+With the default settings, only the nominal jet collection and MET are produced.
+The :py:meth:`bamboo.analysisutils.configureJets` and
+:py:meth:`bamboo.analysisutils.configureMET` methods provide a
 convenient way to correct the jet resolution in MC, apply a different JEC, and
-add variations due to different sources of uncertainty in the jet energy scale.
+add variations due to different sources of uncertainty in the jet energy scale,
+for the jet collection and MET, respectively (the arguments should be the same
+in most cases).
 As an example, the relevant code of a NanoAOD analysis module could
-look like this to apply a newer JEC to 2016 data and perform smearing and add
-uncertainties to 2016 MC:
+look like this to apply a newer JEC to 2016 data and perform smearing, add
+uncertainties to 2016 MC, and the same for the MET:
 
 .. code-block:: python
 
@@ -224,7 +230,7 @@ uncertainties to 2016 MC:
            self.calcToAdd.append("nJet")
        def prepareTree(self, tree, sample=None, sampleCfg=None):
            tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
-           from bamboo.analysisutils import configureJets
+           from bamboo.analysisutils import configureJets, configureMET
            isNotWorker = (self.args.distributed != "worker")
            era = sampleCfg["era"]
            if era == "2016":
@@ -234,9 +240,17 @@ uncertainties to 2016 MC:
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
                        mayWriteCache=isNotWorker)
+                   configureMET(tree._MET, "AK4PFchs",
+                       jec="Summer16_07Aug2017_V20_MC",
+                       smear="Summer16_25nsV1_MC",
+                       jesUncertaintySources=["Total"],
+                       mayWriteCache=isNotWorker)
                else:
                    if "2016G" in sample or "2016H" in sample:
                        configureJets(tree._Jet, "AK4PFchs",
+                           jec="Summer16_07Aug2017GH_V11_DATA",
+                           mayWriteCache=isNotWorker)
+                       configureMET(tree._MET, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker)
                    elif ...: ## other 2016 periods
@@ -258,6 +272,15 @@ passing ``enableSystematics=[]`` to
 :py:meth:`bamboo.analysisutils.configureJets`).
 The jet collection as stored on the input file, finally, can be retrieved as
 ``t._Jet.orig``.
+
+.. important:: Sorting the jets
+   No sorting is done as part of the above procedure, so if relevant this
+   should be added by the user (e.g. using
+   ``jets = op.sort(t.Jet, lambda j : -j.pt)`` for sorting by decreasing
+   transverse momentum).
+   In a previous version of the code this was included, but since some selection
+   is usually applied on the jets anyway, it is simpler (and more efficient) to
+   perform the sorting then.
 
 .. note:: Isn't it slow to calculate jet corrections on the fly?
    It does take a bit of time, but the calculation is done in one C++ module,

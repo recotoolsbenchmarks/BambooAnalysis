@@ -1061,21 +1061,6 @@ class ScaleFactorWithSystOp(OpWithSyst):
         if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
             self.wrapped.args[-1].name = newVariation
 
-class SystModifiedCollectionOp(OpWithSyst):
-    """ modifiedcollections 'at' call, to be modified to get another collection """
-    def __init__(self, wrapped, name, variations):
-        super(SystModifiedCollectionOp, self).__init__(wrapped, name, variations=variations)
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, list(self.variations))
-    def changeVariation(self, newCollection):
-        """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if self._cache: # validate this assumption
-            raise RuntimeError("Cannot change variation of an expression that is already frozen")
-        if newCollection not in self.variations:
-            raise ValueError("Invalid collection: {0}".format(newCollection))
-        if self.wrapped.args[0].value == '"nominal"' and newCollection != self.wrapped.args[0].value.strip('"'):
-            self.wrapped.args[0].value = '"{0}"'.format(newCollection)
-
 class SystAltColumnOp(OpWithSyst):
     """ Change the column name """
     def __init__(self, wrapped, name, nameMap, valid=None):

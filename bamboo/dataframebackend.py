@@ -146,8 +146,6 @@ class DataframeBackend(FactoryBackend):
             from .root import gbl
             gbl.gInterpreter.Declare(fullDecl)
             return name
-
-        super(SystModifiedCollectionOp, self).__init__(wrapped, name)
     @staticmethod
     def create(decoTree, outFileName=None):
         inst = DataframeBackend(decoTree._tree, outFileName=None)

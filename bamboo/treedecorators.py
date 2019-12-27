@@ -322,8 +322,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         nomSystProxy = varsProxy["nomWithSyst"]
         tree_dict["puWeight"] = nomSystProxy
     ## non-collection branches to group
-    simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_") ## TODO get this from description?
-    simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_",)
+    simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
+    simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_", "HTXS_")
     ## check which are there, and for which we need to read variations
     grp_found = []
     grp_readVar = []
@@ -380,7 +380,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             tree_dict[grpNm] = grp_proxy
 
     ## SOA, nanoAOD style (LeafCount, shared)
-    containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj")
+    containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet")
     containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
     ## check which are there, and for which we need to read variations
     cnt_found = []

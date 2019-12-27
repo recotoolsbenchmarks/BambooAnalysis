@@ -23,11 +23,11 @@ void RochesterCorrectionCalculator::setRochesterCorrection(const std::string& pa
 void RochesterCorrectionCalculator::roccordeleter::operator() (RoccoR* ptr) const
 { delete ptr; }
 
-RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(
+RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produce(
       const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const
 {
   const auto nVariations = 1;
-  LogDebug << "Rochester:: hello from produceModifiedCollections. Got " << muon_pt.size() << " muons" << std::endl;
+  LogDebug << "Rochester:: hello from produce. Got " << muon_pt.size() << " muons" << std::endl;
   result_t out{nVariations, muon_pt};
   if ( ! m_roccor ) {
     LogDebug << "Rochester:: No correction" << std::endl;
@@ -58,7 +58,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceMo
   return out;
 }
 
-std::vector<std::string> RochesterCorrectionCalculator::availableProducts() const
+std::vector<std::string> RochesterCorrectionCalculator::available() const
 {
   return { "nominal" }; // TODO add systematics
 }

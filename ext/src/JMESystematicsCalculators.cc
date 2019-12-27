@@ -86,14 +86,14 @@ std::size_t JetMETVariationsCalculatorBase::findGenMatch(const float pt, const f
   return igBest;
 }
 
-JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollections(
+JetVariationsCalculator::result_t JetVariationsCalculator::produce(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
     const std::uint32_t seed,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {
   const auto nVariations = 1+( m_doSmearing ? 2 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(JER up/down)+2*len(JES)
-  LogDebug << "JME:: hello from produceModifiedCollections. Got " << jet_pt.size() << " jets" << std::endl;
+  LogDebug << "JME:: hello from produce. Got " << jet_pt.size() << " jets" << std::endl;
   const auto nJets = jet_pt.size();
   result_t out{nVariations, jet_pt, jet_mass};
   p4compv_t pt_nom{jet_pt}, mass_nom{jet_mass};
@@ -191,7 +191,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
 #ifdef BAMBOO_JME_DEBUG
   assert(iVar == out.size());
   LogDebug << "JME:: returning " << out.size() << " modified jet collections" << std::endl;
-  const auto varNames = availableProducts();
+  const auto varNames = available();
   assert(varNames.size() == nVariations);
   for ( std::size_t i{0}; i != nVariations; ++i ) {
     LogDebug << "JME:: Jet_" << varNames[i] << ": ";
@@ -204,7 +204,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produceModifiedCollec
   return out;
 }
 
-std::vector<std::string> JetVariationsCalculator::availableProducts() const
+std::vector<std::string> JetVariationsCalculator::available() const
 {
   std::vector<std::string> products = { "nominal" };
   if ( m_doSmearing ) {
@@ -226,7 +226,7 @@ void Type1METVariationsCalculator::setL1JEC(const std::vector<JetCorrectorParame
   }
 }
 
-Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produceModifiedCollections(
+Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produce(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area,
     const p4compv_t& jet_muonSubtrFactor, const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF,
@@ -242,7 +242,7 @@ Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produceModi
   const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi), rawmet_pt*std::sin(rawmet_phi)};
   m_random.SetSeed(seed); // just in case
-  LogDebug << "JME:: hello from produceModified. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
+  LogDebug << "JME:: hello from produce. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
   // normal jets
   addVariations(out, jet_pt, jet_eta, jet_phi, jet_mass,
       jet_rawcorr, jet_area, jet_muonSubtrFactor, jet_neEmEF, jet_chEmEF,
@@ -260,7 +260,7 @@ Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produceModi
 
 #ifdef BAMBOO_JME_DEBUG
   LogDebug << "JME:: returning " << out.size() << " modified METs" << std::endl;
-  const auto varNames = availableProducts();
+  const auto varNames = available();
   assert(varNames.size() == nVariations);
   for ( std::size_t i{0}; i != nVariations; ++i ) {
     LogDebug << "JME:: MET_" << varNames[i] << ": PT=" << out.pt(i) << ", PHI=" << out.phi(i) << std::endl;
@@ -365,7 +365,7 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
   }
 }
 
-std::vector<std::string> Type1METVariationsCalculator::availableProducts() const
+std::vector<std::string> Type1METVariationsCalculator::available() const
 {
   std::vector<std::string> products = { "nominal" };
   if ( m_doSmearing ) {

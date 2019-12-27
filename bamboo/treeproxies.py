@@ -502,9 +502,9 @@ class CalcVariationsBase:
         self.withSystName = withSystName
     def _initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
-        self.calcProd = calcProxy.produceModifiedCollections(*args)
+        self.calcProd = calcProxy.produce(*args)
     def _initFromCalc(self):
-        avail = list(self.calc.availableProducts())
+        avail = list(self.calc.available())
         for i,nm in enumerate(avail):
             self.brMapMap[nm] = dict((attN,
                 adaptArg(getattr(self.calcProd, attN)(makeConst(i, SizeType))))

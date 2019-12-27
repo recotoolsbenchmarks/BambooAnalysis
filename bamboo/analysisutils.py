@@ -409,7 +409,7 @@ def configureJets(variations, jetType, jec=None, jecLevels="default", smear=None
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:
             enableSystematics = [enableSystematics]
-        avail = list(variations.calc.availableProducts())
+        avail = list(variations.calc.available())
         enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         if enable:
             for opWithSyst in variations.brMapMap[variations.withSystName].values():
@@ -474,7 +474,7 @@ def configureMET(variations, jetType, jec=None, smear=None, useGenMatch=True, ge
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:
             enableSystematics = [enableSystematics]
-        avail = list(variations.calc.availableProducts())
+        avail = list(variations.calc.available())
         enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         if enable:
             for opWithSyst in variations.brMapMap[variations.withSystName].values():

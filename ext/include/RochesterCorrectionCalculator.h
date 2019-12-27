@@ -17,10 +17,10 @@ public:
 
   void setRochesterCorrection(const std::string& params);
 
-  std::vector<std::string> availableProducts() const;
+  std::vector<std::string> available() const;
 
   // interface for NanoAOD
-  result_t produceModifiedCollections(
+  result_t produce(
       const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass,
       const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const;
 private:

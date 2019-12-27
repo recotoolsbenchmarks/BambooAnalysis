@@ -180,15 +180,15 @@ def test_jmesystcalcMC16_smear(jmesystcalcMC16_smear):
     assert jmesystcalcMC16_smear
 
 def test_jmesystcalcMC16_nano_smear(jmesystcalcMC16_smear, nanojetargsMC16):
-    res = jmesystcalcMC16_smear.produceModifiedCollections(*nanojetargsMC16)
+    res = jmesystcalcMC16_smear.produce(*nanojetargsMC16)
     assert res
 
 def test_jmesystcalcMC16_nano_jec(jmesystcalcMC16_jec, nanojetargsMC16):
-    res = jmesystcalcMC16_jec.produceModifiedCollections(*nanojetargsMC16)
+    res = jmesystcalcMC16_jec.produce(*nanojetargsMC16)
     assert res
 
 def test_jmesystcalcMC16_nano_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16):
-    res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
+    res = jmesystcalcMC16_jesunc.produce(*nanojetargsMC16)
     assert res
 
 import math
@@ -198,8 +198,8 @@ def isclose_float(a, b, tol=1.):
 
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     nanojetargsMC16, postValues = nanojetargsMC16_postvalues
-    res = jmesystcalcMC16_jesunc.produceModifiedCollections(*nanojetargsMC16)
-    names = list(jmesystcalcMC16_jesunc.availableProducts())
+    res = jmesystcalcMC16_jesunc.produce(*nanojetargsMC16)
+    names = list(jmesystcalcMC16_jesunc.available())
     for ky,(post_pt, post_mass) in postValues.items():
         idx = names.index(ky)
         print(ky, res.pt(idx), post_pt)
@@ -208,8 +208,8 @@ def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_pos
 
 def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postvalues):
     nanoMETargsMC16, postValues = nanoMETargsMC16_postvalues
-    res = metvarcalcMC16_jesunc.produceModifiedCollections(*nanoMETargsMC16)
-    names = list(metvarcalcMC16_jesunc.availableProducts())
+    res = metvarcalcMC16_jesunc.produce(*nanoMETargsMC16)
+    names = list(metvarcalcMC16_jesunc.available())
     for ky,(post_pt, post_phi) in postValues.items():
         idx = names.index(ky)
         print(ky, res.pt(idx), post_pt)

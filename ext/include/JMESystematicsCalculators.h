@@ -47,7 +47,7 @@ protected:
   JME::JetResolutionScaleFactor m_jetEResSF;
   mutable TRandom3 m_random; // for resolution
   struct jetcorrdeleter { void operator()(FactorizedJetCorrectorCalculator*) const; };
-  // TODO if these would have pure interface functions operator() and produceModifiedCollections could be const (and largely thread-safe)
+  // TODO if these would have pure interface functions operator() and produce could be const (and largely thread-safe)
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;
   std::map<std::string,JetCorrectionUncertainty> m_jesUncSources;
   //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with
@@ -59,9 +59,9 @@ public:
 
   JetVariationsCalculator() = default;
 
-  std::vector<std::string> availableProducts() const;
+  std::vector<std::string> available() const;
   // interface for NanoAOD
-  result_t produceModifiedCollections(
+  result_t produce(
       const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
       // MC-only
@@ -80,9 +80,9 @@ public:
   void setL1JEC(const std::vector<JetCorrectorParameters>& jecParams);
   void setUnclusteredEnergyTreshold(float threshold) { m_unclEnThreshold = threshold; }
 
-  std::vector<std::string> availableProducts() const;
+  std::vector<std::string> available() const;
   // interface for NanoAOD
-  result_t produceModifiedCollections(
+  result_t produce(
       const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawcorr, const p4compv_t& jet_area,
       const p4compv_t& jet_muonSubtrFactor, const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF,

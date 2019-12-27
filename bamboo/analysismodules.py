@@ -519,6 +519,9 @@ class NanoAODModule(AnalysisModule):
         if "nJet" in self.calcToAdd:
             from bamboo.analysisutils import addJMESystematicsCalculator
             addJMESystematicsCalculator(be, t._Jet, uName=sample, isMC=self.isMC(sample))
+        if "MET" in self.calcToAdd:
+            from bamboo.analysisutils import addType1METSystematicsCalculator
+            addType1METSystematicsCalculator(be, t._Jet, t._MET, uName=sample, isMC=self.isMC(sample))
         if "nMuon" in self.calcToAdd:
             from bamboo.analysisutils import addRochesterCorrectionCalculator
             addRochesterCorrectionCalculator(be, t._Muon, uName=sample, isMC=self.isMC(sample))

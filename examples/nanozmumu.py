@@ -8,12 +8,12 @@ class NanoZMuMu(NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def __init__(self, args):
         super(NanoZMuMu, self).__init__(args)
-        self.calcToAdd += ["nJet", "nMuon"] ## will do Jet variations and Rochester correction
+        self.calcToAdd += ["nJet", "MET", "nMuon"] ## will do Jet variations and Rochester correction
 
     def prepareTree(self, tree, sample=None, sampleCfg=None):
         ## initializes tree._Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
-        from bamboo.analysisutils import makePileupWeight, configureJets, configureRochesterCorrection
+        from bamboo.analysisutils import makePileupWeight, configureJets, configureMET, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
         era = sampleCfg.get("era") if sampleCfg else None
         if self.isMC(sample):
@@ -26,6 +26,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
             configureJets(tree, "Jet", "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
+            configureMET(tree._MET, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
 
             mcWgts = [ tree.genWeight ]
             if puWeightsFile:

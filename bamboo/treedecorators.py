@@ -46,6 +46,10 @@ def normVarName(varName):
     else:
         return varName
 
+def getMETVarName_calc(nm):
+    if nm in ("pt", "phi"):
+        return nm, "raw"
+
 ## TODO: make configurable
 def getJetMETVarName_postproc(nm):
     if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) == 2:
@@ -329,7 +333,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         else:
             grp_found.append(prefix)
             if prefix == "MET_":
-                if addCalculators and "nJet" in addCalculators:
+                if addCalculators and "MET" in addCalculators:
                     logger.debug("Will calculate correction/variations for the MET collection on the fly")
                 elif "MET_pt_nom" in allTreeLeafs:
                     grp_readVar.append(prefix)
@@ -345,9 +349,19 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             del tree_dict[lvNm]
         grp_proxy = grpcls(grpNm, None)
         addSetParentToPostConstr(grp_proxy)
-        if prefix == "MET_" and addCalculators and "nJet" in addCalculators:
-            grp_orig = grp_proxy
-            ###
+        if prefix == "MET_" and addCalculators and "MET" in addCalculators:
+            grpcls_alt, brMapMap = _makeAltClassAndMaps(
+                    grpNm, grp_dict, getMETVarName_calc,
+                    systName="jet", nomName="raw", exclVars=("raw",),
+                    attCls=altProxy, altBases=(AltLeafGroupProxy,)
+                    )
+            grpNm = "_{0}".format(grpNm)
+            varsProxy  = CalcLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt, withSystName="nomWithSyst")
+            addSetParentToPostConstr(varsProxy)
+            tree_dict[grpNm] = varsProxy
+            nomSystProxy = varsProxy["nomWithSyst"]
+            addSetParentToPostConstr(nomSystProxy)
+            tree_dict[grpNm[1:]] = nomSystProxy
         elif prefix in grp_readVar:
             if prefix == "MET_":
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(

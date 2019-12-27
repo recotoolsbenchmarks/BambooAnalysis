@@ -539,6 +539,33 @@ class AltCollectionProxy(TupleBaseProxy, ListBase):
     def __repr__(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self._parent, self.brMap, self.itemType)
 
+## for calc base class - actually all of this should be generic, so calcleafgroupvariations can be essentially empty after that (reuse in CalcCollectionVariations : that base and altcollectionvariatoins)
+class CalcVariationsBase: ## extra base for AltCollectionVariations or AltLeafGroupVariations with calculator
+    def __init__(self, withSystName=None):
+        self.calc = None
+        self.calcProd = None
+        self.withSystName = withSystName
+    def _initCalc(self, calcProxy, calcHandle=None, args=None):
+        self.calc = calcHandle ## handle to the actual module object
+        self.calcProd = calcProxy.produceModifiedCollections(*args)
+    def _initFromCalc(self):
+        avail = list(self.calc.availableProducts())
+        for i,nm in enumerate(avail):
+            self.brMapMap[nm] = dict((attN,
+                adaptArg(getattr(self.calcProd, attN)(makeConst(i, SizeType))))
+                for attN in self.brMapMap[self.withSystName].keys())
+        for ky in self.brMapMap[self.withSystName].keys():
+            origOp = self.brMapMap[self.withSystName][ky]
+            self.brMapMap[self.withSystName][ky] = SystAltColumnOp(
+                    self.brMapMap["nominal"][ky], origOp.systName, origOp.nameMap,
+                    valid=[ vr for vr in avail if vr != "nominal" ])
+
+class CalcLeafGroupVariations(AltLeafGroupVariations, CalcVariationsBase):
+    """ Set of groups with alternative names for some branches, with calculator """
+    def __init__(self, parent, orig, brMapMap, altProxyType, withSystName=None):
+        super(CalcLeafGroupVariations, self).__init__(parent, orig, brMapMap, altProxyType)
+        CalcVariationsBase.__init__(self, withSystName=withSystName)
+
 class CombinationProxy(TupleBaseProxy):
     ## NOTE decorated rdfhelpers::Combination
     def __init__(self, cont, parent):

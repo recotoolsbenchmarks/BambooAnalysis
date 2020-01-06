@@ -947,11 +947,11 @@ class Combine(TupleOp):
     def _clone(self, memo):
         return self.__class__(list(rng.clone(memo=memo) for rng in self.ranges), self.candPredExpr.clone(memo=memo), tuple(i.clone(memo=memo) for i in self._i), canDefine=self.canDefine)
     @staticmethod
-    def fromRngFun(num, ranges, candPredFun, sameIdxPred=lambda i1,i2: i1 < i2):
+    def fromRngFun(num, ranges, candPredFun, samePred=lambda i1,i2: i1 < i2):
         ranges = ranges if len(ranges) > 1 else list(repeat(ranges[0], num))
         idx = tuple(LocalVariablePlaceholder(SizeType, i=-1-i) for i in range(num))
         from . import treefunctions as op
-        areDiff = op.AND(*(sameIdxPred(ia.result, ib.result)
+        areDiff = op.AND(*(samePred(ra._getItem(ia.result), rb._getItem(ib.result))
                 for ((ia, ra), (ib, rb)) in combinations(zip(idx, ranges), 2)
                 if ra._base == rb._base))
         candPred = candPredFun(*( rng._getItem(iidx.result) for rng,iidx in zip(ranges, idx)))
@@ -990,10 +990,9 @@ class Combine(TupleOp):
     def get_cppStr(self, defCache=cppNoRedir):
         depList = _collectDeps(self, defCache=defCache)
         captures, paramDecl, paramCall = _convertFunArgs(depList, defCache=defCache)
-        expr = ("rdfhelpers::combine{num:d}(\n"
+        expr = ("rdfhelpers::combine(\n"
             "     [{captures}] ( {predIdxArgs} ) {{ return {predExpr}; }},\n"
             "     {ranges})").format(
-                num=self.n,
                 captures=", ".join(captures),
                 predIdxArgs=", ".join("{0} {1}".format(i.typeHint, i.name) for i in self._i),
                 predExpr = defCache(self.candPredExpr),

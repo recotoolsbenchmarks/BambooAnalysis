@@ -74,23 +74,43 @@ private:
   typename std::array<std::size_t,NUM> m_idx;
 };
 
+namespace detail {
+template<std::size_t N,typename PRED,std::size_t... IDX,typename... RANGES>
+void combine_add_if(ROOT::VecOps::RVec<Combination<N>>& out, PRED&& pred, const std::array<std::size_t,N>& indices, std::index_sequence<IDX...>, RANGES&&... ranges)
+{
+  if ( pred(ranges[indices[IDX]]...) ) {
+    out.push_back(Combination<N>({ ranges[indices[IDX]]... }));
+  }
+}
+}
 /**
- * 2-particle combinatorics from different base containers
+ * N-particle combinatorics
  *
  * no duplicate or overlap checks are performed, these should be included in the predicate
  */
-template<typename PREDICATE,typename RANGE1,typename RANGE2>
-ROOT::VecOps::RVec<Combination<2>> combine2(PREDICATE&& pred, const RANGE1& range1, const RANGE2& range2)
+template<typename PREDICATE,typename... RANGES>
+ROOT::VecOps::RVec<Combination<sizeof...(RANGES)>> combine(PREDICATE&& pred, RANGES&&... ranges)
 {
-  ROOT::VecOps::RVec<Combination<2>> sel;
-  for ( const typename RANGE1::value_type i1 : range1 ) {
-    for ( const typename RANGE2::value_type i2 : range2 ) {
-      if ( pred(i1, i2) ) {
-        sel.push_back(Combination<2>{std::array<std::size_t,2>{i1, i2}});
-      }
+  constexpr auto N = sizeof...(RANGES);
+  constexpr auto idx_seq = std::make_index_sequence<N>{}; // to zip idx and ranges
+  ROOT::VecOps::RVec<Combination<N>> out;
+  const auto lengths = std::array<size_t,N>{{ranges.size()...}};
+  std::array<std::size_t,N> idx{};
+  idx.fill(0);
+  std::size_t j = N; // index+1 of the outermost array that is last updated
+  while ( j != 0 ) {
+    detail::combine_add_if(out, pred, idx, idx_seq, ranges...);
+    // increase the (N-dimensional) counter (starting from the last array, as a nested loop would do)
+    j = N;
+    while ( j > 0 ) {
+      if ( idx[j-1]+1 != lengths[j-1] ) {
+        ++idx[j-1];
+        break;
+      } else
+        idx[--j] = 0;
     }
   }
-  return sel;
+  return out;
 }
 
 /*

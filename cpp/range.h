@@ -95,19 +95,21 @@ ROOT::VecOps::RVec<Combination<sizeof...(RANGES)>> combine(PREDICATE&& pred, RAN
   constexpr auto idx_seq = std::make_index_sequence<N>{}; // to zip idx and ranges
   ROOT::VecOps::RVec<Combination<N>> out;
   const auto lengths = std::array<size_t,N>{{ranges.size()...}};
-  std::array<std::size_t,N> idx{};
-  idx.fill(0);
-  std::size_t j = N; // index+1 of the outermost array that is last updated
-  while ( j != 0 ) {
-    detail::combine_add_if(out, pred, idx, idx_seq, ranges...);
-    // increase the (N-dimensional) counter (starting from the last array, as a nested loop would do)
-    j = N;
-    while ( j > 0 ) {
-      if ( idx[j-1]+1 != lengths[j-1] ) {
-        ++idx[j-1];
-        break;
-      } else
-        idx[--j] = 0;
+  if ( std::none_of(std::begin(lengths), std::end(lengths), [] ( std::size_t len ) { return len == 0; }) ) {
+    std::array<std::size_t,N> idx{};
+    idx.fill(0);
+    std::size_t j = N; // index+1 of the outermost array that is last updated
+    while ( j != 0 ) {
+      detail::combine_add_if(out, pred, idx, idx_seq, ranges...);
+      // increase the (N-dimensional) counter (starting from the last array, as a nested loop would do)
+      j = N;
+      while ( j > 0 ) {
+        if ( idx[j-1]+1 != lengths[j-1] ) {
+          ++idx[j-1];
+          break;
+        } else
+          idx[--j] = 0;
+      }
     }
   }
   return out;
@@ -151,6 +153,7 @@ public:
   iterator begin() const { return IndexRangeIterator<IDX>(m_min, m_max); }
   iterator end  () const { return IndexRangeIterator<IDX>(m_max, m_max); }
   std::size_t size() const { return m_max-m_min; }
+  IDX operator[] (std::size_t i) const { return m_min+i; }
 private:
   IDX m_min;
   IDX m_max;

@@ -93,7 +93,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
 {
   const auto nVariations = 1+( m_doSmearing ? 2 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(JER up/down)+2*len(JES)
-  LogDebug << "JME:: hello from produce. Got " << jet_pt.size() << " jets" << std::endl;
+  LogDebug << "JME:: hello from JetVariations produce. Got " << jet_pt.size() << " jets" << std::endl;
   const auto nJets = jet_pt.size();
   result_t out{nVariations, jet_pt, jet_mass};
   p4compv_t pt_nom{jet_pt}, mass_nom{jet_mass};
@@ -242,7 +242,7 @@ Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produce(
   const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi), rawmet_pt*std::sin(rawmet_phi)};
   m_random.SetSeed(seed); // just in case
-  LogDebug << "JME:: hello from produce. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
+  LogDebug << "JME:: hello from Type1METVariations produce. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
   // normal jets
   addVariations(out, jet_pt, jet_eta, jet_phi, jet_mass,
       jet_rawcorr, jet_area, jet_muonSubtrFactor, jet_neEmEF, jet_chEmEF,
@@ -280,89 +280,87 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
   FactorizedJetCorrectorCalculator::VariableValues vals, valsL1;
   const auto nJets = jet_pt.size();
   for ( std::size_t i{0}; i != nJets; ++i ) {
-    if ( jet_mask.empty() || jet_mask[i] ) {
-      // L1 and full (L1L2L3) JEC for muon-subtracted jet
-      auto jet_pt_nom = jet_pt[i];
-      auto jet_mass_nom = jet_mass[i];
-      const auto jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
-      vals.setJetEta(jet_eta[i]);
-      vals.setJetPt(jet_pt_raw);
-      vals.setJetA(jet_area[i]);
-      vals.setRho(rho);
-      LogDebug << "Jet #" << i << " ETA=" << jet_eta[i] << ", PT_raw=" << jet_pt_raw << ", area=" << jet_area[i] << std::endl;
-      auto jecL1L2L3 = m_jetCorrector->getCorrection(vals);
-      if ( jecL1L2L3 <= 0. ) {
-        jecL1L2L3 = 1.;
-      } else {
-        jet_pt_nom = jet_pt_raw*jecL1L2L3;
-        jet_mass_nom = jet_mass_nom*(1-jet_rawcorr[i])*jecL1L2L3;
-      }
-      valsL1.setJetEta(jet_eta[i]);
-      valsL1.setJetPt(jet_pt_raw);
-      valsL1.setJetA(jet_area[i]);
-      valsL1.setRho(rho);
-      auto jecL1 = m_jetCorrectorL1->getCorrection(valsL1);
-      if ( jecL1     <= 0. ) { jecL1     = 1.; }
-      const float jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
-      const float muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
-      float jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
-      if ( jet_pt_raw_nomu*jecL1L2L3 > m_unclEnThreshold ) {
-        jet_pt_nomuL1L2L3 = jet_pt_raw_nomu*jecL1L2L3;
-        jet_pt_nomuL1     = jet_pt_raw_nomu*jecL1;
-      }
-      const auto jet_pt_L1L2L3 = jet_pt_nomuL1L2L3 + muon_pt;
-      const auto jet_pt_L1     = jet_pt_nomuL1     + muon_pt;
-      LogDebug << "jecL1L2L3=" << jecL1L2L3 << ", jecL1=" << jecL1 << "; PT_L1L2L3=" << jet_pt_L1L2L3 << ", PT_L1=" << jet_pt_L1 << ", PT_mu=" << muon_pt << std::endl;
-      // JER / smearing
-      float jerF_nom{1.}, jerF_up{1.}, jerF_down{1.};
-      if ( m_doSmearing ) {
-        const float eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>(jet_pt_nom, jet_phi[i], jet_eta[i], jet_mass_nom).E();
-        if ( jet_pt_nom > 0. ) {
-          JME::JetParameters jPar{
-              {JME::Binning::JetPt , jet_pt_nom},
-              {JME::Binning::JetEta, jet_eta[i]},
-              {JME::Binning::Rho   , rho} };
-          const auto ptRes  = m_jetPtRes.getResolution(jPar);
-          LogDebug << "JME:: JetParameters: pt=" << jet_pt_nom << ", eta=" << jet_eta[i] << ", rho=" << rho << "; ptRes=" << ptRes << std::endl;
-          LogDebug << "JME:: ";
-          float genPt = -1;
-          if ( m_smearDoGenMatch ) {
-            const auto iGen = findGenMatch(jet_pt_nom, jet_eta[i], jet_phi[i], genjet_pt, genjet_eta, genjet_phi, ptRes*jet_pt_nom);
-            if ( iGen != genjet_pt.size() ) {
-              genPt = genjet_pt[iGen];
-              LogDebug << "genPt=" << genPt << " ";
-            }
+    // L1 and full (L1L2L3) JEC for muon-subtracted jet
+    auto jet_pt_nom = jet_pt[i];
+    auto jet_mass_nom = jet_mass[i];
+    const auto jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
+    vals.setJetEta(jet_eta[i]);
+    vals.setJetPt(jet_pt_raw);
+    vals.setJetA(jet_area[i]);
+    vals.setRho(rho);
+    LogDebug << "Jet #" << i << " ETA=" << jet_eta[i] << ", PT_raw=" << jet_pt_raw << ", area=" << jet_area[i] << std::endl;
+    auto jecL1L2L3 = m_jetCorrector->getCorrection(vals);
+    if ( jecL1L2L3 <= 0. ) {
+      jecL1L2L3 = 1.;
+    } else {
+      jet_pt_nom = jet_pt_raw*jecL1L2L3;
+      jet_mass_nom = jet_mass_nom*(1-jet_rawcorr[i])*jecL1L2L3;
+    }
+    valsL1.setJetEta(jet_eta[i]);
+    valsL1.setJetPt(jet_pt_raw);
+    valsL1.setJetA(jet_area[i]);
+    valsL1.setRho(rho);
+    auto jecL1 = m_jetCorrectorL1->getCorrection(valsL1);
+    if ( jecL1     <= 0. ) { jecL1     = 1.; }
+    const float jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
+    const float muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
+    float jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
+    if ( jet_pt_raw_nomu*jecL1L2L3 > m_unclEnThreshold ) {
+      jet_pt_nomuL1L2L3 = jet_pt_raw_nomu*jecL1L2L3;
+      jet_pt_nomuL1     = jet_pt_raw_nomu*jecL1;
+    }
+    const auto jet_pt_L1L2L3 = jet_pt_nomuL1L2L3 + muon_pt;
+    const auto jet_pt_L1     = jet_pt_nomuL1     + muon_pt;
+    LogDebug << "jecL1L2L3=" << jecL1L2L3 << ", jecL1=" << jecL1 << "; PT_L1L2L3=" << jet_pt_L1L2L3 << ", PT_L1=" << jet_pt_L1 << ", PT_mu=" << muon_pt << std::endl;
+    // JER / smearing
+    float jerF_nom{1.}, jerF_up{1.}, jerF_down{1.};
+    if ( m_doSmearing ) {
+      const float eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>(jet_pt_nom, jet_phi[i], jet_eta[i], jet_mass_nom).E();
+      if ( jet_pt_nom > 0. ) {
+        JME::JetParameters jPar{
+            {JME::Binning::JetPt , jet_pt_nom},
+            {JME::Binning::JetEta, jet_eta[i]},
+            {JME::Binning::Rho   , rho} };
+        const auto ptRes  = m_jetPtRes.getResolution(jPar);
+        LogDebug << "JME:: JetParameters: pt=" << jet_pt_nom << ", eta=" << jet_eta[i] << ", rho=" << rho << "; ptRes=" << ptRes << std::endl;
+        LogDebug << "JME:: ";
+        float genPt = -1;
+        if ( m_smearDoGenMatch ) {
+          const auto iGen = findGenMatch(jet_pt_nom, jet_eta[i], jet_phi[i], genjet_pt, genjet_eta, genjet_phi, ptRes*jet_pt_nom);
+          if ( iGen != genjet_pt.size() ) {
+            genPt = genjet_pt[iGen];
+            LogDebug << "genPt=" << genPt << " ";
           }
-          const auto rand = ( genPt < 0. ) ? m_random.Gaus(0, ptRes) : -1.;
-          LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
-          jerF_nom  = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
-          jerF_down = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
-          jerF_up   = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
-          // LogDebug << "  scalefactors are NOMINAL=" << m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL) << ", DOWN=" << m_jetEResSF.getScaleFactor(jPar, Variation::DOWN) << ", UP=" << m_jetEResSF.getScaleFactor(jPar, Variation::UP) << std::endl;
-          // LogDebug << "  smearfactors are NOMINAL=" << jerF_nom << ", DOWN=" << jerF_down << ", UP=" << jerF_up << std::endl;
         }
+        const auto rand = ( genPt < 0. ) ? m_random.Gaus(0, ptRes) : -1.;
+        LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
+        jerF_nom  = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
+        jerF_down = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
+        jerF_up   = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
+        // LogDebug << "  scalefactors are NOMINAL=" << m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL) << ", DOWN=" << m_jetEResSF.getScaleFactor(jPar, Variation::DOWN) << ", UP=" << m_jetEResSF.getScaleFactor(jPar, Variation::UP) << std::endl;
+        // LogDebug << "  smearfactors are NOMINAL=" << jerF_nom << ", DOWN=" << jerF_down << ", UP=" << jerF_up << std::endl;
       }
-      if ( ( jet_pt_L1L2L3 > m_unclEnThreshold ) && ( (jet_neEmEF[i]+jet_chEmEF[i]) < 0.9 ) ) {
-        std::size_t iVar = 0;
-        const auto jet_cosPhi = std::cos(jet_phi[i]);
-        const auto jet_sinPhi = std::sin(jet_phi[i]);
-        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3);             // nominal
-        if ( m_doSmearing ) {
-          out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_nom);  // JER
-          out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_up);   // JER-up
-          out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_down); // JER-down
-        }
-        for ( auto& jesUnc : m_jesUncSources ) {
-          jesUnc.second.setJetPt(jet_pt_L1L2L3);
-          jesUnc.second.setJetEta(jet_eta[i]);
-          const auto delta = jesUnc.second.getUncertainty(true);
-          out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1+delta)); // JES_i-up
-          out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1-delta)); // JES_i-down
-        }
+    }
+    if ( ( jet_mask.empty() || jet_mask[i] ) && ( jet_pt_L1L2L3 > m_unclEnThreshold ) && ( (jet_neEmEF[i]+jet_chEmEF[i]) < 0.9 ) ) {
+      std::size_t iVar = 0;
+      const auto jet_cosPhi = std::cos(jet_phi[i]);
+      const auto jet_sinPhi = std::sin(jet_phi[i]);
+      out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3);             // nominal
+      if ( m_doSmearing ) {
+        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_nom);  // JER
+        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_up);   // JER-up
+        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_down); // JER-down
+      }
+      for ( auto& jesUnc : m_jesUncSources ) {
+        jesUnc.second.setJetPt(jet_pt_L1L2L3);
+        jesUnc.second.setJetEta(jet_eta[i]);
+        const auto delta = jesUnc.second.getUncertainty(true);
+        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1+delta)); // JES_i-up
+        out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1-delta)); // JES_i-down
+      }
 #ifdef BAMBOO_JME_DEBUG
-        assert(iVar+2 == out.size()); // last two are unclustered energy up and down
+      assert(iVar+2 == out.size()); // last two are unclustered energy up and down
 #endif
-      }
     }
   }
 }
@@ -382,4 +380,137 @@ std::vector<std::string> Type1METVariationsCalculator::available() const
   products.emplace_back("unclustEnup");
   products.emplace_back("unclustEndown");
   return products;
+}
+
+void FixEE2017Type1METVariationsCalculator::setJECProd(const std::vector<JetCorrectorParameters>& jecParams)
+{
+  if ( ! jecParams.empty() ) {
+    m_jetCorrectorProd = std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter>{new FactorizedJetCorrectorCalculator(jecParams)};
+  }
+}
+void FixEE2017Type1METVariationsCalculator::setL1JECProd(const std::vector<JetCorrectorParameters>& jecParams)
+{
+  if ( ! jecParams.empty() ) {
+    m_jetCorrectorL1Prod = std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter>{new FactorizedJetCorrectorCalculator(jecParams)};
+  }
+}
+
+FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalculator::produce(
+    const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
+    const p4compv_t& jet_rawcorr, const p4compv_t& jet_area,
+    const p4compv_t& jet_muonSubtrFactor, const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF,
+    const float rho,
+    const std::uint32_t seed,
+    const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass,
+    const float rawmet_phi, const float rawmet_pt,
+    const float met_unclustenupdx, const float met_unclustenupdy,
+    const p4compv_t& lowptjet_rawpt, const p4compv_t& lowptjet_eta, const p4compv_t& lowptjet_phi, const p4compv_t& lowptjet_area,
+    const p4compv_t& lowptjet_muonSubtrFactor, const p4compv_t& lowptjet_neEmEF, const p4compv_t& lowptjet_chEmEF,
+    const float defmet_phi, const float defmet_pt, const float t1met_phi, const float t1met_pt
+    )
+{
+  LogDebug << "JME:: hello from Type1METVariations produce with 2017 EE Fix. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
+  const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
+  p4compv_t lowptjet_zero(lowptjet_rawpt.size(), 0.);
+  // the actual MET fix
+  auto jet_mask = ROOT::VecOps::RVec<bool>(jet_pt.size(), true);
+  auto lowptjet_mask = ROOT::VecOps::RVec<bool>(lowptjet_rawpt.size(), true);
+  LogDebug << "JME:: First the (vetoed) jets in the noisy region" << std::endl;
+  auto offset_jets = calculateFixEE2017Offset(jet_mask,
+      jet_pt, jet_eta, jet_phi, jet_mass,
+      jet_rawcorr, jet_area, jet_muonSubtrFactor,
+      rho);
+  auto offset_lowptjets = calculateFixEE2017Offset(lowptjet_mask,
+      lowptjet_rawpt, lowptjet_eta, lowptjet_phi, lowptjet_zero,
+      lowptjet_zero, lowptjet_area, lowptjet_muonSubtrFactor,
+      rho);
+  const auto delta_x_T1Jet  = offset_jets[0]+offset_lowptjets[0];
+  const auto delta_y_T1Jet  = offset_jets[1]+offset_lowptjets[1];
+  const auto delta_x_RawJet = offset_jets[2]+offset_lowptjets[2];
+  const auto delta_y_RawJet = offset_jets[3]+offset_lowptjets[3];
+  // default MET : add delta_T1Jet
+  // unclustered EE : default MET (with delta T1Jet) - T1MET
+  // correction for all MET variations: add delta_RawJet - unclustered EE
+  const auto dx = delta_x_RawJet - ( defmet_pt*std::cos(defmet_phi) + delta_x_T1Jet - t1met_pt*std::cos(t1met_phi) );
+  const auto dy = delta_y_RawJet - ( defmet_pt*std::sin(defmet_phi) + delta_y_T1Jet - t1met_pt*std::sin(t1met_phi) );
+  LogDebug << "JME:: MET offset from jets in the noisy region: dx=" << dx << " and dy=" << dy << std::endl;
+  result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi)+dx, rawmet_pt*std::sin(rawmet_phi)+dy};
+  // usual variations, with jets that are in "unclustered EE" now vetoed
+  m_random.SetSeed(seed); // just in case
+  // normal jets
+  addVariations(out, jet_pt, jet_eta, jet_phi, jet_mass,
+      jet_rawcorr, jet_area, jet_muonSubtrFactor, jet_neEmEF, jet_chEmEF,
+      jet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+  // low-PT jets
+  addVariations(out, lowptjet_rawpt, lowptjet_eta, lowptjet_phi, lowptjet_zero,
+      lowptjet_zero, lowptjet_area, lowptjet_muonSubtrFactor,
+      ( lowptjet_neEmEF.empty() ? lowptjet_zero : lowptjet_neEmEF  ),
+      ( lowptjet_chEmEF.empty() ? lowptjet_zero : lowptjet_chEmEF  ),
+      lowptjet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+  // unclustered energy, based on nominal (0)
+  out.setXY(nVariations-2, out.px(0)+met_unclustenupdx, out.py(0)+met_unclustenupdy);
+  out.setXY(nVariations-1, out.px(0)-met_unclustenupdx, out.py(0)-met_unclustenupdy);
+
+#ifdef BAMBOO_JME_DEBUG
+  LogDebug << "JME:: returning " << out.size() << " modified METs" << std::endl;
+  const auto varNames = available();
+  assert(varNames.size() == nVariations);
+  for ( std::size_t i{0}; i != nVariations; ++i ) {
+    LogDebug << "JME:: MET_" << varNames[i] << ": PT=" << out.pt(i) << ", PHI=" << out.phi(i) << std::endl;
+  }
+#endif
+  return out;
+}
+
+std::array<float,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Offset(ROOT::VecOps::RVec<bool>& jet_mask,
+    const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
+    const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
+    const float rho
+    )
+{
+  float delta_x_T1Jet{0.}, delta_y_T1Jet{0.};
+  float delta_x_rawJet{0.}, delta_y_rawJet{0.};
+  FactorizedJetCorrectorCalculator::VariableValues vals, valsL1;
+  const auto nJets = jet_pt.size();
+  for ( std::size_t i{0}; i != nJets; ++i ) {
+    if ( ( 2.65 < std::abs(jet_eta[i]) ) && ( std::abs(jet_eta[i]) < 3.14 ) ) {
+      const auto jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
+      if ( jet_pt_raw < 50. ) {
+        jet_mask[i] = false; // these are the jets to veto for the nominal variations
+        // L1 and full (L1L2L3) JEC for muon-subtracted jet
+        vals.setJetEta(jet_eta[i]);
+        vals.setJetPt(jet_pt_raw);
+        vals.setJetA(jet_area[i]);
+        vals.setRho(rho);
+        LogDebug << "Jet #" << i << " ETA=" << jet_eta[i] << ", PT_raw=" << jet_pt_raw << ", area=" << jet_area[i] << std::endl;
+        auto jecL1L2L3 = ( m_jetCorrectorProd ? m_jetCorrectorProd : m_jetCorrector )->getCorrection(vals);
+        if ( jecL1L2L3 <= 0. ) { jecL1L2L3 = 1.; }
+        valsL1.setJetEta(jet_eta[i]);
+        valsL1.setJetPt(jet_pt_raw);
+        valsL1.setJetA(jet_area[i]);
+        valsL1.setRho(rho);
+        auto jecL1 = ( m_jetCorrectorL1Prod ? m_jetCorrectorL1Prod : m_jetCorrectorL1 )->getCorrection(valsL1);
+        if ( jecL1     <= 0. ) { jecL1     = 1.; }
+        const float jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
+        const float muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
+        float jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
+        if ( jet_pt_raw_nomu*jecL1L2L3 > m_unclEnThreshold ) {
+          jet_pt_nomuL1L2L3 = jet_pt_raw_nomu*jecL1L2L3;
+          jet_pt_nomuL1     = jet_pt_raw_nomu*jecL1;
+        }
+        const auto jet_pt_L1L2L3 = jet_pt_nomuL1L2L3 + muon_pt;
+        const auto jet_pt_L1     = jet_pt_nomuL1     + muon_pt;
+        LogDebug << "jecL1L2L3=" << jecL1L2L3 << ", jecL1=" << jecL1 << "; PT_L1L2L3=" << jet_pt_L1L2L3 << ", PT_L1=" << jet_pt_L1 << ", PT_mu=" << muon_pt << std::endl;
+        if ( jet_pt_L1L2L3 > m_unclEnThreshold ) {
+          delta_x_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*std::cos(jet_phi[i]);
+          delta_y_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*std::sin(jet_phi[i]);
+        }
+        if (jet_pt_L1 > m_unclEnThreshold ) {
+          delta_x_rawJet += jet_pt_raw*std::cos(jet_phi[i]);
+          delta_y_rawJet += jet_pt_raw*std::sin(jet_phi[i]);
+        }
+      }
+    }
+  }
+  return { delta_x_T1Jet, delta_y_T1Jet, delta_x_rawJet, delta_y_rawJet };
 }

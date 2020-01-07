@@ -40,4 +40,6 @@ def test(decoNano):
     hasMuJ = hasMuon.refine("hasMuonJ", cut=(op.rng_len(cleanedJets) > 0), weight=op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB))
     plots.append(Plot.make1D("hasMuonJ_prodBTags", op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB), hasMuJ, EquidistantBinning(1, 0., 1.), title="Product of jet b-tags", xTitle="X"))
     plots.append(Plot.make1D("cleanedjet_pt", op.map(cleanedJets, lambda j : j.pt), noSel, EquidistantBinning(30, 30., 730.), title="Jet p_{T} (GeV)"))
+    dijets = op.combine(cleanedJets, N=2, pred=lambda j1,j2 : op.deltaR(j1.p4, j2.p4) > 0.6, samePred=lambda j1,j2 : j1.pt > j2.pt)
+    plots.append(Plot.make1D("nCleanediJets", op.rng_len(dijets), noSel, EquidistantBinning(50, 0., 50.), title="Number of cleaned dijets", xTitle="N_{jj}"))
     assert all(h for p in plots for h in be.getPlotResults(p))

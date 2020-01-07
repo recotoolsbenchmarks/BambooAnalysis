@@ -501,13 +501,13 @@ def rng_pickRandom(rng, seed=0):
     """
     return rng[_to.PseudoRandom(0, rng_len(rng), seed, isIntegral=True)]
 
-def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), sameIdxPred=lambda i1,i2: i1 < i2):
+def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), samePred=lambda o1,o2: o1.idx < o2.idx):
     """ Create N-particle combination from one or several ranges
 
     :param rng: range (or iterable of ranges) with basic objects to combine
     :param N: number of objects to combine (at least 2), in case of multiple ranges it does not need to be given (``len(rng)`` will be taken; if specified they should match)
     :param pred: selection to apply to candidates (a callable that takes the constituents and returns a boolean)
-    :param sameIdxPred: additional selection for objects from the same base container (by index; a callable that takes the indices and returns a boolean). The default avoids duplicates by keeping the indices sorted (so the first object in the container will also be the first of the combination), but in some cases one may want to simply test inequality.
+    :param samePred: additional selection for objects from the same base container (a callable that takes two objects and returns a boolean, it needs to be true for any sorted pair of objects from the same container in a candidate combination). The default avoids duplicates by keeping the indices (in the base container) sorted; ``None`` will not apply any selection, and consider all combinations, including those with the same object repeated.
 
     :Example:
 
@@ -515,10 +515,23 @@ def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), sameIdxPred=lambda
     >>> firstosdimu = osdimu[0]
     >>> firstosdimu_Mll = op.invariant_mass(firstosdimu[0].p4, firstosdimu[1].p4)
     >>> oselmu = op.combine((t.Electron, t.Muon), pred=lambda el,mu : el.charge != mu.charge)
+    >>> trijet = op.combine(t.Jet, N=3, samePred=lambda j1,j2 : j1.pt > j2.pt)
+    >>> trijet = op.combine(t.Jet, N=3, pred=lambda j1,j2,j3 : op.AND(j1.pt > j2.pt, j2.pt > j3.pt), samePred=None)
 
     .. note::
 
-        currently only N=2 is supported
+        The default value for ``samePred`` undoes the sorting that may have been
+        applied between the base container(s) and the argument(s) in ``rng``.
+        The third and fourth examples above are equivalent, and show how to get
+        three-jet combinations, with the jets sorted by decreasing pT.
+        The latter is more efficient since it avoids the unnecessary comparison
+        ``j1.pt > j3.pt``, which follows from the other two.
+        In that case no other sorting should be done, otherwise combinations
+        will only be retained if sorted by both criteria; this can be done by
+        passing ``samePred=None``.
+
+        ``samePred=(lambda o1,o2 : o1.idx != o2.idx)`` can be used to get all
+        permutations.
     """
     if not hasattr(rng, "__iter__"):
         rng = (rng,)
@@ -528,7 +541,7 @@ def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), sameIdxPred=lambda
         raise RuntimeError("Can only make combinations of more than one")
     if len(rng) != N and len(rng) != 1:
         raise RuntimeError("If N(={0:d}) input ranges are given, only N-combinations can be made, not {1:d}".format(len(rng), N))
-    return _to.Combine.fromRngFun(N, rng, pred, sameIdxPred=sameIdxPred) ## only implemented for 2 (same or different container)
+    return _to.Combine.fromRngFun(N, rng, pred, samePred=samePred)
 
 def systematic(nominal, name=None, **kwargs):
     """ Construct an expression that will change under some systematic variations

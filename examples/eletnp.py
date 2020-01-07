@@ -41,7 +41,7 @@ class TagAndProbe1(NanoAODHistoModule):
 
         eleTagAndProbe = op.combine((tagEle, probeEle),
                 pred=lambda elt, elp : op.in_range(50., op.invariant_mass(elt.p4, elp.p4), 130.),
-                sameIdxPred=lambda i1,i2: i1 != i2)
+                samePred=lambda o1,o2: o1.idx != o2.idx)
 
         plots.append(Plot.make1D("nTnPElePairs", op.rng_len(eleTagAndProbe), tnpTrigSel,
             EquidistantBinning(10, 0., 10.), title="Tag&Probe electron: number of pairs"))

@@ -507,7 +507,7 @@ def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), samePred=lambda o1
     :param rng: range (or iterable of ranges) with basic objects to combine
     :param N: number of objects to combine (at least 2), in case of multiple ranges it does not need to be given (``len(rng)`` will be taken; if specified they should match)
     :param pred: selection to apply to candidates (a callable that takes the constituents and returns a boolean)
-    :param samePred: additional selection for objects from the same base container (a callable that takes two objects and returns a boolean). The default avoids duplicates by keeping the indices (in the base container) sorted.
+    :param samePred: additional selection for objects from the same base container (a callable that takes two objects and returns a boolean, it needs to be true for any sorted pair of objects from the same container in a candidate combination). The default avoids duplicates by keeping the indices (in the base container) sorted; ``None`` will not apply any selection, and consider all combinations, including those with the same object repeated.
 
     :Example:
 
@@ -516,13 +516,20 @@ def combine(rng, N=None, pred=(lambda *parts : c_bool(True)), samePred=lambda o1
     >>> firstosdimu_Mll = op.invariant_mass(firstosdimu[0].p4, firstosdimu[1].p4)
     >>> oselmu = op.combine((t.Electron, t.Muon), pred=lambda el,mu : el.charge != mu.charge)
     >>> trijet = op.combine(t.Jet, N=3, samePred=lambda j1,j2 : j1.pt > j2.pt)
+    >>> trijet = op.combine(t.Jet, N=3, pred=lambda j1,j2,j3 : op.AND(j1.pt > j2.pt, j2.pt > j3.pt), samePred=None)
 
     .. note::
 
         The default value for ``samePred`` undoes the sorting that may have been
-        applied between the base container(s) and the argument(s) in `rng`.
-        The last example above shows how to get three-jet combinations, where
-        the jets are pT-sorted.
+        applied between the base container(s) and the argument(s) in ``rng``.
+        The third and fourth examples above are equivalent, and show how to get
+        three-jet combinations, with the jets sorted by decreasing pT.
+        The latter is more efficient since it avoids the unnecessary comparison
+        ``j1.pt > j3.pt``, which follows from the other two.
+        In that case no other sorting should be done, otherwise combinations
+        will only be retained if sorted by both criteria; this can be done by
+        passing ``samePred=None``.
+
         ``samePred=(lambda o1,o2 : o1.idx != o2.idx)`` can be used to get all
         permutations.
     """

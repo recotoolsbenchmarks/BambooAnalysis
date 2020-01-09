@@ -433,7 +433,13 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
   // correction for all MET variations: add delta_RawJet - unclustered EE
   const auto dx = delta_x_RawJet - ( defmet_pt*std::cos(defmet_phi) + delta_x_T1Jet - t1met_pt*std::cos(t1met_phi) );
   const auto dy = delta_y_RawJet - ( defmet_pt*std::sin(defmet_phi) + delta_y_T1Jet - t1met_pt*std::sin(t1met_phi) );
-  LogDebug << "JME:: MET offset from jets in the noisy region: dx=" << dx << " and dy=" << dy << std::endl;
+#ifdef BAMBOO_JME_DEBUG
+  LogDebug << "JME:: T1      MET px=" << t1met_pt*std::cos(t1met_phi) << " py=" << t1met_pt*std::sin(t1met_phi) << std::endl;
+  LogDebug << "JME:: default MET px=" << defmet_pt*std::cos(defmet_phi) << " py=" << defmet_pt*std::sin(defmet_phi) << std::endl;
+  LogDebug << "JME:: raw     MET px=" << rawmet_pt*std::cos(rawmet_phi) << " py=" << rawmet_pt*std::sin(rawmet_phi) << std::endl;
+  LogDebug << "JME:: deltas T1Jet x=" << delta_x_T1Jet << " y=" << delta_y_T1Jet << " RawJet x=" << delta_x_RawJet << " y= " << delta_y_RawJet << std::endl;
+  LogDebug << "JME:: MET offset from jets in the noisy region: dx=" << dx << " and dy=" << dy << std::endl; // NO these are just minus the unclustered
+#endif
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi)+dx, rawmet_pt*std::sin(rawmet_phi)+dy};
   // usual variations, with jets that are in "unclustered EE" now vetoed
   m_random.SetSeed(seed); // just in case
@@ -502,12 +508,12 @@ std::array<float,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Off
         const auto jet_pt_L1     = jet_pt_nomuL1     + muon_pt;
         LogDebug << "jecL1L2L3=" << jecL1L2L3 << ", jecL1=" << jecL1 << "; PT_L1L2L3=" << jet_pt_L1L2L3 << ", PT_L1=" << jet_pt_L1 << ", PT_mu=" << muon_pt << std::endl;
         if ( jet_pt_L1L2L3 > m_unclEnThreshold ) {
-          delta_x_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*std::cos(jet_phi[i]);
-          delta_y_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*std::sin(jet_phi[i]);
-        }
-        if (jet_pt_L1 > m_unclEnThreshold ) {
-          delta_x_rawJet += jet_pt_raw*std::cos(jet_phi[i]);
-          delta_y_rawJet += jet_pt_raw*std::sin(jet_phi[i]);
+          const auto cosphi = std::cos(jet_phi[i]);
+          const auto sinphi = std::sin(jet_phi[i]);
+          delta_x_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*cosphi;
+          delta_y_T1Jet += (jet_pt_L1L2L3-jet_pt_L1+jet_pt_raw)*sinphi;
+          delta_x_rawJet += jet_pt_raw*cosphi;
+          delta_y_rawJet += jet_pt_raw*sinphi;
         }
       }
     }

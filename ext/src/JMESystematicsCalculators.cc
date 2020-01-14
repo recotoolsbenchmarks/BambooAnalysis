@@ -15,6 +15,12 @@
 #define LogDebug if (false) std::cout
 #endif
 
+TRandom3& rdfhelpers::getTRandom3(uint32_t seed) {
+  static thread_local TRandom3 rg{};
+  rg.SetSeed(seed);
+  return rg;
+}
+
 JetMETVariationsCalculatorBase::~JetMETVariationsCalculatorBase()
 {}
 
@@ -126,7 +132,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
   std::size_t iVar = 1; // after nominal
   if ( m_doSmearing ) {
     LogDebug << "JME:: Smearing (seed=" << seed << ")" << std::endl;
-    m_random.SetSeed(seed);
+    auto& rg = rdfhelpers::getTRandom3(seed);
     p4compv_t pt_jerUp{pt_nom}, mass_jerUp{mass_nom};
     p4compv_t pt_jerDown{pt_nom}, mass_jerDown{mass_nom};
     for ( std::size_t i{0}; i != nJets; ++i ) {
@@ -147,7 +153,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
             LogDebug << "genPt=" << genPt << " ";
           }
         }
-        const auto rand = ( genPt < 0. ) ? m_random.Gaus(0, ptRes) : -1.;
+        const auto rand = ( genPt < 0. ) ? rg.Gaus(0, ptRes) : -1.;
         LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
         const auto smearFactor_nom  = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
         const auto smearFactor_down = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
@@ -241,19 +247,19 @@ Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produce(
 {
   const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi), rawmet_pt*std::sin(rawmet_phi)};
-  m_random.SetSeed(seed); // just in case
+  auto& rg = rdfhelpers::getTRandom3(seed);
   LogDebug << "JME:: hello from Type1METVariations produce. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
   // normal jets
   addVariations(out, jet_pt, jet_eta, jet_phi, jet_mass,
       jet_rawcorr, jet_area, jet_muonSubtrFactor, jet_neEmEF, jet_chEmEF,
-      ROOT::VecOps::RVec<bool>(), rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+      ROOT::VecOps::RVec<bool>(), rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass, rg);
   // low-PT jets
   p4compv_t lowptjet_zero(lowptjet_rawpt.size(), 0.);
   addVariations(out, lowptjet_rawpt, lowptjet_eta, lowptjet_phi, lowptjet_zero,
       lowptjet_zero, lowptjet_area, lowptjet_muonSubtrFactor,
       ( lowptjet_neEmEF.empty() ? lowptjet_zero : lowptjet_neEmEF  ),
       ( lowptjet_chEmEF.empty() ? lowptjet_zero : lowptjet_chEmEF  ),
-      ROOT::VecOps::RVec<bool>(), rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+      ROOT::VecOps::RVec<bool>(), rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass, rg);
   // unclustered energy, based on nominal (0)
   out.setXY(nVariations-2, out.px(0)+met_unclustenupdx, out.py(0)+met_unclustenupdy);
   out.setXY(nVariations-1, out.px(0)-met_unclustenupdx, out.py(0)-met_unclustenupdy);
@@ -274,8 +280,8 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
     const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF, const ROOT::VecOps::RVec<bool>& jet_mask, const float rho,
-    const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
-    )
+    const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass,
+    TRandom3& rg)
 {
   FactorizedJetCorrectorCalculator::VariableValues vals, valsL1;
   const auto nJets = jet_pt.size();
@@ -332,7 +338,7 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
             LogDebug << "genPt=" << genPt << " ";
           }
         }
-        const auto rand = ( genPt < 0. ) ? m_random.Gaus(0, ptRes) : -1.;
+        const auto rand = ( genPt < 0. ) ? rg.Gaus(0, ptRes) : -1.;
         LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
         jerF_nom  = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
         jerF_down = jetSmearFactor(jet_pt_nom, eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
@@ -442,17 +448,17 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
 #endif
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi)+dx, rawmet_pt*std::sin(rawmet_phi)+dy};
   // usual variations, with jets that are in "unclustered EE" now vetoed
-  m_random.SetSeed(seed); // just in case
+  auto& rg = rdfhelpers::getTRandom3(seed);
   // normal jets
   addVariations(out, jet_pt, jet_eta, jet_phi, jet_mass,
       jet_rawcorr, jet_area, jet_muonSubtrFactor, jet_neEmEF, jet_chEmEF,
-      jet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+      jet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass, rg);
   // low-PT jets
   addVariations(out, lowptjet_rawpt, lowptjet_eta, lowptjet_phi, lowptjet_zero,
       lowptjet_zero, lowptjet_area, lowptjet_muonSubtrFactor,
       ( lowptjet_neEmEF.empty() ? lowptjet_zero : lowptjet_neEmEF  ),
       ( lowptjet_chEmEF.empty() ? lowptjet_zero : lowptjet_chEmEF  ),
-      lowptjet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass);
+      lowptjet_mask, rho, genjet_pt, genjet_eta, genjet_phi, genjet_mass, rg);
   // unclustered energy, based on nominal (0)
   out.setXY(nVariations-2, out.px(0)+met_unclustenupdx, out.py(0)+met_unclustenupdy);
   out.setXY(nVariations-1, out.px(0)-met_unclustenupdx, out.py(0)-met_unclustenupdy);

@@ -10,6 +10,10 @@
 #include "JetCorrectionUncertainty.h"
 class FactorizedJetCorrectorCalculator;
 
+namespace rdfhelpers {
+  TRandom3& getTRandom3(uint32_t seed);
+};
+
 class JetMETVariationsCalculatorBase {
 public:
   using p4compv_t = ROOT::VecOps::RVec<float>;
@@ -45,7 +49,6 @@ protected:
   // parameters and helpers
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;
-  mutable TRandom3 m_random; // for resolution
   struct jetcorrdeleter { void operator()(FactorizedJetCorrectorCalculator*) const; };
   // TODO if these would have pure interface functions operator() and produce could be const (and largely thread-safe)
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;
@@ -104,7 +107,8 @@ protected:
       const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
       const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF, const ROOT::VecOps::RVec<bool>& jet_mask,
       const float rho,
-      const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass);
+      const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass,
+      TRandom3& rg);
 };
 
 class FixEE2017Type1METVariationsCalculator : public Type1METVariationsCalculator {

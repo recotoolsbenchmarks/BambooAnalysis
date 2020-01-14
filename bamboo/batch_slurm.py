@@ -54,7 +54,6 @@ class CommandListJob(CommandListJobBase):
 
         self.slurmScript = os.path.join(self.cfg.batchScriptsDir, self.cfg.batchScriptsFilename)
         self.clusterId = None ## will be set by submit
-        self._finishedTasks = dict()
         self._statuses = ["PENDING" for cmd in self.commandList]
 
         ## output
@@ -146,32 +145,28 @@ class CommandListJob(CommandListJobBase):
         for i in range(len(self.commandList)):
             subjobId = "{0}_{1:d}".format(self.clusterId, i+1)
             status = "unknown"
-            if subjobId in self._finishedTasks:
-                status = self._finishedTasks[subjobId]
-            else:
-                sacctCmdArgs = ["sacct", "-n", "--format", "State", "-j", subjobId]
-                ret = subprocess.check_output(sacctCmdArgs).decode().strip()
-                if "\n" in ret: ## if finished
-                    if len(ret.split("\n")) == 2:
-                        ret = subprocess.check_output(["sacct", "-n", "--format", "State", "-j", "{}.batch".format(subjobId)]).decode().strip()
-                        self._finishedTasks[subjobId] = ret
-                        status = ret
-                    else:
-                        raise AssertionError("More than two lines in sacct... there's something wrong")
+            sacctCmdArgs = ["sacct", "-n", "--format", "State", "-j", subjobId]
+            ret = subprocess.check_output(sacctCmdArgs).decode().strip()
+            if "\n" in ret:
+                if len(ret.split("\n")) == 2:
+                    ret = subprocess.check_output(["sacct", "-n", "--format", "State", "-j", "{}.batch".format(subjobId)]).decode().strip()
+                    status = ret
                 else:
-                    if len(ret) != 0:
-                        if "CANCELLED+" in ret:
-                            # Can happen if scancel command did not have time to propagate
-                            status = "CANCELLED"
-                        else:
-                            status = ret
+                    raise AssertionError("More than two lines in sacct... there's something wrong")
+            else:
+                if len(ret) != 0:
+                    if "CANCELLED+" in ret:
+                        # Can happen if scancel command did not have time to propagate
+                        status = "CANCELLED"
                     else:
-                        squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
-                        ret = subprocess.check_output(squeueCmdArgs).decode().strip()
-                        if len(ret) != 0:
-                            status = ret
-                        else: # fall back to previous status (probably PENDING or RUNNING)
-                            status = self._statuses[i]
+                        status = ret
+                else:
+                    squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
+                    ret = subprocess.check_output(squeueCmdArgs).decode().strip()
+                    if len(ret) != 0:
+                        status = ret
+                    else: # fall back to previous status (probably PENDING or RUNNING)
+                        status = self._statuses[i]
             self._statuses[i] = status
 
     def commandStatus(self, command):

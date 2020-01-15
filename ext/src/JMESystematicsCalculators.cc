@@ -64,6 +64,39 @@ namespace {
     }
     return angle;
   }
+
+  std::vector<float> fillVector(const std::vector<std::string>& names, const JME::JetParameters::value_type& jetParams)
+  {
+    static const std::unordered_map<std::string,JME::Binning> jmeBinningFromString = {
+        {"JetEta", JME::Binning::JetEta},
+        {"JetPt" , JME::Binning::JetPt},
+        // TODO JetPhi, JetEMF, LepPx, LepPy, LepPz
+        {"JetE"  , JME::Binning::JetE}
+      };
+    std::vector<float> result;
+    result.reserve(names.size());
+    for ( const auto& nm : names ) {
+      const auto it_key = jmeBinningFromString.find(nm);
+      if ( std::end(jmeBinningFromString) == it_key ) {
+        throw std::runtime_error{"Unknown binning variable: "+nm};
+      } else {
+        const auto it_par = jetParams.find(it_key->second);
+        if ( std::end(jetParams) == it_par ) {
+          throw std::runtime_error{"Binning variable "+nm+" not found"};
+        } else {
+          result.push_back(it_par->second);
+        }
+      }
+    }
+    return result;
+  }
+
+  float getUncertainty(const SimpleJetCorrectionUncertainty& uncert, const JME::JetParameters::value_type& jetParams, bool direction)
+  {
+    const auto vx = fillVector(uncert.parameters().definitions().binVar(), jetParams);
+    const auto vy = fillVector(uncert.parameters().definitions().parVar(), jetParams);
+    return uncert.uncertainty(vx, vy[0], direction);
+  }
 }
 
 // TODO with orig MET and jets (sumpx,sumpy): calc modif MET(sig), produce bigger results type
@@ -96,7 +129,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const float rho,
     const std::uint32_t seed,
-    const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass )
+    const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass ) const
 {
   const auto nVariations = 1+( m_doSmearing ? 2 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(JER up/down)+2*len(JES)
   LogDebug << "JME:: hello from JetVariations produce. Got " << jet_pt.size() << " jets" << std::endl;
@@ -182,9 +215,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
     p4compv_t pt_jesDown{pt_nom}, mass_jesDown{mass_nom};
     p4compv_t pt_jesUp{pt_nom}, mass_jesUp{mass_nom};
     for ( std::size_t i{0}; i != nJets; ++i ) {
-      jesUnc.second.setJetPt(pt_nom[i]);
-      jesUnc.second.setJetEta(jet_eta[i]);
-      const auto delta = jesUnc.second.getUncertainty(true);
+      const auto delta = getUncertainty(jesUnc.second, { {JME::Binning::JetPt, pt_nom[i]}, {JME::Binning::JetEta, jet_eta[i]} }, true);
       pt_jesDown[i]   *= (1.-delta);
       mass_jesDown[i] *= (1.-delta);
       pt_jesUp[i]     *= (1.+delta);
@@ -243,7 +274,7 @@ Type1METVariationsCalculator::result_t Type1METVariationsCalculator::produce(
     const float met_unclustenupdx, const float met_unclustenupdy,
     const p4compv_t& lowptjet_rawpt, const p4compv_t& lowptjet_eta, const p4compv_t& lowptjet_phi, const p4compv_t& lowptjet_area,
     const p4compv_t& lowptjet_muonSubtrFactor, const p4compv_t& lowptjet_neEmEF, const p4compv_t& lowptjet_chEmEF
-    )
+    ) const
 {
   const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi), rawmet_pt*std::sin(rawmet_phi)};
@@ -281,7 +312,7 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
     const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF, const ROOT::VecOps::RVec<bool>& jet_mask, const float rho,
     const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass,
-    TRandom3& rg)
+    TRandom3& rg) const
 {
   FactorizedJetCorrectorCalculator::VariableValues vals, valsL1;
   const auto nJets = jet_pt.size();
@@ -358,9 +389,7 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
         out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*jerF_down); // JER-down
       }
       for ( auto& jesUnc : m_jesUncSources ) {
-        jesUnc.second.setJetPt(jet_pt_L1L2L3);
-        jesUnc.second.setJetEta(jet_eta[i]);
-        const auto delta = jesUnc.second.getUncertainty(true);
+        const auto delta = getUncertainty(jesUnc.second, { {JME::Binning::JetPt, jet_pt_L1L2L3}, {JME::Binning::JetEta, jet_eta[i]} }, true);
         out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1+delta)); // JES_i-up
         out.addR_proj(iVar++, jet_cosPhi, jet_sinPhi, jet_pt_L1 - jet_pt_L1L2L3*(1-delta)); // JES_i-down
       }
@@ -413,7 +442,7 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
     const p4compv_t& lowptjet_rawpt, const p4compv_t& lowptjet_eta, const p4compv_t& lowptjet_phi, const p4compv_t& lowptjet_area,
     const p4compv_t& lowptjet_muonSubtrFactor, const p4compv_t& lowptjet_neEmEF, const p4compv_t& lowptjet_chEmEF,
     const float defmet_phi, const float defmet_pt, const float t1met_phi, const float t1met_pt
-    )
+    ) const
 {
   LogDebug << "JME:: hello from Type1METVariations produce with 2017 EE Fix. Got " << jet_pt.size() << " jets and " << lowptjet_rawpt.size() << " low-PT jets" << std::endl;
   const auto nVariations = 3+( m_doSmearing ? 3 : 0 )+2*m_jesUncSources.size(); // 1(nom)+2(unclust)+3(JER)+2*len(JES)
@@ -478,7 +507,7 @@ std::array<float,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Off
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
     const float rho
-    )
+    ) const
 {
   float delta_x_T1Jet{0.}, delta_y_T1Jet{0.};
   float delta_x_rawJet{0.}, delta_y_rawJet{0.};

@@ -7,7 +7,7 @@
 #include <boost/container/flat_map.hpp>
 #include "JetResolution.h"
 #include "JetCorrectorParameters.h"
-#include "JetCorrectionUncertainty.h"
+#include "SimpleJetCorrectionUncertainty.h"
 class FactorizedJetCorrectorCalculator;
 
 namespace rdfhelpers {
@@ -50,10 +50,8 @@ protected:
   JME::JetResolution m_jetPtRes;
   JME::JetResolutionScaleFactor m_jetEResSF;
   struct jetcorrdeleter { void operator()(FactorizedJetCorrectorCalculator*) const; };
-  // TODO if these would have pure interface functions operator() and produce could be const (and largely thread-safe)
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrector;
-  std::map<std::string,JetCorrectionUncertainty> m_jesUncSources;
-  //boost::container::flat_map<std::string,JetCorrectionUncertainty> m_jesUncSources; // problem with
+  std::unordered_map<std::string,SimpleJetCorrectionUncertainty> m_jesUncSources;
 };
 
 class JetVariationsCalculator : public JetMETVariationsCalculatorBase {
@@ -70,7 +68,7 @@ public:
       // MC-only
       const std::uint32_t seed,
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass
-      );
+      ) const;
 };
 
 class Type1METVariationsCalculator : public JetMETVariationsCalculatorBase {
@@ -98,7 +96,7 @@ public:
       const float met_unclustenupdx, const float met_unclustenupdy,
       const p4compv_t& lowptjet_rawpt, const p4compv_t& lowptjet_eta, const p4compv_t& lowptjet_phi, const p4compv_t& lowptjet_area,
       const p4compv_t& lowptjet_muonSubtrFactor, const p4compv_t& lowptjet_neEmEF, const p4compv_t& lowptjet_chEmEF
-      );
+      ) const;
 protected:
   float m_unclEnThreshold = 15.;
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrectorL1;
@@ -108,7 +106,7 @@ protected:
       const p4compv_t& jet_neEmEF, const p4compv_t& jet_chEmEF, const ROOT::VecOps::RVec<bool>& jet_mask,
       const float rho,
       const p4compv_t& genjet_pt, const p4compv_t& genjet_eta, const p4compv_t& genjet_phi, const p4compv_t& genjet_mass,
-      TRandom3& rg);
+      TRandom3& rg) const;
 };
 
 class FixEE2017Type1METVariationsCalculator : public Type1METVariationsCalculator {
@@ -135,12 +133,12 @@ public:
       const p4compv_t& lowptjet_muonSubtrFactor, const p4compv_t& lowptjet_neEmEF, const p4compv_t& lowptjet_chEmEF,
       const float defmet_phi, const float defmet_pt, // "MET"
       const float t1met_phi, const float t1met_pt    // "METFixEE2017"
-      );
+      ) const;
 protected:
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrectorProd;
   std::unique_ptr<FactorizedJetCorrectorCalculator,jetcorrdeleter> m_jetCorrectorL1Prod;
   std::array<float,4> calculateFixEE2017Offset(ROOT::VecOps::RVec<bool>& jet_mask,
       const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
       const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
-      const float rho);
+      const float rho) const;
 };

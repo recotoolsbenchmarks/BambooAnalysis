@@ -2,6 +2,8 @@
 
 #include "RoccoR.h"
 
+#include "bamboorandom.h"
+
 // #define BAMBOO_ROCCOR_DEBUG // uncomment to debug
 
 #ifdef BAMBOO_ROCCOR_DEBUG
@@ -24,7 +26,7 @@ void RochesterCorrectionCalculator::roccordeleter::operator() (RoccoR* ptr) cons
 { delete ptr; }
 
 RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produce(
-      const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const
+      const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt, const uint32_t seed) const
 {
   const auto nVariations = 1;
   LogDebug << "Rochester:: hello from produce. Got " << muon_pt.size() << " muons" << std::endl;
@@ -40,6 +42,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produce(
         nom_pt[i] = muon_pt[i]*sf;
       }
     } else { // MC
+      auto& rg = rdfhelpers::getStdMT19937(seed);
       for ( std::size_t i{0}; i < muon_pt.size(); ++i ) {
         if ( muon_genIdx[i] != -1 ) { // gen muon available
           const auto sf = m_roccor->kSpreadMC(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i], gen_pt[muon_genIdx[i]]);
@@ -47,7 +50,7 @@ RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produce(
           nom_pt[i] = muon_pt[i]*sf;
         } else { // gen muon not available
           std::uniform_real_distribution<> d(0., 1.);
-          const auto sf = m_roccor->kSmearMC(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i], muon_nlayers[i], d(m_random));
+          const auto sf = m_roccor->kSmearMC(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i], muon_nlayers[i], d(rg));
           LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muon_pt[i] << " ETA=" << muon_eta[i] << " PHI=" << muon_phi[i] << " NLayers=" << muon_nlayers[i] << std::endl;
           nom_pt[i] = muon_pt[i]*sf;
         }

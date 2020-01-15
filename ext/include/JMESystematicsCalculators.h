@@ -2,17 +2,13 @@
 
 #include "kinematicvariations.h"
 
-#include "TRandom3.h"
 #include <map>
 #include <boost/container/flat_map.hpp>
 #include "JetResolution.h"
 #include "JetCorrectorParameters.h"
 #include "SimpleJetCorrectionUncertainty.h"
 class FactorizedJetCorrectorCalculator;
-
-namespace rdfhelpers {
-  TRandom3& getTRandom3(uint32_t seed);
-};
+class TRandom3;
 
 class JetMETVariationsCalculatorBase {
 public:

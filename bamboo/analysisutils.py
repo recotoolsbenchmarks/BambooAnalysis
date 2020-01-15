@@ -575,9 +575,12 @@ def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
     args = [ getattr(aMu, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "charge", "nTrackerLayers") ]
     if isMC:
         args += [ aMu.genPart._idx.arg, variProxy._parent.GenPart[0].pt.op.arg ]
+        evt = variProxy._parent
+        args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 169)
     else:
         args += [ _top.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
-                  _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") ]
+                  _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"),
+                  _top.makeConst(0, "unsigned") ] ## no seed
     ## load necessary library and header(s)
     from . import treefunctions as op # first to load default headers/libs, if still needed
     from .root import loadRochesterCorrectionCalculator, gbl

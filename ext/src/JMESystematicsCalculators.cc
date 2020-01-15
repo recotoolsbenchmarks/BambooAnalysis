@@ -5,6 +5,9 @@
 #include "Math/VectorUtil.h"
 #include "FactorizedJetCorrectorCalculator.h"
 
+#include "TRandom3.h"
+#include "bamboorandom.h"
+
 #include <cassert>
 
 // #define BAMBOO_JME_DEBUG // uncomment to debug
@@ -14,12 +17,6 @@
 #else
 #define LogDebug if (false) std::cout
 #endif
-
-TRandom3& rdfhelpers::getTRandom3(uint32_t seed) {
-  static thread_local TRandom3 rg{};
-  rg.SetSeed(seed);
-  return rg;
-}
 
 JetMETVariationsCalculatorBase::~JetMETVariationsCalculatorBase()
 {}

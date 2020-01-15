@@ -2,7 +2,6 @@
 
 #include "kinematicvariations.h"
 #include <memory>
-#include <random>
 #include <Rtypes.h>
 class RoccoR;
 
@@ -22,9 +21,8 @@ public:
   // interface for NanoAOD
   result_t produce(
       const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass,
-      const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const;
+      const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt, const uint32_t seed) const;
 private:
-  mutable std::mt19937 m_random; // for resolution
   struct roccordeleter { void operator()(RoccoR*) const; };
   std::unique_ptr<RoccoR,roccordeleter> m_roccor;
 };

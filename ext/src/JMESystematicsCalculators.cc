@@ -10,7 +10,7 @@
 
 #include <cassert>
 
-// #define BAMBOO_JME_DEBUG // uncomment to debug
+#define BAMBOO_JME_DEBUG // uncomment to debug
 
 #ifdef BAMBOO_JME_DEBUG
 #define LogDebug std::cout
@@ -32,9 +32,9 @@ void JetMETVariationsCalculatorBase::jetcorrdeleter::operator() (FactorizedJetCo
 { delete ptr; }
 
 namespace {
-  float jetSmearFactor( float pt, float eOrig, float genPt, float ptRes, float sfUncert, float rand )
+  double jetSmearFactor( double pt, double eOrig, float genPt, float ptRes, float sfUncert, double rand )
   {
-    float smear = 1.;
+    double smear = 1.;
     if ( genPt > 0. ) {
       smear = 1. + (sfUncert-1.)*(pt - genPt)/pt;
     } else if ( sfUncert > 1. ) {
@@ -98,7 +98,7 @@ namespace {
 
 // TODO with orig MET and jets (sumpx,sumpy): calc modif MET(sig), produce bigger results type
 
-std::size_t JetMETVariationsCalculatorBase::findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const
+std::size_t JetMETVariationsCalculatorBase::findGenMatch(const double pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const double resolution ) const
 {
   auto dr2Min = std::numeric_limits<float>::max();
   std::size_t igBest{gen_pt.size()};
@@ -132,7 +132,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
   LogDebug << "JME:: hello from JetVariations produce. Got " << jet_pt.size() << " jets" << std::endl;
   const auto nJets = jet_pt.size();
   result_t out{nVariations, jet_pt, jet_mass};
-  p4compv_t pt_nom{jet_pt}, mass_nom{jet_mass};
+  ROOT::VecOps::RVec<double> pt_nom{jet_pt}, mass_nom{jet_mass};
   if ( m_jetCorrector ) {
     LogDebug << "JME:: reapplying JEC" << std::endl;
     FactorizedJetCorrectorCalculator::VariableValues vals;
@@ -143,7 +143,7 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
       vals.setRho(rho);
       const auto corr = m_jetCorrector->getCorrection(vals);
       if ( corr > 0. ) {
-        const auto newc = (1.-jet_rawcorr[i])*corr;
+        const double newc = (1.-jet_rawcorr[i])*corr;
         pt_nom[i]   *= newc;
         mass_nom[i] *= newc;
       }
@@ -163,10 +163,11 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
   if ( m_doSmearing ) {
     LogDebug << "JME:: Smearing (seed=" << seed << ")" << std::endl;
     auto& rg = rdfhelpers::getTRandom3(seed);
-    p4compv_t pt_jerUp{pt_nom}, mass_jerUp{mass_nom};
-    p4compv_t pt_jerDown{pt_nom}, mass_jerDown{mass_nom};
+    p4compv_t pt_jerUp(pt_nom.size(), 0.), mass_jerUp(mass_nom.size(), 0.);
+    p4compv_t pt_jerDown(pt_nom.size(), 0.), mass_jerDown(mass_nom.size(), 0.);
     for ( std::size_t i{0}; i != nJets; ++i ) {
-      const float eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>(pt_nom[i], jet_phi[i], jet_eta[i], mass_nom[i]).E();
+      const auto eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<double>>(pt_nom[i], jet_phi[i], jet_eta[i], mass_nom[i]).E();
+      double smearFactor_nom{1.}, smearFactor_down{1.}, smearFactor_up{1.};
       if ( pt_nom[i] > 0. ) {
         JME::JetParameters jPar{
             {JME::Binning::JetPt , pt_nom[i]},
@@ -185,18 +186,18 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
         }
         const auto rand = ( genPt < 0. ) ? rg.Gaus(0, ptRes) : -1.;
         LogDebug << "jet_pt_resolution: " << ptRes << ", rand: " << rand << std::endl;
-        const auto smearFactor_nom  = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
-        const auto smearFactor_down = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
-        const auto smearFactor_up   = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
+        smearFactor_nom  = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL), rand);
+        smearFactor_down = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::DOWN   ), rand);
+        smearFactor_up   = jetSmearFactor(pt_nom[i], eOrig, genPt, ptRes, m_jetEResSF.getScaleFactor(jPar, Variation::UP     ), rand);
         // LogDebug << "  scalefactors are NOMINAL=" << m_jetEResSF.getScaleFactor(jPar, Variation::NOMINAL) << ", DOWN=" << m_jetEResSF.getScaleFactor(jPar, Variation::DOWN) << ", UP=" << m_jetEResSF.getScaleFactor(jPar, Variation::UP) << std::endl;
         // LogDebug << "  smearfactors are NOMINAL=" << smearFactor_nom << ", DOWN=" << smearFactor_down << ", UP=" << smearFactor_up << std::endl;
-        pt_nom[i]       *= smearFactor_nom;
-        mass_nom[i]     *= smearFactor_nom;
-        pt_jerDown[i]   *= smearFactor_down;
-        mass_jerDown[i] *= smearFactor_down;
-        pt_jerUp[i]     *= smearFactor_up;
-        mass_jerUp[i]   *= smearFactor_up;
       }
+      pt_jerDown[i]   = pt_nom[i]*smearFactor_down;
+      mass_jerDown[i] = mass_nom[i]*smearFactor_down;
+      pt_jerUp[i]     = pt_nom[i]*smearFactor_up;
+      mass_jerUp[i]   = mass_nom[i]*smearFactor_up;
+      pt_nom[i]       *= smearFactor_nom;
+      mass_nom[i]     *= smearFactor_nom;
     }
     out.set(iVar++, pt_jerUp  , mass_jerUp  );
     out.set(iVar++, pt_jerDown, mass_jerDown);
@@ -209,14 +210,14 @@ JetVariationsCalculator::result_t JetVariationsCalculator::produce(
   // JES uncertainties
   for ( auto& jesUnc : m_jesUncSources ) {
     LogDebug << "JME:: evaluating JES uncertainty: " << jesUnc.first << std::endl;
-    p4compv_t pt_jesDown{pt_nom}, mass_jesDown{mass_nom};
-    p4compv_t pt_jesUp{pt_nom}, mass_jesUp{mass_nom};
+    p4compv_t pt_jesDown(pt_nom.size(), 0.), mass_jesDown(mass_nom.size(), 0.);
+    p4compv_t pt_jesUp(pt_nom.size(), 0.), mass_jesUp(mass_nom.size(), 0.);
     for ( std::size_t i{0}; i != nJets; ++i ) {
       const auto delta = getUncertainty(jesUnc.second, { {JME::Binning::JetPt, pt_nom[i]}, {JME::Binning::JetEta, jet_eta[i]} }, true);
-      pt_jesDown[i]   *= (1.-delta);
-      mass_jesDown[i] *= (1.-delta);
-      pt_jesUp[i]     *= (1.+delta);
-      mass_jesUp[i]   *= (1.+delta);
+      pt_jesDown[i]   = pt_nom[i]*(1.-delta);
+      mass_jesDown[i] = mass_nom[i]*(1.-delta);
+      pt_jesUp[i]     = pt_nom[i]*(1.+delta);
+      mass_jesUp[i]   = mass_nom[i]*(1.+delta);
     }
     out.set(iVar++, pt_jesUp  , mass_jesUp  );
     out.set(iVar++, pt_jesDown, mass_jesDown);
@@ -315,9 +316,9 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
   const auto nJets = jet_pt.size();
   for ( std::size_t i{0}; i != nJets; ++i ) {
     // L1 and full (L1L2L3) JEC for muon-subtracted jet
-    auto jet_pt_nom = jet_pt[i];
-    auto jet_mass_nom = jet_mass[i];
-    const auto jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
+    double jet_pt_nom = jet_pt[i];
+    double jet_mass_nom = jet_mass[i];
+    const auto jet_pt_raw = jet_pt_nom*(1-jet_rawcorr[i]);
     vals.setJetEta(jet_eta[i]);
     vals.setJetPt(jet_pt_raw);
     vals.setJetA(jet_area[i]);
@@ -336,9 +337,9 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
     valsL1.setRho(rho);
     auto jecL1 = m_jetCorrectorL1->getCorrection(valsL1);
     if ( jecL1     <= 0. ) { jecL1     = 1.; }
-    const float jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
-    const float muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
-    float jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
+    const double jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
+    const double muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
+    double jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
     if ( jet_pt_raw_nomu*jecL1L2L3 > m_unclEnThreshold ) {
       jet_pt_nomuL1L2L3 = jet_pt_raw_nomu*jecL1L2L3;
       jet_pt_nomuL1     = jet_pt_raw_nomu*jecL1;
@@ -347,9 +348,9 @@ void Type1METVariationsCalculator::addVariations(Type1METVariationsCalculator::r
     const auto jet_pt_L1     = jet_pt_nomuL1     + muon_pt;
     LogDebug << "jecL1L2L3=" << jecL1L2L3 << ", jecL1=" << jecL1 << "; PT_L1L2L3=" << jet_pt_L1L2L3 << ", PT_L1=" << jet_pt_L1 << ", PT_mu=" << muon_pt << std::endl;
     // JER / smearing
-    float jerF_nom{1.}, jerF_up{1.}, jerF_down{1.};
+    double jerF_nom{1.}, jerF_up{1.}, jerF_down{1.};
     if ( m_doSmearing ) {
-      const float eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float>>(jet_pt_nom, jet_phi[i], jet_eta[i], jet_mass_nom).E();
+      const auto eOrig = ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<double>>(jet_pt_nom, jet_phi[i], jet_eta[i], jet_mass_nom).E();
       if ( jet_pt_nom > 0. ) {
         JME::JetParameters jPar{
             {JME::Binning::JetPt , jet_pt_nom},

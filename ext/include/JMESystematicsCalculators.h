@@ -37,7 +37,7 @@ public:
         std::forward_as_tuple(params));
   }
 protected:
-  std::size_t findGenMatch(const float pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const float resolution ) const;
+  std::size_t findGenMatch(const double pt, const float eta, const float phi, const ROOT::VecOps::RVec<float>& gen_pt, const ROOT::VecOps::RVec<float>& gen_eta, const ROOT::VecOps::RVec<float>& gen_phi, const double resolution ) const;
 
   // config options
   bool m_doSmearing{false}, m_smearDoGenMatch; // default: yes, yes

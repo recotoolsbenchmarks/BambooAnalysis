@@ -265,7 +265,7 @@ def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_pos
         idx = names.index(ky)
         print(ky, res.pt(idx), post_pt)
         print(ky, res.mass(idx), post_mass)
-        assert all(isclose_float(a,b, tol=2.) for a,b in zip(post_pt, res.pt(idx))) and all(isclose_float(a,b, tol=2.) for a,b in zip(post_mass, res.mass(idx)))
+        assert all(isclose_float(a,b) for a,b in zip(post_pt, res.pt(idx))) and all(isclose_float(a,b) for a,b in zip(post_mass, res.mass(idx)))
 
 def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postvalues):
     nanoMETargsMC16, postValues = nanoMETargsMC16_postvalues
@@ -275,7 +275,7 @@ def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postv
         idx = names.index(ky)
         print(ky, res.pt(idx), post_pt)
         print(ky, res.phi(idx), post_phi)
-        assert isclose_float(res.pt(idx), post_pt, tol=3.) and isclose_float(res.phi(idx), post_phi, tol=3.)
+        assert isclose_float(res.pt(idx), post_pt) and isclose_float(res.phi(idx), post_phi)
 
 def test_metvarcalc_nanopost_jesunc_MCFixEE2017(metvarcalcMC17_FixEE, nanoMETFixEE2017argsMC17_postvalues):
     nanoMETargsMC17FixEE, postValues = nanoMETFixEE2017argsMC17_postvalues

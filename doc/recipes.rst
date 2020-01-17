@@ -316,11 +316,10 @@ this can either be done during postprocessing, with the
 `muonScaleResProducer module`_ of the NanoAODTools_ package, or on the fly.
 The former will be detected automatically when decorating the trees, the latter
 requires adding ``"nMuon"`` to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
-attribute of the analysis module, such that is propogated to the decorations
-and a calculator created by the :py:attr:`bamboo.NanoAODModule.prepareTree`
-method.
+attribute of the analysis module, such that the decorations will pick up the
+momenta from a calculator module instead of directly from the input file.
 
-The on the fly calculator can be configured with the
+The on the fly calculator can be added and configured with the
 :py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,
 as in the example below.
 ``tree._Muon`` keeps track of everything related to the calculator; the
@@ -338,7 +337,7 @@ corrected muons are in ``tree.Muon``.
            from bamboo.analysisutils import configureRochesterCorrection
            era = sampleCfg["era"]
            if era == "2016":
-               configureRochesterCorrection(tree._Muon, "RoccoR2016.txt")
+               configureRochesterCorrection(tree._Muon, "RoccoR2016.txt", isMC=self.isMC(sample), backend=be, uName=sample)
        return tree,noSel,be,lumiArgs
 
 .. _recipesplitsamplesubcomp:

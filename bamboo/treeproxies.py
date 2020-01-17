@@ -470,7 +470,7 @@ class AltCollectionVariations(TupleBaseProxy):
         if not isinstance(key, str):
             raise ValueError("Getting variation with non-string key {0!r}".format(key))
         if key not in self.brMapMap:
-            raise KeyError("No such variation: {0}".format(key))
+            raise KeyError("No such variation: {0}. If stored on the NanoAOD: are the branch names in the correct format; if calculated on the fly: has the calculator been configured?".format(key))
         return AltCollectionProxy(self._parent, self.orig, self.brMapMap[key], itemType=self.altItemType)
 
 class AltCollectionProxy(TupleBaseProxy, ListBase):

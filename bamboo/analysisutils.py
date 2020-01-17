@@ -489,6 +489,8 @@ def forceDefine(arg, selection):
     :param arg: expression to define as a column
     :param selection: :py:class:`~bamboo.plots.Selection` for which the expression should be defined
     """
+    if arg is None:
+        raise RuntimeError("Trying to define None. If a correction calculator product was passed: has the calculator been added and configured?")
     from .treeoperations import adaptArg
     op = adaptArg(arg)
     if not op.canDefine:
@@ -562,13 +564,14 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
     else:
         return op.AND(op.NOT(op.OR(*sels_not)), trigSel)
 
-def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
-    """ Declare and add a Rochester correction calculator
+def configureRochesterCorrection(variProxy, paramsFile, isMC=False, backend=None, uName=""):
+    """ Apply the Rochester correction for muons
 
-    :param be: backend pointer
-    :param variProxy: CalcVariations proxy (t._Muon)
-    :param uName: unique name (sample name is a safe choice)
+    :param variProxy: muon variatons proxy, e.g. ``tree.._Muon`` for NanoAOD
+    :param paramsFile: path of the text file with correction parameters
     :param isMC: MC or not
+    :param backend: backend pointer (returned from :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`)
+    :param uName: unique name for the correction calculator (sample name is a safe choice)
     """
     from . import treeoperations as _top
     aMu = variProxy.orig[0]
@@ -586,16 +589,10 @@ def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
     from .root import loadRochesterCorrectionCalculator, gbl
     loadRochesterCorrectionCalculator()
     ## define calculator and initialize
-    roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    roccorName = backend.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy._initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
-
-def configureRochesterCorrection(variations, paramsFile):
-    """ Apply the Rochester correction for muons
-
-    :param variations: muon variatons proxy, e.g. ``tree.._Muon`` for NanoAOD
-    :param paramsFile: path of the text file with correction parameters
-    """
     if not os.path.exists(paramsFile):
         raise ValueError("File {0} not found".format(paramsFile))
-    variations.calc.setRochesterCorrection(paramsFile)
-    variations._initFromCalc()
+    variProxy.calc.setRochesterCorrection(paramsFile)
+    variProxy._initFromCalc()
+    assert variProxy.calcProd

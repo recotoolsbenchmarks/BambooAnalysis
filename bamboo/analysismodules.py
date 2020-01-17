@@ -522,9 +522,6 @@ class NanoAODModule(AnalysisModule):
         if "MET" in self.calcToAdd:
             from bamboo.analysisutils import addType1METSystematicsCalculator
             addType1METSystematicsCalculator(be, t._Jet, t._MET, uName=sample, isMC=self.isMC(sample))
-        if "nMuon" in self.calcToAdd:
-            from bamboo.analysisutils import addRochesterCorrectionCalculator
-            addRochesterCorrectionCalculator(be, t._Muon, uName=sample, isMC=self.isMC(sample))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge the ``Runs`` trees """

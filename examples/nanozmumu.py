@@ -48,7 +48,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 configureJets(tree._Jet, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
 
         if era == "2016":
-            configureRochesterCorrection(tree._Muon, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"))
+            configureRochesterCorrection(tree._Muon, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"), isMC=self.isMC(sample), backend=be, uName=sample)
 
         return tree,noSel,be,lumiArgs
 

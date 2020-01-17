@@ -449,11 +449,11 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
   auto jet_mask = ROOT::VecOps::RVec<bool>(jet_pt.size(), true);
   auto lowptjet_mask = ROOT::VecOps::RVec<bool>(lowptjet_rawpt.size(), true);
   LogDebug << "JME:: First the (vetoed) jets in the noisy region" << std::endl;
-  auto offset_jets = calculateFixEE2017Offset(jet_mask,
+  const auto offset_jets = calculateFixEE2017Offset(jet_mask,
       jet_pt, jet_eta, jet_phi, jet_mass,
       jet_rawcorr, jet_area, jet_muonSubtrFactor,
       rho);
-  auto offset_lowptjets = calculateFixEE2017Offset(lowptjet_mask,
+  const auto offset_lowptjets = calculateFixEE2017Offset(lowptjet_mask,
       lowptjet_rawpt, lowptjet_eta, lowptjet_phi, lowptjet_zero,
       lowptjet_zero, lowptjet_area, lowptjet_muonSubtrFactor,
       rho);
@@ -501,19 +501,19 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
   return out;
 }
 
-std::array<float,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Offset(ROOT::VecOps::RVec<bool>& jet_mask,
+std::array<double,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Offset(ROOT::VecOps::RVec<bool>& jet_mask,
     const p4compv_t& jet_pt, const p4compv_t& jet_eta, const p4compv_t& jet_phi, const p4compv_t& jet_mass,
     const p4compv_t& jet_rawcorr, const p4compv_t& jet_area, const p4compv_t& jet_muonSubtrFactor,
     const float rho
     ) const
 {
-  float delta_x_T1Jet{0.}, delta_y_T1Jet{0.};
-  float delta_x_rawJet{0.}, delta_y_rawJet{0.};
+  double delta_x_T1Jet{0.}, delta_y_T1Jet{0.};
+  double delta_x_rawJet{0.}, delta_y_rawJet{0.};
   FactorizedJetCorrectorCalculator::VariableValues vals, valsL1;
   const auto nJets = jet_pt.size();
   for ( std::size_t i{0}; i != nJets; ++i ) {
     if ( ( 2.65 < std::abs(jet_eta[i]) ) && ( std::abs(jet_eta[i]) < 3.14 ) ) {
-      const auto jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
+      const double jet_pt_raw = jet_pt[i]*(1-jet_rawcorr[i]);
       if ( jet_pt_raw < 50. ) {
         jet_mask[i] = false; // these are the jets to veto for the nominal variations
         // L1 and full (L1L2L3) JEC for muon-subtracted jet
@@ -530,9 +530,9 @@ std::array<float,4> FixEE2017Type1METVariationsCalculator::calculateFixEE2017Off
         valsL1.setRho(rho);
         auto jecL1 = ( m_jetCorrectorL1Prod ? m_jetCorrectorL1Prod : m_jetCorrectorL1 )->getCorrection(valsL1);
         if ( jecL1     <= 0. ) { jecL1     = 1.; }
-        const float jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
-        const float muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
-        float jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
+        const auto jet_pt_raw_nomu = jet_pt_raw*(1-jet_muonSubtrFactor[i]);
+        const auto muon_pt = jet_pt_raw*jet_muonSubtrFactor[i];
+        double jet_pt_nomuL1L2L3{jet_pt_raw_nomu}, jet_pt_nomuL1{jet_pt_raw_nomu};
         if ( jet_pt_raw_nomu*jecL1L2L3 > m_unclEnThreshold ) {
           jet_pt_nomuL1L2L3 = jet_pt_raw_nomu*jecL1L2L3;
           jet_pt_nomuL1     = jet_pt_raw_nomu*jecL1;

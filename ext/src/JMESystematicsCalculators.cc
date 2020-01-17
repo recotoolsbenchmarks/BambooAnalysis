@@ -10,7 +10,7 @@
 
 #include <cassert>
 
-#define BAMBOO_JME_DEBUG // uncomment to debug
+// #define BAMBOO_JME_DEBUG // uncomment to debug
 
 #ifdef BAMBOO_JME_DEBUG
 #define LogDebug std::cout
@@ -474,6 +474,11 @@ FixEE2017Type1METVariationsCalculator::result_t FixEE2017Type1METVariationsCalcu
   LogDebug << "JME:: MET offset from jets in the noisy region: dx=" << dx << " and dy=" << dy << std::endl; // NO these are just minus the unclustered
 #endif
   result_t out{nVariations, rawmet_pt*std::cos(rawmet_phi)+dx, rawmet_pt*std::sin(rawmet_phi)+dy};
+  if ( m_doSmearing ) {
+    // for consistency with NanoAOD-tools
+    // see https://github.com/cms-nanoAOD/nanoAOD-tools/issues/221
+    out.setXY(1, rawmet_pt*std::cos(rawmet_phi), rawmet_pt*std::sin(rawmet_phi));
+  }
   // usual variations, with jets that are in "unclustered EE" now vetoed
   auto& rg = rdfhelpers::getTRandom3(seed);
   // normal jets

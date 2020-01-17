@@ -114,7 +114,7 @@ def nanoMETFixEE2017argsMC17_postvalues():
             for vNm in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
         + [ tup.fixedGridRhoFastjetAll, (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0) ]
         + [ RVec_float(getattr(tup, "GenJet_{0}".format(vNm)), tup.nGenJet) for vNm in ("pt", "eta", "phi", "mass") ]
-        + [ tup.RawMET_phi, tup.RawMET_pt, tup.MET_MetUnclustEnUpDeltaX, tup.MET_MetUnclustEnUpDeltaY ]
+        + [ tup.RawMET_phi, tup.RawMET_pt, tup.METFixEE2017_MetUnclustEnUpDeltaX, tup.METFixEE2017_MetUnclustEnUpDeltaY ]
         + [ RVec_float(getattr(tup, "CorrT1METJet_{0}".format(vNm)), tup.nJet)
             for vNm in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ] + [ RVec_float(), RVec_float() ]
         + [ tup.MET_phi, tup.MET_pt, tup.METFixEE2017_phi, tup.METFixEE2017_pt ]
@@ -285,4 +285,4 @@ def test_metvarcalc_nanopost_jesunc_MCFixEE2017(metvarcalcMC17_FixEE, nanoMETFix
         idx = names.index(ky)
         print(ky, res.pt(idx), post_pt)
         print(ky, res.phi(idx), post_phi)
-        assert isclose_float(res.pt(idx), post_pt, tol=3.) and isclose_float(res.phi(idx), post_phi, tol=3.)
+        assert isclose_float(res.pt(idx), post_pt) and isclose_float(res.phi(idx), post_phi)

@@ -177,7 +177,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                               'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                             ),
                         args=(getBinningParameters(bVarNames, isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
-                        iface=iface, systName=systName, seedFun=(seedFun if combine = "sample" else None))
+                        iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
     elif objType == "dilepton":
         iface = "IDiLeptonScaleFactor"
         if isinstance(config, tuple) and len(config) == 4:
@@ -226,6 +226,6 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                                   'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                                 ),
                             arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
-                            iface=iface, systName=systName, seedFun=(seedFun if combine = "sample" else None))
+                            iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
     else:
         raise ValueError("Unknown object type: {0}".format(objType))

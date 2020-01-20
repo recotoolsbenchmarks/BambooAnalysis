@@ -14,7 +14,7 @@ class NanoZMuMu(NanoAODHistoModule):
         ## initializes tree._Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
         from bamboo.analysisutils import makePileupWeight, configureJets, configureType1MET, configureRochesterCorrection
-        isNotWorker = (self.args.distributed != "worker")
+        isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         era = sampleCfg.get("era") if sampleCfg else None
         if self.isMC(sample):
             jecTag = None

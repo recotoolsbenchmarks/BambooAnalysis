@@ -239,7 +239,8 @@ uncertainties to 2016 MC, and the same for the MET:
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
-                       mayWriteCache=isNotWorker)
+                       mayWriteCache=isNotWorker,
+                       isMC=self.isMC(sample), backend=be, uName=sample)
                    configureMET(tree._MET, "AK4PFchs",
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
@@ -249,7 +250,8 @@ uncertainties to 2016 MC, and the same for the MET:
                    if "2016G" in sample or "2016H" in sample:
                        configureJets(tree._Jet, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
-                           mayWriteCache=isNotWorker)
+                           mayWriteCache=isNotWorker,
+                           isMC=self.isMC(sample), backend=be, uName=sample)
                        configureMET(tree._MET, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker)

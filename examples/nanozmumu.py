@@ -25,7 +25,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 smearTag = "Summer16_25nsV1_MC"
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
-            configureJets(tree._Jet, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
+            configureJets(tree._Jet, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker, isMC=self.isMC(sample), backend=be, uName=sample)
             configureMET(tree._MET, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
 
             mcWgts = [ tree.genWeight ]

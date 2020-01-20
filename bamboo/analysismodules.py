@@ -516,9 +516,6 @@ class NanoAODModule(AnalysisModule):
         be, noSel = DataframeBackend.create(t)
         ## Define correction/variation calculators if requested
         ## (to be configured later on by the user as needed)
-        if "nJet" in self.calcToAdd:
-            from bamboo.analysisutils import addJetsSystematicsCalculator
-            addJetsSystematicsCalculator(be, t._Jet, uName=sample, isMC=self.isMC(sample))
         if "MET" in self.calcToAdd:
             from bamboo.analysisutils import addType1METSystematicsCalculator
             addType1METSystematicsCalculator(be, t._Jet, t._MET, uName=sample, isMC=self.isMC(sample))

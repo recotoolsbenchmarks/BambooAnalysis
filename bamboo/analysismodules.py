@@ -514,11 +514,6 @@ class NanoAODModule(AnalysisModule):
         from bamboo.dataframebackend import DataframeBackend
         t = decorateNanoAOD(tree, isMC=self.isMC(sample), addCalculators=self.calcToAdd)
         be, noSel = DataframeBackend.create(t)
-        ## Define correction/variation calculators if requested
-        ## (to be configured later on by the user as needed)
-        if "MET" in self.calcToAdd:
-            from bamboo.analysisutils import addType1METSystematicsCalculator
-            addType1METSystematicsCalculator(be, t._Jet, t._MET, uName=sample, isMC=self.isMC(sample))
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge the ``Runs`` trees """

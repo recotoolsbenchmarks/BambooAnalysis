@@ -13,7 +13,7 @@ class NanoZMuMu(NanoAODHistoModule):
     def prepareTree(self, tree, sample=None, sampleCfg=None):
         ## initializes tree._Jet.calc so should be called first (better: use super() instead)
         tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
-        from bamboo.analysisutils import makePileupWeight, configureJets, configureMET, configureRochesterCorrection
+        from bamboo.analysisutils import makePileupWeight, configureJets, configureType1MET, configureRochesterCorrection
         isNotWorker = (self.args.distributed != "worker")
         era = sampleCfg.get("era") if sampleCfg else None
         if self.isMC(sample):
@@ -26,7 +26,7 @@ class NanoZMuMu(NanoAODHistoModule):
                 puWeightsFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "puweights.json")
 
             configureJets(tree._Jet, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker, isMC=self.isMC(sample), backend=be, uName=sample)
-            configureMET(tree._MET, "AK4PFchs", jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker)
+            configureType1MET(tree._MET, jec=jecTag, smear=smearTag, jesUncertaintySources=["Total"], mayWriteCache=isNotWorker, isMC=self.isMC(sample), backend=be, uName=sample)
 
             mcWgts = [ tree.genWeight ]
             if puWeightsFile:
@@ -46,6 +46,7 @@ class NanoZMuMu(NanoAODHistoModule):
                     jecTag = "Summer16_07Aug2017GH_V11_DATA"
 
                 configureJets(tree._Jet, "AK4PFchs", jec=jecTag, mayWriteCache=isNotWorker)
+                configureType1MET(tree._MET, jec=jecTag, mayWriteCache=isNotWorker, isMC=self.isMC(sample), backend=be, uName=sample)
 
         if era == "2016":
             configureRochesterCorrection(tree._Muon, os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "RoccoR2016.txt"), isMC=self.isMC(sample), backend=be, uName=sample)

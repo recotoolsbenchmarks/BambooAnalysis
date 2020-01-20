@@ -13,9 +13,9 @@ def decoNano():
     from bamboo.dataframebackend import DataframeBackend
     tup = decorateNanoAOD(tree, isMC=True, addCalculators=("nJet", "MET", "nMuon"))
     be, noSel = DataframeBackend.create(tup)
-    from bamboo.analysisutils import configureJets, addType1METSystematicsCalculator, configureRochesterCorrection
+    from bamboo.analysisutils import configureJets, configureType1MET, configureRochesterCorrection
     configureJets(tup._Jet, "AK4PFchs", isMC=True, backend=be, uName="test_plots_nano")
-    addType1METSystematicsCalculator(be, tup._Jet, tup._MET, isMC=True)
+    configureType1MET(tup._MET, isMC=True, backend=be, uName="test_plots_nano")
     configureRochesterCorrection(tup._Muon, os.path.join(testData, "RoccoR2016.txt"), isMC=True, backend=be, uName="test_plots_nano")
     yield tup, noSel, be
 

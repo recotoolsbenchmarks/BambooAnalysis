@@ -209,11 +209,10 @@ attribute of the analysis module, from its constructor or
 module.
 Similarly, to have all these variations propagated to the missing transverse
 momentum, ``"MET"`` should be added to the
-:py:attr:`~bamboo.NanoAODModule.addToCalc` attribute.
-
-With the default settings, only the nominal jet collection and MET are produced.
-The :py:meth:`bamboo.analysisutils.configureJets` and
-:py:meth:`bamboo.analysisutils.configureMET` methods provide a
+:py:attr:`~bamboo.NanoAODModule.addToCalc` attribute (or ``"METFixEE2017"``).
+Next, a calculator must be added and configured.
+This can be done with the :py:meth:`bamboo.analysisutils.configureJets` and
+:py:meth:`bamboo.analysisutils.configureType1MET` methods, which provide a
 convenient way to correct the jet resolution in MC, apply a different JEC, and
 add variations due to different sources of uncertainty in the jet energy scale,
 for the jet collection and MET, respectively (the arguments should be the same
@@ -230,7 +229,7 @@ uncertainties to 2016 MC, and the same for the MET:
            self.calcToAdd.append("nJet")
        def prepareTree(self, tree, sample=None, sampleCfg=None):
            tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
-           from bamboo.analysisutils import configureJets, configureMET
+           from bamboo.analysisutils import configureJets, configureType1MET
            isNotWorker = (self.args.distributed != "worker")
            era = sampleCfg["era"]
            if era == "2016":
@@ -241,20 +240,22 @@ uncertainties to 2016 MC, and the same for the MET:
                        jesUncertaintySources=["Total"],
                        mayWriteCache=isNotWorker,
                        isMC=self.isMC(sample), backend=be, uName=sample)
-                   configureMET(tree._MET, "AK4PFchs",
+                   configureType1MET(tree._MET, "AK4PFchs",
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
-                       mayWriteCache=isNotWorker)
+                       mayWriteCache=isNotWorker,
+                       isMC=self.isMC(sample), backend=be, uName=sample)
                else:
                    if "2016G" in sample or "2016H" in sample:
                        configureJets(tree._Jet, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker,
                            isMC=self.isMC(sample), backend=be, uName=sample)
-                       configureMET(tree._MET, "AK4PFchs",
+                       configureType1MET(tree._MET, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
-                           mayWriteCache=isNotWorker)
+                           mayWriteCache=isNotWorker,
+                           isMC=self.isMC(sample), backend=be, uName=sample)
                    elif ...: ## other 2016 periods
                        pass
 
@@ -321,7 +322,7 @@ requires adding ``"nMuon"`` to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
 attribute of the analysis module, such that the decorations will pick up the
 momenta from a calculator module instead of directly from the input file.
 
-The on the fly calculator can be added and configured with the
+The on the fly calculator should be added and configured with the
 :py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,
 as in the example below.
 ``tree._Muon`` keeps track of everything related to the calculator; the

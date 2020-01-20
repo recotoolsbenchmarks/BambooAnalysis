@@ -329,20 +329,18 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         tree_dict["puWeight"] = nomSystProxy
     ## non-collection branches to group
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
+    simpleGroupPrefixes_opt = ("METFixEE2017_",)
     simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_", "HTXS_")
     ## check which are there, and for which we need to read variations
     grp_found = []
     grp_readVar = []
-    for prefix in (chain(simpleGroupPrefixes, simpleGroupPrefixes_Gen) if isMC else simpleGroupPrefixes):
-        if not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
+    for prefix in (chain(simpleGroupPrefixes, simpleGroupPrefixes_opt, simpleGroupPrefixes_Gen) if isMC else chain(simpleGroupPrefixes, simpleGroupPrefixes_opt)):
+        if prefix not in simpleGroupPrefixes_opt and not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
             logger.warning("No branch name starting with {0} in the tree - skipping group".format(prefix))
         else:
             grp_found.append(prefix)
-            if prefix == "MET_":
-                if addCalculators and "MET" in addCalculators:
-                    logger.debug("Will calculate correction/variations for the MET collection on the fly")
-                elif "MET_pt_nom" in allTreeLeafs:
-                    grp_readVar.append(prefix)
+            if prefix.startswith("MET") and "{0}_pt_nom".format(prefix) in allTreeLeafs:
+                grp_readVar.append(prefix)
     for prefix in grp_found:
         grpNm = prefix.rstrip("_")
         grp_dict = {
@@ -355,7 +353,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             del tree_dict[lvNm]
         grp_proxy = grpcls(grpNm, None)
         addSetParentToPostConstr(grp_proxy)
-        if prefix == "MET_" and addCalculators and "MET" in addCalculators:
+        if prefix.startswith("MET") and addCalculators and prefix.rstrip("_") in addCalculators:
             grpcls_alt, brMapMap = _makeAltClassAndMaps(
                     grpNm, grp_dict, getMETVarName_calc,
                     systName="jet", nomName="raw", exclVars=("raw",),
@@ -369,7 +367,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             addSetParentToPostConstr(nomSystProxy)
             tree_dict[grpNm[1:]] = nomSystProxy
         elif prefix in grp_readVar:
-            if prefix == "MET_":
+            if prefix.startswith("MET"):
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(
                         grpNm, grp_dict, getJetMETVarName_postproc,
                         systName="jet", nomName="nom", exclVars=("raw",),

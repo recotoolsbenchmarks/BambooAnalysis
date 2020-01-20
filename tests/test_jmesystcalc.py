@@ -3,6 +3,14 @@ import os.path
 
 testData = os.path.join(os.path.dirname(__file__), "data")
 
+def toRVecFloat(values):
+    from bamboo.root import gbl
+    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
+    res = RVec_float(len(values), 0.)
+    for i,val in enumerate(values):
+        res[i] = val
+    return res
+
 @pytest.fixture(scope="module")
 def nanojetargsMC16():
     from bamboo.root import gbl
@@ -13,18 +21,17 @@ def nanojetargsMC16():
     while tup.nJet < 5:
         i += 1
         tup.GetEntry(i)
-    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
-    jet_pt   = RVec_float(tup.Jet_pt, tup.nJet)
-    jet_eta  = RVec_float(tup.Jet_eta, tup.nJet)
-    jet_phi  = RVec_float(tup.Jet_phi, tup.nJet)
-    jet_mass = RVec_float(tup.Jet_mass, tup.nJet)
-    jet_rawFactor = RVec_float(tup.Jet_rawFactor, tup.nJet)
-    jet_area = RVec_float(tup.Jet_area, tup.nJet)
+    jet_pt   = toRVecFloat(tup.Jet_pt)
+    jet_eta  = toRVecFloat(tup.Jet_eta)
+    jet_phi  = toRVecFloat(tup.Jet_phi)
+    jet_mass = toRVecFloat(tup.Jet_mass)
+    jet_rawFactor = toRVecFloat(tup.Jet_rawFactor)
+    jet_area = toRVecFloat(tup.Jet_area)
     seed = (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0)
-    genjet_pt   = RVec_float(tup.GenJet_pt, tup.nJet)
-    genjet_eta  = RVec_float(tup.GenJet_eta, tup.nJet)
-    genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
-    genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
+    genjet_pt   = toRVecFloat(tup.GenJet_pt)
+    genjet_eta  = toRVecFloat(tup.GenJet_eta)
+    genjet_phi  = toRVecFloat(tup.GenJet_phi)
+    genjet_mass = toRVecFloat(tup.GenJet_mass)
     yield (jet_pt, jet_eta, jet_phi, jet_mass,
            jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
            seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass)
@@ -34,101 +41,96 @@ def nanojetargsMC16_postvalues():
     from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
     tup = f.Get("Events")
-    tup.GetEntry(0)
-    i = 0
-    while tup.nJet < 5:
-        i += 1
+    res = []
+    for i in range(tup.GetEntries()):
         tup.GetEntry(i)
-    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
-    jet_pt   = RVec_float(tup.Jet_pt, tup.nJet)
-    jet_eta  = RVec_float(tup.Jet_eta, tup.nJet)
-    jet_phi  = RVec_float(tup.Jet_phi, tup.nJet)
-    jet_mass = RVec_float(tup.Jet_mass, tup.nJet)
-    jet_rawFactor = RVec_float(tup.Jet_rawFactor, tup.nJet)
-    jet_area = RVec_float(tup.Jet_area, tup.nJet)
-    seed = (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0)
-    genjet_pt   = RVec_float(tup.GenJet_pt, tup.nJet)
-    genjet_eta  = RVec_float(tup.GenJet_eta, tup.nJet)
-    genjet_phi  = RVec_float(tup.GenJet_phi, tup.nJet)
-    genjet_mass = RVec_float(tup.GenJet_mass, tup.nJet)
-    ## results to compare to
-    jet_vars = {
-        "nominal" : (RVec_float(tup.Jet_pt_nom    , tup.nJet), RVec_float(tup.Jet_mass_nom    , tup.nJet)),
-        "jerup"   : (RVec_float(tup.Jet_pt_jerUp  , tup.nJet), RVec_float(tup.Jet_mass_jerUp  , tup.nJet)),
-        "jerdown" : (RVec_float(tup.Jet_pt_jerDown, tup.nJet), RVec_float(tup.Jet_mass_jerDown, tup.nJet))
-        }
-    from itertools import chain
-    jet_vars.update(dict(chain.from_iterable(
-        { "jes{0}up".format(src) : tuple(RVec_float(getattr(tup, "Jet_{0}_jes{1}Up".format(ivar, src)), tup.nJet) for ivar in ("pt", "mass")),
-          "jes{0}down".format(src) : tuple(RVec_float(getattr(tup, "Jet_{0}_jes{1}Down".format(ivar, src)), tup.nJet) for ivar in ("pt", "mass")),
-        }.items() for src in ("AbsoluteStat", "AbsoluteScale")
-        )))
-    yield ((jet_pt, jet_eta, jet_phi, jet_mass,
-            jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
-            seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass),
-           jet_vars
-          )
+        jet_pt   = toRVecFloat(tup.Jet_pt)
+        jet_eta  = toRVecFloat(tup.Jet_eta)
+        jet_phi  = toRVecFloat(tup.Jet_phi)
+        jet_mass = toRVecFloat(tup.Jet_mass)
+        jet_rawFactor = toRVecFloat(tup.Jet_rawFactor)
+        jet_area = toRVecFloat(tup.Jet_area)
+        seed = (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0)
+        genjet_pt   = toRVecFloat(tup.GenJet_pt)
+        genjet_eta  = toRVecFloat(tup.GenJet_eta)
+        genjet_phi  = toRVecFloat(tup.GenJet_phi)
+        genjet_mass = toRVecFloat(tup.GenJet_mass)
+        ## results to compare to
+        jet_vars = {
+            "nominal" : (toRVecFloat(tup.Jet_pt_nom    ), toRVecFloat(tup.Jet_mass_nom    )),
+            "jerup"   : (toRVecFloat(tup.Jet_pt_jerUp  ), toRVecFloat(tup.Jet_mass_jerUp  )),
+            "jerdown" : (toRVecFloat(tup.Jet_pt_jerDown), toRVecFloat(tup.Jet_mass_jerDown))
+            }
+        from itertools import chain
+        jet_vars.update(dict(chain.from_iterable(
+            { "jes{0}up".format(src) : tuple(toRVecFloat(getattr(tup, "Jet_{0}_jes{1}Up".format(ivar, src))) for ivar in ("pt", "mass")),
+              "jes{0}down".format(src) : tuple(toRVecFloat(getattr(tup, "Jet_{0}_jes{1}Down".format(ivar, src))) for ivar in ("pt", "mass")),
+            }.items() for src in ("AbsoluteStat", "AbsoluteScale")
+            )))
+        res.append(((jet_pt, jet_eta, jet_phi, jet_mass,
+                     jet_rawFactor, jet_area, tup.fixedGridRhoFastjetAll,
+                     seed, genjet_pt, genjet_eta, genjet_phi, genjet_mass),
+                     jet_vars))
+    yield res
 
 @pytest.fixture(scope="module")
 def nanoMETargsMC16_postvalues():
     from bamboo.root import gbl
+    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
     tup = f.Get("Events")
-    tup.GetEntry(0)
-    i = 0
-    while tup.nJet < 5:
-        i += 1
+    res = []
+    for i in range(tup.GetEntries()):
         tup.GetEntry(i)
-    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
-    args = ([ RVec_float(getattr(tup, "Jet_{0}".format(vNm)), tup.nJet)
-            for vNm in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
-        + [ tup.fixedGridRhoFastjetAll, (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0) ]
-        + [ RVec_float(getattr(tup, "GenJet_{0}".format(vNm)), tup.nGenJet) for vNm in ("pt", "eta", "phi", "mass") ]
-        + [ tup.RawMET_phi, tup.RawMET_pt, tup.MET_MetUnclustEnUpDeltaX, tup.MET_MetUnclustEnUpDeltaY ]
-        + [ RVec_float(getattr(tup, "CorrT1METJet_{0}".format(vNm)), tup.nJet)
-            for vNm in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ] + [ RVec_float(), RVec_float() ]
-        )
-    met_vars = {
-        "nominal" : (tup.MET_pt_nom, tup.MET_phi_nom),
-        "jer"     : (tup.MET_pt_jer, tup.MET_phi_jer)
-        }
-    from itertools import chain
-    met_vars.update(dict(
-        ("{0}{1}".format(nm, var.lower()), (getattr(tup, "MET_pt_{0}{1}".format(nm, var)), getattr(tup, "MET_phi_{0}{1}".format(nm, var))))
-        for var in ("Up", "Down") for nm in ["jer", "unclustEn"]+[ "jes{0}".format(jsnm) for jsnm in ("AbsoluteScale", "AbsoluteStat") ]
-        ))
-    yield tuple(args), met_vars
+        args = ([ toRVecFloat(getattr(tup, "Jet_{0}".format(vNm)))
+                for vNm in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
+            + [ tup.fixedGridRhoFastjetAll, (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0) ]
+            + [ toRVecFloat(getattr(tup, "GenJet_{0}".format(vNm))) for vNm in ("pt", "eta", "phi", "mass") ]
+            + [ tup.RawMET_phi, tup.RawMET_pt, tup.MET_MetUnclustEnUpDeltaX, tup.MET_MetUnclustEnUpDeltaY ]
+            + [ toRVecFloat(getattr(tup, "CorrT1METJet_{0}".format(vNm)))
+                for vNm in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ] + [ RVec_float(), RVec_float() ]
+            )
+        met_vars = {
+            "nominal" : (tup.MET_pt_nom, tup.MET_phi_nom),
+            "jer"     : (tup.MET_pt_jer, tup.MET_phi_jer)
+            }
+        from itertools import chain
+        met_vars.update(dict(
+            ("{0}{1}".format(nm, var.lower()), (getattr(tup, "MET_pt_{0}{1}".format(nm, var)), getattr(tup, "MET_phi_{0}{1}".format(nm, var))))
+            for var in ("Up", "Down") for nm in ["jer", "unclustEn"]+[ "jes{0}".format(jsnm) for jsnm in ("AbsoluteScale", "AbsoluteStat") ]
+            ))
+        res.append((tuple(args), met_vars))
+    yield res
 
 @pytest.fixture(scope="module")
 def nanoMETFixEE2017argsMC17_postvalues():
     from bamboo.root import gbl
+    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2017postproc_JMEKin_METFixEE2017.root"))
     tup = f.Get("Events")
-    tup.GetEntry(0)
-    i = 0
-    while tup.nJet < 5:
-        i += 1
+    res = []
+    for i in range(tup.GetEntries()):
         tup.GetEntry(i)
-    RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
-    args = ([ RVec_float(getattr(tup, "Jet_{0}".format(vNm)), tup.nJet)
-            for vNm in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
-        + [ tup.fixedGridRhoFastjetAll, (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0) ]
-        + [ RVec_float(getattr(tup, "GenJet_{0}".format(vNm)), tup.nGenJet) for vNm in ("pt", "eta", "phi", "mass") ]
-        + [ tup.RawMET_phi, tup.RawMET_pt, tup.METFixEE2017_MetUnclustEnUpDeltaX, tup.METFixEE2017_MetUnclustEnUpDeltaY ]
-        + [ RVec_float(getattr(tup, "CorrT1METJet_{0}".format(vNm)), tup.nJet)
-            for vNm in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ] + [ RVec_float(), RVec_float() ]
-        + [ tup.MET_phi, tup.MET_pt, tup.METFixEE2017_phi, tup.METFixEE2017_pt ]
-        )
-    met_vars = {
-        "nominal" : (tup.METFixEE2017_pt_nom, tup.METFixEE2017_phi_nom),
-        "jer"     : (tup.METFixEE2017_pt_jer, tup.METFixEE2017_phi_jer)
-        }
-    from itertools import chain
-    met_vars.update(dict(
-        ("{0}{1}".format(nm, var.lower()), (getattr(tup, "METFixEE2017_pt_{0}{1}".format(nm, var)), getattr(tup, "METFixEE2017_phi_{0}{1}".format(nm, var))))
-        for var in ("Up", "Down") for nm in ["jer", "unclustEn"]+[ "jes{0}".format(jsnm) for jsnm in ("AbsoluteScale", "AbsoluteStat") ]
-        ))
-    yield tuple(args), met_vars
+        args = ([ toRVecFloat(getattr(tup, "Jet_{0}".format(vNm)))
+                for vNm in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
+            + [ tup.fixedGridRhoFastjetAll, (tup.run<<20) + (tup.luminosityBlock<<10) + tup.event + 1 + ( int(tup.Jet_eta[0]/.01) if tup.nJet != 0 else 0) ]
+            + [ toRVecFloat(getattr(tup, "GenJet_{0}".format(vNm))) for vNm in ("pt", "eta", "phi", "mass") ]
+            + [ tup.RawMET_phi, tup.RawMET_pt, tup.METFixEE2017_MetUnclustEnUpDeltaX, tup.METFixEE2017_MetUnclustEnUpDeltaY ]
+            + [ toRVecFloat(getattr(tup, "CorrT1METJet_{0}".format(vNm)))
+                for vNm in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ] + [ RVec_float(), RVec_float() ]
+            + [ tup.MET_phi, tup.MET_pt, tup.METFixEE2017_phi, tup.METFixEE2017_pt ]
+            )
+        met_vars = {
+            "nominal" : (tup.METFixEE2017_pt_nom, tup.METFixEE2017_phi_nom),
+            "jer"     : (tup.METFixEE2017_pt_jer, tup.METFixEE2017_phi_jer)
+            }
+        from itertools import chain
+        met_vars.update(dict(
+            ("{0}{1}".format(nm, var.lower()), (getattr(tup, "METFixEE2017_pt_{0}{1}".format(nm, var)), getattr(tup, "METFixEE2017_phi_{0}{1}".format(nm, var))))
+            for var in ("Up", "Down") for nm in ["jer", "unclustEn"]+[ "jes{0}".format(jsnm) for jsnm in ("AbsoluteScale", "AbsoluteStat") ]
+            ))
+        res.append((tuple(args), met_vars))
+    yield res
 
 @pytest.fixture(scope="module")
 def jmesystcalc_empty():
@@ -258,31 +260,31 @@ def isclose_float(a, b, tol=1.):
     return math.isclose(a, b, rel_tol=tol*getattr(gbl, "std::numeric_limits<float>").epsilon())
 
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
-    nanojetargsMC16, postValues = nanojetargsMC16_postvalues
-    res = jmesystcalcMC16_jesunc.produce(*nanojetargsMC16)
-    names = list(jmesystcalcMC16_jesunc.available())
-    for ky,(post_pt, post_mass) in postValues.items():
-        idx = names.index(ky)
-        print(ky, res.pt(idx), post_pt)
-        print(ky, res.mass(idx), post_mass)
-        assert all(isclose_float(a,b) for a,b in zip(post_pt, res.pt(idx))) and all(isclose_float(a,b) for a,b in zip(post_mass, res.mass(idx)))
+    for nanojetargsMC16, postValues in nanojetargsMC16_postvalues:
+        res = jmesystcalcMC16_jesunc.produce(*nanojetargsMC16)
+        names = list(jmesystcalcMC16_jesunc.available())
+        for ky,(post_pt, post_mass) in postValues.items():
+            idx = names.index(ky)
+            print(ky, res.pt(idx), post_pt)
+            print(ky, res.mass(idx), post_mass)
+            assert all(isclose_float(a,b) for a,b in zip(post_pt, res.pt(idx))) and all(isclose_float(a,b) for a,b in zip(post_mass, res.mass(idx)))
 
 def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postvalues):
-    nanoMETargsMC16, postValues = nanoMETargsMC16_postvalues
-    res = metvarcalcMC16_jesunc.produce(*nanoMETargsMC16)
-    names = list(metvarcalcMC16_jesunc.available())
-    for ky,(post_pt, post_phi) in postValues.items():
-        idx = names.index(ky)
-        print(ky, res.pt(idx), post_pt)
-        print(ky, res.phi(idx), post_phi)
-        assert isclose_float(res.pt(idx), post_pt) and isclose_float(res.phi(idx), post_phi)
+    for nanoMETargsMC16, postValues in nanoMETargsMC16_postvalues:
+        res = metvarcalcMC16_jesunc.produce(*nanoMETargsMC16)
+        names = list(metvarcalcMC16_jesunc.available())
+        for ky,(post_pt, post_phi) in postValues.items():
+            idx = names.index(ky)
+            print(ky, res.pt(idx), post_pt)
+            print(ky, res.phi(idx), post_phi)
+            assert math.isclose(res.pt(idx), post_pt, rel_tol=1.e-6) and math.isclose(res.phi(idx), post_phi, rel_tol=1.e-6, abs_tol=1.e-6)
 
 def test_metvarcalc_nanopost_jesunc_MCFixEE2017(metvarcalcMC17_FixEE, nanoMETFixEE2017argsMC17_postvalues):
-    nanoMETargsMC17FixEE, postValues = nanoMETFixEE2017argsMC17_postvalues
-    res = metvarcalcMC17_FixEE.produce(*nanoMETargsMC17FixEE)
-    names = list(metvarcalcMC17_FixEE.available())
-    for ky,(post_pt, post_phi) in postValues.items():
-        idx = names.index(ky)
-        print(ky, res.pt(idx), post_pt)
-        print(ky, res.phi(idx), post_phi)
-        assert isclose_float(res.pt(idx), post_pt) and isclose_float(res.phi(idx), post_phi)
+    for nanoMETargsMC17FixEE, postValues in nanoMETFixEE2017argsMC17_postvalues:
+        res = metvarcalcMC17_FixEE.produce(*nanoMETargsMC17FixEE)
+        names = list(metvarcalcMC17_FixEE.available())
+        for ky,(post_pt, post_phi) in postValues.items():
+            idx = names.index(ky)
+            print(ky, res.pt(idx), post_pt)
+            print(ky, res.phi(idx), post_phi)
+            assert math.isclose(res.pt(idx), post_pt, rel_tol=2.e-6) and math.isclose(res.phi(idx), post_phi, rel_tol=2.e-6, abs_tol=2.e-6)

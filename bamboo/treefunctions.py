@@ -64,10 +64,11 @@ def multiSwitch(*args):
         return args[0]
     else:
         return switch(args[0][0], args[0][1], multiSwitch(*(args[1:])))
-def extMethod(name):
+def extMethod(name, returnType=None):
     """ Retrieve a (non-member) C(++) method
 
     :param name: name of the method
+    :param returnType: return type (otherwise deduced by introspection)
 
     :returns: a method proxy, that can be called and returns a value decorated as the return type of the method
 
@@ -76,7 +77,7 @@ def extMethod(name):
     >>> phi_0_2pi = op.extMethod("ROOT::Math::VectorUtil::Phi_0_2pi")
     >>> dphi_2pi = phi_0_2pi(a.Phi()-b.Phi())
     """
-    return _tp.MethodProxy(name) ## TODO somehow take care of includes as well
+    return _tp.MethodProxy(name, returnType=returnType) ## TODO somehow take care of includes as well
 def extVar(typeName, name):
     return _to.ExtVar(typeName, name).result
 def construct(typeName, args):
@@ -247,7 +248,7 @@ def in_range(low, arg, up):
 
     >>> op.in_range(10., t.Muon[0].p4.Pt(), 20.)
     """
-    return extMethod("rdfhelpers::in_range")(*(_to.adaptArg(iarg, typeHint=_tp.floatType) for iarg in (low, arg, up)))
+    return extMethod("rdfhelpers::in_range", returnType=_tp.boolType)(*(_to.adaptArg(iarg, typeHint=_tp.floatType) for iarg in (low, arg, up)))
 
 ## Kinematics and helpers
 def withMass(arg, massVal):
@@ -257,7 +258,7 @@ def withMass(arg, massVal):
 
     >>> pW = withMass((j1.p4+j2.p4), 80.4)
     """
-    return extMethod("rdfhelpers::withMass")(arg, _to.adaptArg(massVal, typeHint=_tp.floatType))
+    return extMethod("rdfhelpers::withMass", returnType="ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >")(arg, _to.adaptArg(massVal, typeHint=_tp.floatType))
 def invariant_mass(*args):
     """ Calculate the invariant mass of the arguments
 
@@ -274,7 +275,7 @@ def invariant_mass(*args):
     elif len(args) == 1:
         return args[0].M()
     elif len(args) == 2:
-        return extMethod("ROOT::Math::VectorUtil::InvariantMass")(*args)
+        return extMethod("ROOT::Math::VectorUtil::InvariantMass", returnType="Float_t")(*args)
     else:
         return sum(*args, outType=args[0]._typeName).M()
 def invariant_mass_squared(*args):
@@ -289,7 +290,7 @@ def invariant_mass_squared(*args):
     elif len(args) == 1:
         return args[0].M2()
     elif len(args) == 2:
-        return extMethod("ROOT::Math::VectorUtil::InvariantMass2")(*args)
+        return extMethod("ROOT::Math::VectorUtil::InvariantMass2", returnType="Float_t")(*args)
     else:
         return sum(*args, outType=args[0]._typeName).M2()
 def deltaPhi(a1, a2):
@@ -299,13 +300,13 @@ def deltaPhi(a1, a2):
 
     >>> elelDphi = op.deltaPhi(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("ROOT::Math::VectorUtil::DeltaPhi")(a1, a2)
+    return extMethod("ROOT::Math::VectorUtil::DeltaPhi", returnType="Float_t")(a1, a2)
 def Phi_mpi_pi(a):
     """ Return an angle between -pi and pi """
-    return extMethod("ROOT::Math::VectorUtil::Phi_mpi_pi")(a)
+    return extMethod("ROOT::Math::VectorUtil::Phi_mpi_pi", returnType="Float_t")(a)
 def Phi_0_2pi(a):
     """ Return an angle between 0 and 2*pi """
-    return extMethod("ROOT::Math::VectorUtil::Phi_0_2pi")(a)
+    return extMethod("ROOT::Math::VectorUtil::Phi_0_2pi", returnType="Float_t")(a)
 def deltaR(a1, a2):
     """ Calculate the Delta R distance (using ``ROOT::Math::VectorUtil::DeltaR``)
 
@@ -313,7 +314,7 @@ def deltaR(a1, a2):
 
     >>> elelDR = op.deltaR(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("ROOT::Math::VectorUtil::DeltaR")(a1, a2)
+    return extMethod("ROOT::Math::VectorUtil::DeltaR", returnType="Float_t")(a1, a2)
 
 ## range operations
 def rng_len(sth):
@@ -380,7 +381,7 @@ def rng_max(rng, fun=lambda x : x):
     >>> mostForwardMuEta = op.rng_max(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce.fromRngFun(rng, c_float(float("-inf")), ( lambda fn : (
-        lambda res, elm : extMethod("std::max")(res, fn(elm))
+        lambda res, elm : extMethod("std::max", returnType="Float_t")(res, fn(elm))
         ) )(fun) )
 def rng_min(rng, fun=lambda x : x):
     """ Find the lowest value of a function in a range
@@ -393,7 +394,7 @@ def rng_min(rng, fun=lambda x : x):
     >>> mostCentralMuEta = op.rng_min(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     return _to.Reduce.fromRngFun(rng, c_float(float("+inf")), ( lambda fn : (
-        lambda res, elm : extMethod("std::min")(res, fn(elm))
+        lambda res, elm : extMethod("std::min", returnType="Float_t")(res, fn(elm))
         ) )(fun) )
 
 def rng_max_element_by(rng, fun=lambda elm : elm):
@@ -406,9 +407,10 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
 
     >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
+    pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
     return rng._base[_to.Reduce.fromRngFun(rng,
-        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("-inf")))),
-        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).first]
+        construct(pairType, (c_int(-1), c_float(float("-inf")))),
+        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first]
 
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
@@ -420,9 +422,10 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
 
     >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
+    pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
     return rng._base[_to.Reduce.fromRngFun(rng,
-        construct("std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType), (c_int(-1), c_float(float("+inf")))),
-        ( lambda fn : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond")(ibest, elm._idx.result, fn(elm)) ) )(fun)).first]
+        construct(pairType, (c_int(-1), c_float(float("+inf")))),
+        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first]
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):

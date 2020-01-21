@@ -17,6 +17,7 @@ import os.path
 import re
 import datetime
 from timeit import default_timer as timer
+import resource
 from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
 
 def reproduceArgv(args, group):
@@ -409,7 +410,8 @@ class HistogramsModule(AnalysisModule):
         start = timer()
         self.plotList = self.definePlots(tree, noSel, sample=sample, sampleCfg=sampleCfg)
         end = timer()
-        logger.info(f"Plots defined in {end - start:.2f}s")
+        maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
+        logger.info(f"{len(self.plotList):d} plots defined in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():
@@ -425,11 +427,14 @@ class HistogramsModule(AnalysisModule):
         outF.cd()
         logger.info("Starting to fill plots")
         start = timer()
+        numHistos = 0
         for p in self.plotList:
             for h in backend.getPlotResults(p):
+                numHistos += 1
                 h.Write()
         end = timer()
-        logger.info(f"Plots finished in {end - start:.2f}s")
+        maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
+        logger.info(f"Plots finished in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB ({numHistos:d} histograms)")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
     # processTrees customisation points

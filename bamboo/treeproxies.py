@@ -309,13 +309,15 @@ class MethodProxy(TupleBaseProxy):
     """
     Imitate a free-standing method
     """
-    __slots__ = ("_name",)
-    def __init__(self, name):
+    __slots__ = ("_name", "_returnType", "_getFromRoot")
+    def __init__(self, name, returnType=None, getFromRoot=True):
         self._name = name
+        self._returnType = returnType
+        self._getFromRoot = getFromRoot
         super(MethodProxy, self).__init__("{0}(...)".format(self._name))
     def __call__(self, *args):
         ## TODO maybe this is a good place to resolve the right overload? or do some arguments checking
-        return CallMethod(self._name, tuple(args)).result
+        return CallMethod(self._name, tuple(args), returnType=self._returnType, getFromRoot=self._getFromRoot).result
     def __repr__(self):
         return "MethodProxy({0!r})".format(self._name)
 

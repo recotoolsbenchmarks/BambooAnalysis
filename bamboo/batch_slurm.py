@@ -19,6 +19,9 @@ except ImportError as ex:
     logger.info("Could not import Configuration and slurmSubmitWorker from CP3SlurmUtils.SubmitUtils. Please run 'module load slurm/slurm_utils'")
 
 SlurmJobStatus = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "COMPLETING", "CONFIGURING", "CANCELLED", "BOOT_FAIL", "NODE_FAIL", "PREEMPTED", "RESIZING", "SUSPENDED", "TIMEOUT", "unknown"]
+SlurmJobStatus_active = ["CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED"]
+SlurmJobStatus_failed = ["FAILED", "TIMEOUT", "CANCELLED"]
+SlurmJobStatus_completed = "COMPLETED"
 
 class CommandListJob(CommandListJobBase):
     """
@@ -30,7 +33,7 @@ class CommandListJob(CommandListJobBase):
           "batchScriptsFilename" : "slurmSubmission.sh"
         , "stageoutFiles"        : ["*.root"]
         , "inputParamsNames"     : ["taskcmd"]
-        , "useJobArray"          :  True
+        , "useJobArray"          : True
         , "payload"              : ("${taskcmd}")
         }
 
@@ -149,15 +152,10 @@ class CommandListJob(CommandListJobBase):
             if subjobId in self._finishedTasks:
                 status = self._finishedTasks[subjobId]
             else:
-                sacctCmdArgs = ["sacct", "-n", "--format", "State", "-j", subjobId]
+                sacctCmdArgs = ["sacct", "-X", "-n", "--format", "State", "-j", subjobId]
                 ret = subprocess.check_output(sacctCmdArgs).decode().strip()
-                if "\n" in ret: ## if finished
-                    if len(ret.split("\n")) == 2:
-                        ret = subprocess.check_output(["sacct", "-n", "--format", "State", "-j", "{}.batch".format(subjobId)]).decode().strip()
-                        self._finishedTasks[subjobId] = ret
-                        status = ret
-                    else:
-                        raise AssertionError("More than two lines in sacct... there's something wrong")
+                if "\n" in ret:
+                    raise AssertionError("More than one line in sacct... there's something wrong")
                 else:
                     if len(ret) != 0:
                         if "CANCELLED+" in ret:
@@ -172,6 +170,8 @@ class CommandListJob(CommandListJobBase):
                             status = ret
                         else: # fall back to previous status (probably PENDING or RUNNING)
                             status = self._statuses[i]
+                if status not in SlurmJobStatus_active:
+                    self._finishedTasks[subjobId] = status
             self._statuses[i] = status
 
     def commandStatus(self, command):
@@ -227,7 +227,7 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
     """ make a TasksMonitor for slurm jobs """
     return TasksMonitor(jobs=jobs, tasks=tasks, interval=interval
             , allStatuses=SlurmJobStatus
-            , activeStatuses=[SlurmJobStatus.index(stNm) for stNm in ("CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED")]
-            , failedStatuses=[SlurmJobStatus.index(stNm) for stNm in ("FAILED", "TIMEOUT", "CANCELLED")]
-            , completedStatus=SlurmJobStatus.index("COMPLETED")
+            , activeStatuses=[SlurmJobStatus.index(stNm) for stNm in SlurmJobStatus_active]
+            , failedStatuses=[SlurmJobStatus.index(stNm) for stNm in SlurmJobStatus_failed]
+            , completedStatus=SlurmJobStatus.index(SlurmJobStatus_completed)
             )

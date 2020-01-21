@@ -337,7 +337,7 @@ class DataframeBackend(FactoryBackend):
         if isinstance(binning, EquidistantBinning):
             return (binning.N, binning.mn, binning.mx)
         elif isinstance(binning, VariableBinning):
-            return (binning.N, np.array(binning.binEdges))
+            return (binning.N, np.array(binning.binEdges, dtype=np.float64))
         else:
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
 

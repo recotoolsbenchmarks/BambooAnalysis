@@ -212,7 +212,7 @@ def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
         for k,cov in configOpts.items():
             if k.lower() in bc_c:
                 if isinstance(cov, list):
-                    cov.append(bc_c[k.lower()])
+                    cov += bc_c[k.lower().split(", ")]
                     del bc_c[k.lower()]
                 else: # ini file takes preference
                     configOpts[k] = bc_c[k.lower()]

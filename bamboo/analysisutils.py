@@ -313,12 +313,12 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
     :param backend: backend pointer (returned from :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`)
     :param uName: unique name for the correction calculator (sample name is a safe choice)
     """
-    from . import treeoperations as _top
     from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .treefunctions import _to, _tp ## treeoperations and treeproxies
     from itertools import repeat
     aJet = variProxy.orig[0]
     args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
-    args.append(_top.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
+    args.append(_to.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
     if isMC:
         evt = variProxy._parent
         args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
@@ -326,8 +326,8 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
         aGJet = evt.GenJet[0]
         args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
     else:
-        args.append(_top.makeConst(0, "unsigned")) # no seed
-        args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+        args.append(_tp.makeConst(0, "unsigned")) # no seed
+        args += list(repeat(_to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
     ## load necessary library and header(s)
     from .root import loadJMESystematicsCalculators, gbl
     loadJMESystematicsCalculators()
@@ -396,13 +396,13 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
     :param isMC: MC or not
     """
     isFixEE2017 = variProxy.orig.pt.op.name.startswith("METFixEE2017_")
-    from . import treeoperations as _top
     from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .treefunctions import _to, _tp ## treeoperations and treeproxies
     from itertools import repeat
     evt = variProxy._parent
     jets = evt._Jet.orig if hasattr(evt, "_Jet") else evt.Jet[0]
     args = [ getattr(jets[0], comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
-    args.append(_top.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
+    args.append(_to.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
     evt = variProxy._parent
     if isMC:
         args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
@@ -410,12 +410,12 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
         aGJet = evt.GenJet[0]
         args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
     else:
-        args.append(_top.makeConst(0, "unsigned")) # no seed
-        args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+        args.append(_tp.makeConst(0, "unsigned")) # no seed
+        args += list(repeat(_to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
     args += [ evt.RawMET.pt, evt.RawMET.pt, variProxy.orig.MetUnclustEnUpDeltaX, variProxy.orig.MetUnclustEnUpDeltaY ]
     aT1Jet = evt.CorrT1METJet[0]
     args += [ getattr(aT1Jet, comp).op.arg for comp in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ]
-    args += [ getattr(aT1Jet, comp).op.arg if hasattr(aT1Jet, comp) else _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") for comp in ("neEmEF", "chEmEF") ]
+    args += [ getattr(aT1Jet, comp).op.arg if hasattr(aT1Jet, comp) else _to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") for comp in ("neEmEF", "chEmEF") ]
     if isFixEE2017:
         args += [ evt.MET.phi, evt.MET.pt, variProxy.orig.phi, variProxy.orig.pt ]
     ## load necessary library and header(s)
@@ -567,7 +567,7 @@ def configureRochesterCorrection(variProxy, paramsFile, isMC=False, backend=None
     :param backend: backend pointer (returned from :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`)
     :param uName: unique name for the correction calculator (sample name is a safe choice)
     """
-    from . import treeoperations as _top
+    from bamboo.treefunctions import _to, _tp
     aMu = variProxy.orig[0]
     args = [ getattr(aMu, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "charge", "nTrackerLayers") ]
     if isMC:
@@ -575,9 +575,9 @@ def configureRochesterCorrection(variProxy, paramsFile, isMC=False, backend=None
         evt = variProxy._parent
         args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 169)
     else:
-        args += [ _top.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
-                  _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"),
-                  _top.makeConst(0, "unsigned") ] ## no seed
+        args += [ _to.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
+                  _to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"),
+                  _tp.makeConst(0, "unsigned") ] ## no seed
     ## load necessary library and header(s)
     from . import treefunctions as op # first to load default headers/libs, if still needed
     from .root import loadRochesterCorrectionCalculator, gbl

@@ -50,15 +50,16 @@ def loadBambooExtensions():
     addDynamicPath(libDir)
     ## now load default headers and libraries
     loadHeader("Math/VectorUtil.h")
-    loadLibrary("libBinnedValues")
     loadLibrary("libBambooLumiMask")
-    for fname in ("bamboohelpers.h", "range.h", "scalefactors.h", "LumiMask.h"):
+    loadLibrary("libBambooRandom")
+    loadLibrary("libBinnedValues")
+    for fname in ("bamboohelpers.h", "range.h", "LumiMask.h", "bamboorandom.h", "scalefactors.h"):
         loadHeader(fname)
 
-def loadJMESystematicsCalculator():
+def loadJMESystematicsCalculators():
     loadLibrary("libJMEObjects")
-    loadHeader("JMESystematicsCalculator.h")
-    getattr(gbl, "JMESystematicsCalculator::result_t") ## trigger dictionary generation
+    loadHeader("JMESystematicsCalculators.h")
+    getattr(gbl, "JetVariationsCalculator::result_t") ## trigger dictionary generation
 
 def loadRochesterCorrectionCalculator():
     loadLibrary("libRoccoR")

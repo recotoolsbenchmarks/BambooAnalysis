@@ -2,6 +2,8 @@
 
 #include "RoccoR.h"
 
+#include "bamboorandom.h"
+
 // #define BAMBOO_ROCCOR_DEBUG // uncomment to debug
 
 #ifdef BAMBOO_ROCCOR_DEBUG
@@ -23,81 +25,43 @@ void RochesterCorrectionCalculator::setRochesterCorrection(const std::string& pa
 void RochesterCorrectionCalculator::roccordeleter::operator() (RoccoR* ptr) const
 { delete ptr; }
 
-RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(
-      const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt) const
+RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produce(
+      const p4compv_t& muon_pt, const p4compv_t& muon_eta, const p4compv_t& muon_phi, const p4compv_t& muon_mass, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const ROOT::VecOps::RVec<Int_t>& muon_genIdx, const p4compv_t& gen_pt, const uint32_t seed) const
 {
-  std::vector<Muon> muons;
-  muons.reserve(muon_pt.size());
-  for ( std::size_t im{0}; im != muon_pt.size(); ++im ) {
-    muons.emplace_back(im, muon_pt[im], muon_eta[im], muon_phi[im], muon_mass[im]);
-  }
-  p4compv_t muonGenpt;
-  if ( m_roccor && ( ! muon_genIdx.empty() ) && ( ! gen_pt.empty() ) ) {
-    for ( std::size_t i{0}; i < muon_genIdx.size(); ++i ) {
-      muonGenpt.push_back(muon_genIdx[i] != -1 ? gen_pt[muon_genIdx[i]] : -1.);
-    }
-  }
-  return produceModifiedCollections(muons, muon_charge, muon_nlayers, muonGenpt);
-}
-
-namespace {
-
-RochesterCorrectionCalculator::result_entry_t convertToModifKin( const std::vector<RochesterCorrectionCalculator::Muon>& muons )
-{
-  RochesterCorrectionCalculator::result_entry_t::Indices idx;
-  RochesterCorrectionCalculator::result_entry_t::Momenta mom;
-  idx.reserve(muons.size());
-  mom.reserve(muons.size());
-  for ( const auto& j : muons ) {
-    // TODO copies can be made implicit when push_back(const&) is there
-    idx.push_back(std::size_t{j.i});
-    mom.push_back(RochesterCorrectionCalculator::LorentzVector{j.p4});
-  }
-  return RochesterCorrectionCalculator::result_entry_t(std::move(idx), std::move(mom));
-}
-
-void sort( std::vector<RochesterCorrectionCalculator::Muon>& muons )
-{
-  std::sort(std::begin(muons), std::end(muons), [] ( const RochesterCorrectionCalculator::Muon& m1, const RochesterCorrectionCalculator::Muon& m2 ) { return m1.p4.Pt() > m2.p4.Pt(); });
-}
-
-}
-
-RochesterCorrectionCalculator::result_t RochesterCorrectionCalculator::produceModifiedCollections(std::vector<RochesterCorrectionCalculator::Muon>& muons, const ROOT::VecOps::RVec<Int_t>& muon_charge, const ROOT::VecOps::RVec<Int_t>& muon_nlayers, const p4compv_t& muon_genpt) const
-{
-  LogDebug << "Rochester:: hello from produceModifiedCollections. Got " << muons.size() << " muons" << std::endl;
-  result_t out;
+  const auto nVariations = 1;
+  LogDebug << "Rochester:: hello from produce. Got " << muon_pt.size() << " muons" << std::endl;
+  result_t out{nVariations, muon_pt};
   if ( ! m_roccor ) {
     LogDebug << "Rochester:: No correction" << std::endl;
-    out["nominal"] = convertToModifKin(muons);
   } else {
-    if ( muon_genpt.empty() ) { // DATA
-      for ( std::size_t i{0}; i < muons.size(); ++i ) {
-        const auto sf = m_roccor->kScaleDT(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi());
-        LogDebug << "Rochester:: DATA scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << std::endl;
-        muons[i].p4 *= sf;
+    p4compv_t nom_pt = muon_pt;
+    if ( muon_genIdx.empty() ) { // DATA
+      for ( std::size_t i{0}; i < muon_pt.size(); ++i ) {
+        const auto sf = m_roccor->kScaleDT(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i]);
+        LogDebug << "Rochester:: DATA scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muon_pt[i] << " ETA=" << muon_eta[i] << " PHI=" << muon_phi[i] << std::endl;
+        nom_pt[i] = muon_pt[i]*sf;
       }
     } else { // MC
-      for ( std::size_t i{0}; i < muons.size(); ++i ) {
-        if ( muon_genpt[i] > -1. ) { // gen muon available
-          const auto sf = m_roccor->kSpreadMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_genpt[i]);
-          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << " GENPT=" << muon_genpt[i] << " (nLayers=" << muon_nlayers[i] << ")" << std::endl;
-          muons[i].p4 *= sf;
+      auto& rg = rdfhelpers::getStdMT19937(seed);
+      for ( std::size_t i{0}; i < muon_pt.size(); ++i ) {
+        if ( muon_genIdx[i] != -1 ) { // gen muon available
+          const auto sf = m_roccor->kSpreadMC(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i], gen_pt[muon_genIdx[i]]);
+          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muon_pt[i] << " ETA=" << muon_eta[i] << " PHI=" << muon_phi[i] << " GENPT=" << gen_pt[muon_genIdx[i]] << " (nLayers=" << muon_nlayers[i] << ")" << std::endl;
+          nom_pt[i] = muon_pt[i]*sf;
         } else { // gen muon not available
           std::uniform_real_distribution<> d(0., 1.);
-          const auto sf = m_roccor->kSmearMC(muon_charge[i], muons[i].p4.Pt(), muons[i].p4.Eta(), muons[i].p4.Phi(), muon_nlayers[i], d(m_random));
-          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muons[i].p4.Pt() << " ETA=" << muons[i].p4.Eta() << " PHI=" << muons[i].p4.Phi() << " NLayers=" << muon_nlayers[i] << std::endl;
-          muons[i].p4 *= sf;
+          const auto sf = m_roccor->kSmearMC(muon_charge[i], muon_pt[i], muon_eta[i], muon_phi[i], muon_nlayers[i], d(rg));
+          LogDebug << "Rochester:: MC scale " << sf << " for charge=" << muon_charge[i] << " PT=" << muon_pt[i] << " ETA=" << muon_eta[i] << " PHI=" << muon_phi[i] << " NLayers=" << muon_nlayers[i] << std::endl;
+          nom_pt[i] = muon_pt[i]*sf;
         }
       }
     }
-    sort(muons);
-    out["nominal"] = convertToModifKin(muons);
+    out.set(0, nom_pt);
   }
   return out;
 }
 
-std::vector<std::string> RochesterCorrectionCalculator::availableProducts() const
+std::vector<std::string> RochesterCorrectionCalculator::available() const
 {
   return { "nominal" }; // TODO add systematics
 }

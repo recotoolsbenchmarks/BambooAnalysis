@@ -13,11 +13,12 @@ def decoNano():
     tree = f.Get("Events")
     from bamboo.treedecorators import decorateNanoAOD
     from bamboo.dataframebackend import DataframeBackend
-    tup = decorateNanoAOD(tree, isMC=True, addCalculators=("nJet", "nMuon"))
+    tup = decorateNanoAOD(tree, isMC=True, addCalculators=("nJet", "MET", "nMuon"))
     be, noSel = DataframeBackend.create(tup)
-    from bamboo.analysisutils import addJMESystematicsCalculator, addRochesterCorrectionCalculator
-    addJMESystematicsCalculator(be, tup._Jet, isMC=True)
-    addRochesterCorrectionCalculator(be, tup._Muon, isMC=True)
+    from bamboo.analysisutils import configureJets, configureType1MET, configureRochesterCorrection
+    configureJets(tup._Jet, "AK4PFchs", isMC=True, backend=be, uName="test_plots_nano")
+    configureType1MET(tup._MET, isMC=True, backend=be, uName="test_plots_nano")
+    configureRochesterCorrection(tup._Muon, os.path.join(testData, "RoccoR2016.txt"), isMC=True, backend=be, uName="test_plots_nano")
     yield tup, noSel, be
 
 def test(decoNano):

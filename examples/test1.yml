@@ -1,10 +1,10 @@
 tree: Events
 eras:
-  '1':
+  '2016':
     luminosity: 1
 samples:
   DY_M50_test:
-    era: '1'
+    era: '2016'
     type: mc
     files: [ ../tests/data/DY_M50_2016.root ]
     generated-events: genEventSumw

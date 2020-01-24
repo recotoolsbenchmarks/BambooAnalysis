@@ -128,6 +128,9 @@ class DataframeBackend(FactoryBackend):
         return any(isinstance(op, expType) for expType in (top.Select, top.Sort, top.Map, top.Next, top.Reduce, top.Combine)) and op.canDefine
 
     def symbol(self, decl, resultType=None, args=None, nameHint=None):
+        if resultType and args: ## then it needs to be wrapped in a function
+            decl = "{result} <<name>>({args})\n{{\n  return {0};\n}};\n".format(
+                        decl, result=resultType, args=args)
         global _gSymbols
         if decl in _gSymbols:
             return _gSymbols[decl]
@@ -137,18 +140,12 @@ class DataframeBackend(FactoryBackend):
             else:
                 name = self._getUSymbName()
             _gSymbols[decl] = name
-            if resultType and args: ## then it needs to be wrapped in a function
-                fullDecl = "{result} {name}({args})\n{{\n  return {0};\n}};\n".format(
-                            decl, result=resultType, name=name, args=args)
-            else:
-                fullDecl = decl.replace("<<name>>", name)
+            fullDecl = decl.replace("<<name>>", name)
 
             logger.debug("Defining new symbol with interpreter: {0}", fullDecl)
             from .root import gbl
             gbl.gInterpreter.Declare(fullDecl)
             return name
-
-        super(SystModifiedCollectionOp, self).__init__(wrapped, name)
     @staticmethod
     def create(decoTree, outFileName=None):
         inst = DataframeBackend(decoTree._tree, outFileName=None)

@@ -23,8 +23,9 @@ def nanojetargs():
     muon_nLayers = RVec_int(tup.Muon_nTrackerLayers, tup.nMuon)
     muon_genIdx = RVec_int(tup.Muon_genPartIdx, tup.nMuon)
     gen_pt = RVec_float(tup.GenPart_pt, tup.nGenPart)
-    yield ((muon_pt, muon_eta, muon_phi, muon_mass, muon_charge, muon_nLayers, muon_genIdx, gen_pt),
-           (muon_pt, muon_eta, muon_phi, muon_mass, muon_charge, muon_nLayers, RVec_int(), RVec_float()))
+    seed = 5489
+    yield ((muon_pt, muon_eta, muon_phi, muon_mass, muon_charge, muon_nLayers, muon_genIdx, gen_pt, seed),
+           (muon_pt, muon_eta, muon_phi, muon_mass, muon_charge, muon_nLayers, RVec_int(), RVec_float(), seed))
 
 @pytest.fixture(scope="module")
 def roccorcalc_empty():
@@ -51,20 +52,20 @@ def test_rochester_2016(roccorcalc_empty):
 
 def test_rochester_nano_off_mc(roccorcalc_empty, nanojetargs):
     nanojet_mc, nanojet_data = nanojetargs
-    res_mc = roccorcalc_empty.produceModifiedCollections(*nanojet_mc)
+    res_mc = roccorcalc_empty.produce(*nanojet_mc)
     assert res_mc
 
 def test_rochester_nano_off_data(roccorcalc_empty, nanojetargs):
     nanojet_mc, nanojet_data = nanojetargs
-    res_data = roccorcalc_empty.produceModifiedCollections(*nanojet_data)
+    res_data = roccorcalc_empty.produce(*nanojet_data)
     assert res_data
 
 def test_rochester_nano_off_mc(roccorcalc_2016, nanojetargs):
     nanojet_mc, nanojet_data = nanojetargs
-    res_mc = roccorcalc_2016.produceModifiedCollections(*nanojet_mc)
+    res_mc = roccorcalc_2016.produce(*nanojet_mc)
     assert res_mc
 
 def test_rochester_nano_off_data(roccorcalc_2016, nanojetargs):
     nanojet_mc, nanojet_data = nanojetargs
-    res_data = roccorcalc_2016.produceModifiedCollections(*nanojet_data)
+    res_data = roccorcalc_2016.produce(*nanojet_data)
     assert res_data

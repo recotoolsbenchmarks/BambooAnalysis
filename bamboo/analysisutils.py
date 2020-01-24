@@ -292,37 +292,10 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         except subprocess.CalledProcessError as ex:
             logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
 
-def addJMESystematicsCalculator(be, variProxy, uName="", isMC=False):
-    """ Declare and add a JME systematic variations calculator
-
-    :param be: backend pointer
-    :param variProxy: CalcVariations proxy (t._Jet)
-    :param uName: unique name (sample name is a safe choice)
-    :param isMC: MC or not
-    """
-    from . import treeoperations as _top
-    from itertools import repeat
-    aJet = variProxy.orig[0]
-    args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
-    args += [ _top.GetColumn("Float_t", nm) for nm in ("fixedGridRhoFastjetAll", "MET_phi", "MET_pt", "MET_sumEt") ]
-    if isMC:
-        aGJet = variProxy._parent.GenJet[0]
-        args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
-    else:
-        args += list(repeat(_top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
-    ## load necessary library and header(s)
-    from . import treefunctions as op # first to load default headers/libs, if still needed
-    from .root import loadJMESystematicsCalculator, gbl
-    loadJMESystematicsCalculator()
-    ## define calculator and initialize
-    jetcalcName = be.symbol("JMESystematicsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jmeSystCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy.initCalc(op.extVar("JMESystematicsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
-
-def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None):
+def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None, isMC=False, backend=None, uName=""):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
 
-    :param tree: tree proxy for which to configure a jet collection
-    :param jetsName: name of the jet branches (``tree.{jetsName}`` is assumed to be the nominal jet collection, and ``tree.{_jetsName}`` the corresponding variations proxy, as in the NanoAOD decorations)
+    :param variProxy: jet variations proxy, e.g. ``tree._Jet``
     :param jetType: jet type, e.g. AK4PFchs
     :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
     :param jec: tag of the new JEC to apply, or for the JES uncertainties (pass an empty list to jecLevels to produce only the latter without reapplying the JEC)
@@ -335,12 +308,33 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
     :param jecLevels: list of JEC levels to apply (if left out the recommendations are used: L1FastJet, L2Relative, L3Absolute, and also L2L3Residual for data)
     :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
     :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
+
+    :param isMC: MC or not
+    :param backend: backend pointer (returned from :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`)
+    :param uName: unique name for the correction calculator (sample name is a safe choice)
     """
-    calcAttName = "_{0}".format(jetsName)
-    if not hasattr(tree, calcAttName):
-        raise RuntimeError("No _{0} attribute available, pleasue make sure the decorations define this (e.g. by adding \"{0}\" to ``self.calcToAdd`` for a NanoAODModule, or to the ``addCalculators`` argument to ``decorateNanoAOD``, if called explicitly)")
-    variations = getattr(tree, calcAttName)
-    calc = variations.calc
+    from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .treefunctions import _to, _tp ## treeoperations and treeproxies
+    from itertools import repeat
+    aJet = variProxy.orig[0]
+    args = [ getattr(aJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area") ]
+    args.append(_to.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
+    if isMC:
+        evt = variProxy._parent
+        args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
+                    op.switch(op.rng_len(variProxy.orig) != 0, variProxy.orig[0].eta/.01, op.c_float(0.))))
+        aGJet = evt.GenJet[0]
+        args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
+    else:
+        args.append(_tp.makeConst(0, "unsigned")) # no seed
+        args += list(repeat(_to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+    ## load necessary library and header(s)
+    from .root import loadJMESystematicsCalculators, gbl
+    loadJMESystematicsCalculators()
+    ## define calculator and initialize
+    jetcalcName = backend.symbol("JetVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jetVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy._initCalc(op.extVar("JetVariationsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
+    calc = variProxy.calc
     from .jetdatabasecache import JetDatabaseCache
     if smear is not None:
         jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
@@ -371,19 +365,116 @@ def configureJets(tree, jetsName, jetType, jec=None, jecLevels="default", smear=
             for src in jesUncertaintySources:
                 params = gbl.JetCorrectorParameters(plf, src)
                 calc.addJESUncertainty(src, params)
-    jets = getattr(tree, jetsName)
-    if jets is not None:
-        avail = variations.available
-        if enableSystematics is None:
-            enable = [ vari for vari in avail if vari != "nominal" ]
-        else:
-            if str(enableSystematics) == enableSystematics:
-                enableSystematics = [enableSystematics]
-            enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
-        jets.op.variations = enable
-        jets.op.systName = jetsName
+    variProxy._initFromCalc()
+    if enableSystematics is not None:
+        if str(enableSystematics) == enableSystematics:
+            enableSystematics = [enableSystematics]
+        avail = list(variProxy.calc.available())
+        enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
         if enable:
+            for opWithSyst in variProxy.brMapMap[variProxy.withSystName].values():
+                opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
             logger.info("Enabled systematic variations for {0} collection: {1}".format(jetsName, " ".join(enable)))
+
+def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None, isMC=False, backend=None, uName=""):
+    """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
+
+    :param variProxy: MET variations proxy, e.g. ``tree._MET``
+    :param smear: tag of resolution (and scalefactors) to use for smearing (no smearing is done if unspecified)
+    :param jec: tag of the new JEC to apply, or for the JES uncertainties
+    :param jesUncertaintySources: list of jet energy scale uncertainty sources (see `the JECUncertaintySources twiki page <https://twiki.cern.ch/twiki/bin/viewauth/CMS/JECUncertaintySources>`_)
+    :param enableSystematics: systematics variations to enable (default: all that are available; pass an empty set to disable)
+
+    :param useGenMatch: use matching to generator-level jets for resolution smearing
+    :param genMatchDR: DeltaR for generator-level jet matching (half the cone size is recommended, default is 0.2)
+    :param genMatchDPt: maximal relative PT difference (in units of the resolution) between reco and gen jet
+    :param cachedir: alternative root directory to use for the txt files cache, instead of ``$XDG_CACHE_HOME/bamboo`` (usually ``~/.cache/bamboo``)
+    :param mayWriteCache: flag to indicate if this task is allowed to write to the cache status file (set to False for worker tasks to avoid corruption due to concurrent writes)
+
+    :param be: backend pointer
+    :param uName: unique name (sample name is a safe choice)
+    :param isMC: MC or not
+    """
+    isFixEE2017 = variProxy.orig.pt.op.name.startswith("METFixEE2017_")
+    from . import treefunctions as op # first to load default headers/libs, if still needed
+    from .treefunctions import _to, _tp ## treeoperations and treeproxies
+    from itertools import repeat
+    evt = variProxy._parent
+    jets = evt._Jet.orig if hasattr(evt, "_Jet") else evt.Jet[0]
+    args = [ getattr(jets[0], comp).op.arg for comp in ("pt", "eta", "phi", "mass", "rawFactor", "area", "muonSubtrFactor", "neEmEF", "chEmEF") ]
+    args.append(_to.GetColumn("Float_t", "fixedGridRhoFastjetAll"))
+    evt = variProxy._parent
+    if isMC:
+        args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 1 + op.static_cast("unsigned",
+                    op.switch(op.rng_len(jets) != 0, jets[0].eta/.01, op.c_float(0.))))
+        aGJet = evt.GenJet[0]
+        args += [ getattr(aGJet, comp).op.arg for comp in ("pt", "eta", "phi", "mass") ]
+    else:
+        args.append(_tp.makeConst(0, "unsigned")) # no seed
+        args += list(repeat(_to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"), 4))
+    args += [ evt.RawMET.pt, evt.RawMET.pt, variProxy.orig.MetUnclustEnUpDeltaX, variProxy.orig.MetUnclustEnUpDeltaY ]
+    aT1Jet = evt.CorrT1METJet[0]
+    args += [ getattr(aT1Jet, comp).op.arg for comp in ("rawPt", "eta", "phi", "area", "muonSubtrFactor") ]
+    args += [ getattr(aT1Jet, comp).op.arg if hasattr(aT1Jet, comp) else _to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") for comp in ("neEmEF", "chEmEF") ]
+    if isFixEE2017:
+        args += [ evt.MET.phi, evt.MET.pt, variProxy.orig.phi, variProxy.orig.pt ]
+    ## load necessary library and header(s)
+    from .root import loadJMESystematicsCalculators, gbl
+    loadJMESystematicsCalculators()
+    ## define calculator and initialize
+    calcType = "Type1METVariationsCalculator" if not isFixEE2017 else "FixEE2017Type1METVariationsCalculator"
+    metcalcName = backend.symbol("{calcType} <<name>>{{}}; // for {0}".format(uName, calcType=calcType), nameHint="bamboo_Type1METVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy._initCalc(op.extVar(calcType, metcalcName), calcHandle=getattr(gbl, metcalcName), args=args)
+    calc = variProxy.calc
+    ## configure the calculator
+    jetType = "AK4PFchs"
+    from .jetdatabasecache import JetDatabaseCache
+    if smear is not None:
+        jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
+        mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
+        mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
+        calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
+    if jec is not None:
+        jecLevels_L1 = ["L1FastJet"]
+        # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
+        if jec.endswith("_DATA"):
+            jecLevels = jecLevels_L1 + ["L2Relative", "L2L3Residual"]
+        elif jec.endswith("_MC"):
+            # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
+            jecLevels = jecLevels_L1 + ["L2Relative"]
+        else:
+            raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed")
+        jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
+        from .root import gbl
+        if jecLevels:
+            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+            for jLev in jecLevels:
+                plf = jecDBCache.getPayload(jec, jLev, jetType)
+                params = gbl.JetCorrectorParameters(plf)
+                jecParams.push_back(params)
+            calc.setJEC(jecParams)
+        if jecLevels_L1:
+            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+            for jLev in jecLevels_L1:
+                plf = jecDBCache.getPayload(jec, jLev, jetType)
+                params = gbl.JetCorrectorParameters(plf)
+                jecParams.push_back(params)
+            calc.setL1JEC(jecParams)
+        if jesUncertaintySources:
+            plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
+            for src in jesUncertaintySources:
+                params = gbl.JetCorrectorParameters(plf, src)
+                calc.addJESUncertainty(src, params)
+    variProxy._initFromCalc()
+    if enableSystematics is not None:
+        if str(enableSystematics) == enableSystematics:
+            enableSystematics = [enableSystematics]
+        avail = list(variProxy.calc.available())
+        enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
+        if enable:
+            for opWithSyst in variProxy.brMapMap[variProxy.withSystName].values():
+                opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
+            logger.info("Enabled systematic variations for MET: {0}".format(" ".join(enable)))
 
 def forceDefine(arg, selection):
     """ Force the definition of an expression as a column at a selection stage
@@ -393,6 +484,8 @@ def forceDefine(arg, selection):
     :param arg: expression to define as a column
     :param selection: :py:class:`~bamboo.plots.Selection` for which the expression should be defined
     """
+    if arg is None:
+        raise RuntimeError("Trying to define None. If a correction calculator product was passed: has the calculator been added and configured?")
     from .treeoperations import adaptArg
     op = adaptArg(arg)
     if not op.canDefine:
@@ -466,36 +559,35 @@ def makeMultiPrimaryDatasetTriggerSelection(sampleName, datasetsAndTriggers):
     else:
         return op.AND(op.NOT(op.OR(*sels_not)), trigSel)
 
-def addRochesterCorrectionCalculator(be, variProxy, uName="", isMC=False):
-    """ Declare and add a Rochester correction calculator
+def configureRochesterCorrection(variProxy, paramsFile, isMC=False, backend=None, uName=""):
+    """ Apply the Rochester correction for muons
 
-    :param be: backend pointer
-    :param variProxy: CalcVariations proxy (t._Muon)
-    :param uName: unique name (sample name is a safe choice)
+    :param variProxy: muon variatons proxy, e.g. ``tree.._Muon`` for NanoAOD
+    :param paramsFile: path of the text file with correction parameters
     :param isMC: MC or not
+    :param backend: backend pointer (returned from :py:meth:`~bamboo.analysismodules.HistogramsModule.prepareTree`)
+    :param uName: unique name for the correction calculator (sample name is a safe choice)
     """
-    from . import treeoperations as _top
+    from bamboo.treefunctions import _to, _tp
     aMu = variProxy.orig[0]
     args = [ getattr(aMu, comp).op.arg for comp in ("pt", "eta", "phi", "mass", "charge", "nTrackerLayers") ]
     if isMC:
         args += [ aMu.genPart._idx.arg, variProxy._parent.GenPart[0].pt.op.arg ]
+        evt = variProxy._parent
+        args.append((evt.run<<20) + (evt.luminosityBlock<<10) + evt.event + 169)
     else:
-        args += [ _top.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
-                  _top.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}") ]
+        args += [ _to.ExtVar("ROOT::VecOps::RVec<Int_t>", "ROOT::VecOps::RVec<Int_t>{}"),
+                  _to.ExtVar("ROOT::VecOps::RVec<float>", "ROOT::VecOps::RVec<float>{}"),
+                  _tp.makeConst(0, "unsigned") ] ## no seed
     ## load necessary library and header(s)
     from . import treefunctions as op # first to load default headers/libs, if still needed
     from .root import loadRochesterCorrectionCalculator, gbl
     loadRochesterCorrectionCalculator()
     ## define calculator and initialize
-    roccorName = be.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy.initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
-
-def configureRochesterCorrection(calc, paramsFile):
-    """ Apply the Rochester correction for muons
-
-    :param calc: calculator (t._Muon.calc for NanoAOD)
-    :param paramsFile: path of the text file with correction parameters
-    """
+    roccorName = backend.symbol("RochesterCorrectionCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_roccorCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy._initCalc(op.extVar("RochesterCorrectionCalculator", roccorName), calcHandle=getattr(gbl, roccorName), args=args)
     if not os.path.exists(paramsFile):
         raise ValueError("File {0} not found".format(paramsFile))
-    calc.setRochesterCorrection(paramsFile)
+    variProxy.calc.setRochesterCorrection(paramsFile)
+    variProxy._initFromCalc()
+    assert variProxy.calcProd

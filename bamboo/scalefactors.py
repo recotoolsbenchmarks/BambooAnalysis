@@ -84,23 +84,25 @@ def getBinningParameters(bVarNames, isElectron=False, moreVars=dict(), paramDefs
     return BinningParameters(dict((k,theDict[k]) for k in bVarNames))
 
 class ScaleFactor(object):
-    def __init__(self, cppDef=None, args=None, iface="ILeptonScaleFactor", systName=None):
+    def __init__(self, cppDef=None, args=None, iface="ILeptonScaleFactor", systName=None, seedFun=None):
         self._cppDef = cppDef
         self._args = args
         self.sfOp = op.define(iface, cppDef)
         self._systName = systName
+        self._seedFun = seedFun
     def __call__(self, obj, variation="Nominal"):
         from .treedecorators import makeConst, boolType
         from .treeoperations import ScaleFactorWithSystOp
         expr = self.sfOp.get(*tuple(chain(
                    list(a(obj) for a in self._args)
+                 , ([ self._seedFun(obj) ] if self._seedFun else [])
                  , (op.extVar("int", variation),)
                )))
         if self._systName and variation == "Nominal": ## wrap
             expr._parent = ScaleFactorWithSystOp(expr._parent, self._systName)
         return expr
 
-def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None):
+def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None, seedFun=None):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
@@ -113,6 +115,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
     :param periods: Only combine scale factors for those periods
     :param isElectron: if True, will use supercluster eta instead of eta (for ``"lepton"`` type only) (TODO: find a better way of doing that)
     :param systName: name of the associated systematic nuisance parameter
+    :param seedFun: (only when combining scalefactor by sampling) callable to get a random generator seed for an object, e.g. ``lambda l : l.idx+42``
 
     :returns: a callable that takes ``(object, variation="Nominal")`` and returns a floating-point number proxy
     """
@@ -132,6 +135,8 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
     if combine is not None:
         combPrefix = { "weight" : "W"
                      , "sample" : "Smp" }.get(combine, "W")
+        if combine == "sample" and not seedFun:
+            raise ValueError("If combining by sampling, a seed function needs to be passed to get_scalefactor")
 
     if getFlavour is None:
         getFlavour = lambda j : j.hadronFlavor
@@ -172,7 +177,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                               'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                             ),
                         args=(getBinningParameters(bVarNames, isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
-                        iface=iface, systName=systName)
+                        iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
     elif objType == "dilepton":
         iface = "IDiLeptonScaleFactor"
         if isinstance(config, tuple) and len(config) == 4:
@@ -221,6 +226,6 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                                   'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                                 ),
                             arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
-                            iface=iface, systName=systName)
+                            iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
     else:
         raise ValueError("Unknown object type: {0}".format(objType))

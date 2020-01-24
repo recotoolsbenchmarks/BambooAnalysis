@@ -187,7 +187,7 @@ using WScaleFactor         = WeightedScaleFactor<ILeptonScaleFactor,const Parame
 using WLLScaleFactor       = WeightedScaleFactor<IDiLeptonScaleFactor,const Parameters&,const Parameters&>;
 using WBTaggingScaleFactor = WeightedScaleFactor<IJetScaleFactor,const Parameters&,IJetScaleFactor::Flavour>;
 
-#include <random>
+#include "bamboorandom.h"
 /**
  * Sample according to fractions from different scale factors
  */
@@ -196,18 +196,17 @@ class SampledScaleFactor : public ISingle
 {
 public:
   SampledScaleFactor( const std::vector<float> probs, std::vector<std::unique_ptr<ISingle>>&& sfs )
-  : m_rg{42}
-  , m_probs{std::discrete_distribution<std::size_t>(std::begin(probs), std::end(probs))}
+  : m_probs{probs}
   , m_terms{std::move(sfs)}
   {}
   virtual ~SampledScaleFactor() {}
 
-  virtual float get(Args... args, SystVariation variation) const override final {
-    return m_terms[m_probs(m_rg)]->get(std::forward<Args>(args)..., variation);
+  virtual float get(Args... args, std::uint32_t seed, SystVariation variation) const override final {
+    auto& rg = rdfhelpers::getStdMT19937(seed);
+    return m_terms[std::discrete_distribution<std::size_t>(m_probs)(rg)]->get(std::forward<Args>(args)..., variation);
   }
 private:
-  mutable std::mt19937 m_rg;
-  mutable std::discrete_distribution<std::size_t> m_probs;
+  std::vector<float> m_probs;
   std::vector<std::unique_ptr<ISingle>> m_terms;
 };
 using SmpScaleFactor         = SampledScaleFactor<ILeptonScaleFactor,const Parameters&>;

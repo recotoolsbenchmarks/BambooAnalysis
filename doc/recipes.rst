@@ -181,8 +181,8 @@ In this example, we assume that the collections ``taus``, ``electrons``, and
 
 .. _recipejetsystematics:
 
-Jet systematics
----------------
+Jet and MET systematics
+-----------------------
 
 For propagating uncertainties related to the jet energy calibration, and the
 difference in jet energy resolution between data and simulation, each jet in
@@ -201,44 +201,54 @@ the tree, some redirections should be set up to pick up the variations from a
 calculator module, and then this module needs to be configured with the correct
 JEC and resolution parameters.
 The first step can be done by adding ``"nJet"`` (the name of the length branch
-of the stored jet collection) to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
-attribute of the analysis module, from its constructor or
-:py:meth:`~bamboo.analysismodules.AnalysisModule.initialize` method;
-:py:attr:`bamboo.NanoAODModule.prepareTree` will pass this to the
-:py:meth:`bamboo.treedecorators.decorateNanoAOD` method and add the calculator
-module.
-
-With the default settings, only the nominal jet collection is produced.
-The :py:meth:`bamboo.analysisutils.configureJets` provides a
+of the stored jet collection) to the ``calcToAdd`` keyword argument of the
+:py:meth:`~bamboo.NanoAODModule.prepareTree` method (which will pass this to the
+:py:meth:`bamboo.treedecorators.decorateNanoAOD` method).
+Similarly, to have all these variations propagated to the missing transverse
+momentum, ``"MET"`` (or ``"METFixEE2017"``) should be added to the list.
+Next, a calculator must be added and configured.
+This can be done with the :py:meth:`bamboo.analysisutils.configureJets` and
+:py:meth:`bamboo.analysisutils.configureType1MET` methods, which provide a
 convenient way to correct the jet resolution in MC, apply a different JEC, and
-add variations due to different sources of uncertainty in the jet energy scale.
+add variations due to different sources of uncertainty in the jet energy scale,
+for the jet collection and MET, respectively (the arguments should be the same
+in most cases).
 As an example, the relevant code of a NanoAOD analysis module could
-look like this to apply a newer JEC to 2016 data and perform smearing and add
-uncertainties to 2016 MC:
+look like this to apply a newer JEC to 2016 data and perform smearing, add
+uncertainties to 2016 MC, and the same for the MET:
 
 .. code-block:: python
 
    class MyAnalysisModule(NanoAODHistoModule):
-       def __init__(self, args):
-           super(MyAnalysisModule, self).__init__(args)
-           self.calcToAdd.append("nJet")
        def prepareTree(self, tree, sample=None, sampleCfg=None):
-           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
-           from bamboo.analysisutils import configureJets
+           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg, calcToAdd=["nJet"])
+           from bamboo.analysisutils import configureJets, configureType1MET
            isNotWorker = (self.args.distributed != "worker")
            era = sampleCfg["era"]
            if era == "2016":
                if self.isMC(sample): # can be inferred from sample name
-                   configureJets(tree, "Jet", "AK4PFchs",
+                   configureJets(tree._Jet, "AK4PFchs",
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
-                       mayWriteCache=isNotWorker)
+                       mayWriteCache=isNotWorker,
+                       isMC=self.isMC(sample), backend=be, uName=sample)
+                   configureType1MET(tree._MET, "AK4PFchs",
+                       jec="Summer16_07Aug2017_V20_MC",
+                       smear="Summer16_25nsV1_MC",
+                       jesUncertaintySources=["Total"],
+                       mayWriteCache=isNotWorker,
+                       isMC=self.isMC(sample), backend=be, uName=sample)
                else:
                    if "2016G" in sample or "2016H" in sample:
-                       configureJets(tree, "Jet", "AK4PFchs",
+                       configureJets(tree._Jet, "AK4PFchs",
                            jec="Summer16_07Aug2017GH_V11_DATA",
-                           mayWriteCache=isNotWorker)
+                           mayWriteCache=isNotWorker,
+                           isMC=self.isMC(sample), backend=be, uName=sample)
+                       configureType1MET(tree._MET, "AK4PFchs",
+                           jec="Summer16_07Aug2017GH_V11_DATA",
+                           mayWriteCache=isNotWorker,
+                           isMC=self.isMC(sample), backend=be, uName=sample)
                    elif ...: ## other 2016 periods
                        pass
 
@@ -258,6 +268,15 @@ passing ``enableSystematics=[]`` to
 :py:meth:`bamboo.analysisutils.configureJets`).
 The jet collection as stored on the input file, finally, can be retrieved as
 ``t._Jet.orig``.
+
+.. important:: Sorting the jets
+   No sorting is done as part of the above procedure, so if relevant this
+   should be added by the user (e.g. using
+   ``jets = op.sort(t.Jet, lambda j : -j.pt)`` for sorting by decreasing
+   transverse momentum).
+   In a previous version of the code this was included, but since some selection
+   is usually applied on the jets anyway, it is simpler (and more efficient) to
+   perform the sorting then.
 
 .. note:: Isn't it slow to calculate jet corrections on the fly?
    It does take a bit of time, but the calculation is done in one C++ module,
@@ -292,30 +311,27 @@ As for the jet correction and variations described in the previous section,
 this can either be done during postprocessing, with the
 `muonScaleResProducer module`_ of the NanoAODTools_ package, or on the fly.
 The former will be detected automatically when decorating the trees, the latter
-requires adding ``"nMuon"`` to the :py:attr:`~bamboo.NanoAODModule.addToCalc`
-attribute of the analysis module, such that is propogated to the decorations
-and a calculator created by the :py:attr:`bamboo.NanoAODModule.prepareTree`
-method.
+requires adding ``"nMuon"`` to the ``calcToAdd`` keyword argument passed to he
+:py:attr:`~bamboo.NanoAODModule.prepareTree` method, such that the decorations
+will pick up the momenta from a calculator module
+instead of directly from the input file.
 
-The on the fly calculator can be configured with the
+The on the fly calculator should be added and configured with the
 :py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,
 as in the example below.
-``tree._Muon.calc`` points directly to the C++ calculator module; the
+``tree._Muon`` keeps track of everything related to the calculator; the
 uncorrected muon collection can be found in ``tree._Muon.orig``, and the
 corrected muons are in ``tree.Muon``.
 
 .. code-block:: python
 
    class MyAnalysisModule(NanoAODHistoModule):
-       def __init__(self, args):
-           super(MyAnalysisModule, self).__init__(args)
-           self.calcToAdd.append("nMuon")
        def prepareTree(self, tree, sample=None, sampleCfg=None):
-           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg)
+           tree,noSel,be,lumiArgs = NanoAODHistoModule.prepareTree(self, tree, sample=sample, sampleCfg=sampleCfg, calcToAdd=["nMuon"])
            from bamboo.analysisutils import configureRochesterCorrection
            era = sampleCfg["era"]
            if era == "2016":
-               configureRochesterCorrection(tree._Muon.calc, "RoccoR2016.txt")
+               configureRochesterCorrection(tree._Muon, "RoccoR2016.txt", isMC=self.isMC(sample), backend=be, uName=sample)
        return tree,noSel,be,lumiArgs
 
 .. _recipesplitsamplesubcomp:

@@ -16,6 +16,12 @@ find_package(Boost REQUIRED)
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+add_library(BambooRandom SHARED src/bamboorandom.cc)
+target_compile_features(BambooRandom PRIVATE cxx_std_17)
+target_include_directories(BambooRandom PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_link_libraries(BambooRandom)
+install(TARGETS BambooRandom LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
 add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc)
 target_compile_features(BinnedValues PRIVATE cxx_std_17)
 target_include_directories(BinnedValues PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
@@ -35,15 +41,15 @@ string(REGEX REPLACE "[^;]+/src/([^;]+)" "${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src
 add_custom_target(CMSJetSources COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/getjetclasses.sh COMMENT "Copying jet classes from CMSSW" BYPRODUCTS ${INC_CMSJET} ${SRC_CMSJET})
 install(FILES ${INC_CMSJET} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculator.cc)
+add_library(JMEObjects SHARED ${SRC_CMSJET} src/JMESystematicsCalculators.cc)
 add_dependencies(JMEObjects CMSJetSources)
 target_compile_features(JMEObjects PRIVATE cxx_std_17)
 target_include_directories(JMEObjects PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/include> $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/CMSJet/src> $<INSTALL_INTERFACE:include>)
-target_link_libraries(JMEObjects ROOT::Hist ROOT::ROOTVecOps Boost::boost)
+target_link_libraries(JMEObjects ROOT::Hist ROOT::ROOTVecOps Boost::boost BambooRandom)
 install(TARGETS JMEObjects LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 add_library(RoccoR SHARED src/RoccoR.cc src/RochesterCorrectionCalculator.cc)
 target_compile_features(RoccoR PRIVATE cxx_std_17)
 target_include_directories(RoccoR PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
-target_link_libraries(RoccoR ROOT::ROOTVecOps Boost::boost)
+target_link_libraries(RoccoR ROOT::ROOTVecOps Boost::boost BambooRandom)
 install(TARGETS RoccoR LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

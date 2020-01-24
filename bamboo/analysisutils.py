@@ -422,8 +422,9 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
     from .root import loadJMESystematicsCalculators, gbl
     loadJMESystematicsCalculators()
     ## define calculator and initialize
-    metcalcName = backend.symbol("Type1METVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_Type1METVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
-    variProxy._initCalc(op.extVar("Type1METVariationsCalculator", metcalcName), calcHandle=getattr(gbl, metcalcName), args=args)
+    calcType = "Type1METVariationsCalculator" if not isFixEE2017 else "FixEE2017Type1METVariationsCalculator"
+    metcalcName = backend.symbol("{calcType} <<name>>{{}}; // for {0}".format(uName, calcType=calcType), nameHint="bamboo_Type1METVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
+    variProxy._initCalc(op.extVar(calcType, metcalcName), calcHandle=getattr(gbl, metcalcName), args=args)
     calc = variProxy.calc
     ## configure the calculator
     jetType = "AK4PFchs"

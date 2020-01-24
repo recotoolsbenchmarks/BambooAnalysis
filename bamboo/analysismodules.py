@@ -495,24 +495,23 @@ class HistogramsModule(AnalysisModule):
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
-    def __init__(self, args):
-        super(NanoAODModule, self).__init__(args)
-        self.calcToAdd = [] ## names of the length leaves (e.g. nJet, nMuon) of the collections for which calculators should be added
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    def prepareTree(self, tree, sample=None, sampleCfg=None):
+    def prepareTree(self, tree, sample=None, sampleCfg=None, isMC=None, calcToAdd=[]):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
-        The :py:attr:`~bamboo.analysismodules.NanoAODModlecalcToAdd`` member is
-        passed to :py:meth:`bamboo.treedecorators.decorateNanoAOD`, so deriving
-        classes can request jet systematics and Rochester correction calculators
-        to be added by appending to it prior to calling this method (i.e. in
-        the constructor or
-        :py:meth:`~bamboo.analysismodules.AnalysisModule.initialize` method).
+        In addition to the arguments needed for the base class
+        :py:meth:`~bamboo.analysismodules.AnalysisModule.prepareTree`` method,
+        the automatic choice for data or MC can be overridden, and the collections
+        to which on-the-fly corrections will be applied, should be passed,
+        such that the decorations can be constructed accordingly.
+
+        :param isMC: (optional) MC or data; otherwise ``self.isMC(sample)`` will be used.
+        :param calcToAdd: list of names for the containers (length leaf, e.g. ``nJet``, ``nMuon``) or objects (e.g. ``MET``) for which calculators should be added
         """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree, isMC=self.isMC(sample), addCalculators=self.calcToAdd)
+        t = decorateNanoAOD(tree, isMC=(isMC if isMC is not None else self.isMC(sample)), addCalculators=calcToAdd)
         be, noSel = DataframeBackend.create(t)
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):

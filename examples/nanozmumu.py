@@ -13,9 +13,9 @@ class NanoZMuMu(NanoAODHistoModule):
         isMC = self.isMC(sample)
         metName = "METFixEE2017" if era == "2017" else "MET"
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
-        ##
-        self.calcToAdd += ["nJet", metName, "nMuon"] ## will do Jet variations and Rochester correction
-        tree,noSel,be,lumiArgs = super(NanoAODHistoModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg)
+        ## Decorate the tree
+        tree,noSel,be,lumiArgs = super(NanoAODHistoModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
+                calcToAdd=["nJet", metName, "nMuon"]) ## will do Jet and MET variations, and the Rochester correction
         ## per-year/era options
         puWeightsFile = None
         jecTag, smearTag, jesUncertaintySources = None, None, None

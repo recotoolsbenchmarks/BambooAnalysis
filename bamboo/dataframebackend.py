@@ -12,6 +12,10 @@ from .plots import FactoryBackend, Selection
 from . import treefunctions as op
 from . import treeoperations as top
 
+from collections import defaultdict
+_RDFNodeStats = defaultdict(int)
+_RDFHisto1DStats = defaultdict(int)
+
 class SelWithDefines(top.CppStrRedir):
     def __init__(self, parent, variation="nominal"):
         self.explDefine = list()
@@ -59,6 +63,7 @@ class SelWithDefines(top.CppStrRedir):
     def _addFilterStr(self, filterStr): ## add filter with string already made
         logger.debug("Filtering with {0}", filterStr)
         self.df = self.df.Filter(filterStr)
+        _RDFNodeStats["Filter"] += 1
 
     def _getColName(self, op):
         if op in self._definedColumns:
@@ -74,6 +79,7 @@ class SelWithDefines(top.CppStrRedir):
         cppStr = expr.get_cppStr(defCache=self)
         logger.debug("Defining {0} as {1}", name, cppStr)
         self.df = self.df.Define(name, cppStr)
+        _RDFNodeStats["Define"] += 1
         self._definedColumns[expr] = name
 
     def symbol(self, decl, **kwargs):
@@ -145,6 +151,7 @@ class DataframeBackend(FactoryBackend):
             logger.debug("Defining new symbol with interpreter: {0}", fullDecl)
             from .root import gbl
             gbl.gInterpreter.Declare(fullDecl)
+            _RDFNodeStats["gInterpreter_Declare"] += 1
             return name
     @staticmethod
     def create(decoTree, outFileName=None):
@@ -346,6 +353,8 @@ class DataframeBackend(FactoryBackend):
         from .root import gbl
         ## TODO optimisation (avoiding JIT) goes here
         plotFun = getattr(nd.df, f"Histo{nVars:d}D")
+        _RDFHisto1DStats[allTypes] += 1
+        _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)
 
     def getPlotResults(self, plot):

@@ -412,6 +412,9 @@ class HistogramsModule(AnalysisModule):
         end = timer()
         maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
         logger.info(f"{len(self.plotList):d} plots defined in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
+        from .dataframebackend import _RDFNodeStats, _RDFHisto1DStats, _RDFMemoryStats
+        logger.info(f"Number of uses per node type: {_RDFNodeStats!s}")
+        logger.info(f"Histo1D calls per column type: {_RDFHisto1DStats!s}")
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():

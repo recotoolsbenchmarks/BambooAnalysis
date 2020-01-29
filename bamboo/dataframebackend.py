@@ -252,19 +252,9 @@ class DataframeBackend(FactoryBackend):
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
         ## Add nominal plot
-        nomVarExprs = dict(("v{0:d}_{1}".format(i, plot.name), nomNd(var)) for i,var in enumerate(plot.variables))
-        nomPlotDF = nomNd.df
-        for vName, vExpr in nomVarExprs.items():
-            logger.debug("Defining {0} as {1}", vName, vExpr)
-            nomPlotDF = nomPlotDF.Define(vName, vExpr)
-        nomPlotFun = getattr(nomPlotDF, "Histo{0:d}D".format(len(plot.variables)))
-        plotModel = DataframeBackend.makePlotModel(plot)
-        if nomNd.wName["nominal"]: ## nontrivial weight
-            logger.debug("Adding plot {0} with variables {1} and weight {2}", plot.name, ", ".join(nomVarExprs.keys()), nomNd.wName["nominal"])
-            plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ nomNd.wName["nominal"] ]) ))
-        else: # no weight
-            logger.debug("Adding plot {0} with variables {1}", plot.name, ", ".join(nomVarExprs.keys()))
-            plotRes.append(nomPlotFun(plotModel, *nomVarExprs.keys()))
+        nomVarNames = DataframeBackend.defineAndGetVarNames(nomNd, plot.variables, uName=plot.name)
+        plotRes.append(DataframeBackend.makeHistoND(nomNd, DataframeBackend.makePlotModel(plot),
+            nomVarNames, weightName=nomNd.wName["nominal"], plotName=plot.name))
 
         if plot.selection.autoSyst and autoSyst:
             ## Same for all the systematics
@@ -283,7 +273,7 @@ class DataframeBackend(FactoryBackend):
                     hasthissystV = lambda nd : ( isthissyst(nd) and _hasthissystV(nd) )
                     if systN in varSysts or varn in nomNd.var:
                         varNd = nomNd.var.get(varn, nomNd)
-                        varExprs = {}
+                        varVars = []
                         for i,xvar in enumerate(plot.variables):
                             if i in idxVarsToChange:
                                 varVar = xvar.clone()
@@ -291,27 +281,20 @@ class DataframeBackend(FactoryBackend):
                                     nd.changeVariation(varn)
                             else:
                                 varVar = xvar
-                            varExprs["v{0:d}_{1}__{2}".format(i, plot.name, varn)] = varNd(varVar)
-                        plotDF = varNd.df
-                        for vName, vExpr in varExprs.items():
-                            logger.debug("Defining {0} as {1}", vName, vExpr)
-                            plotDF = plotDF.Define(vName, vExpr)
-                        plotFun = getattr(plotDF, "Histo{0:d}D".format(len(plot.variables)))
-                        plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
+                            varVars.append(varVar)
+                        varNames = DataframeBackend.defineAndGetVarNames(varNd, varVars, uName=f"{plot.name}__{varn}")
                         wN = varNd.wName[varn] if systN in selSysts and varn in varNd.wName else varNd.wName["nominal"] ## else should be "only in the variables", so varNd == nomNd then
-                        if wN is not None: ## nontrivial weight
-                            logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}", plot.name, varn, ", ".join(varExprs.keys()), wN)
-                            plotRes.append(plotFun(plotModel, *chain(varExprs.keys(), [ wN ]) ))
-                        else: ## no weight
-                            logger.debug("Adding plot {0} variation {1} with variables {2}", varn, plot.name, ", ".join(varExprs.keys()))
-                            plotRes.append(plotFun(plotModel, *varExprs.keys()))
+                        plotRes.append(DataframeBackend.makeHistoND(varNd,
+                            DataframeBackend.makePlotModel(plot, variation=varn),
+                            varNames, weightName=wN,
+                            plotName=f"{plot.name} variation {varn}"))
                     else: ## can reuse variables, but may need to take care of weight
                         wN = nomNd.wName[varn]
-                        if wN is not None:
-                            plotModel = DataframeBackend.makePlotModel(plot, variation=varn)
-                            logger.debug("Adding plot {0} variation {1} with variables {2} and weight {3}", plot.name, varn, ", ".join(nomVarExprs.keys()), wN)
-                            plotRes.append(nomPlotFun(plotModel, *chain(nomVarExprs.keys(), [ wN ]) ))
-                        else: ## no weight
+                        plotRes.append(DataframeBackend.makeHistoND(nomNd,
+                            DataframeBackend.makePlotModel(plot, variation=varn),
+                            nomVarNames, weightName=wN,
+                            plotName=f"{plot.name} variation {varn}"))
+                        if not wN: ## no weight
                             raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
 
         self.plotResults[plot.name] = plotRes
@@ -337,6 +320,33 @@ class DataframeBackend(FactoryBackend):
             return (binning.N, np.array(binning.binEdges, dtype=np.float64))
         else:
             raise ValueError("Binning of unsupported type: {0!r}".format(binning))
+
+    @staticmethod
+    def defineAndGetVarNames(nd, variables, uName=None):
+        varNames = []
+        for i,var in enumerate(variables):
+            if nd._getColName(var):
+                varNames.append(nd._getColName(var))
+            else:
+                nm = f"v{i:d}_{uName}"
+                nd._define(nm, var)
+                varNames.append(nm)
+        return varNames
+
+    @staticmethod
+    def makeHistoND(nd, plotModel, axVars, weightName=None, plotName=None):
+        nVars = len(axVars)
+        if weightName: ## nontrivial weight
+            allVars = axVars + [ weightName ]
+            logger.debug("Adding plot {0} with variables {1} and weight {2}", plotName, ", ".join(axVars), weightName)
+        else:
+            allVars = axVars
+            logger.debug("Adding plot {0} with variables {1}", plotName, ", ".join(axVars))
+        allTypes = tuple(nd.df.GetColumnType(cNm) for cNm in allVars)
+        from .root import gbl
+        ## TODO optimisation (avoiding JIT) goes here
+        plotFun = getattr(nd.df, f"Histo{nVars:d}D")
+        return plotFun(plotModel, *allVars)
 
     def getPlotResults(self, plot):
         if plot in self.derivedPlots and plot.name not in self.plotResults:

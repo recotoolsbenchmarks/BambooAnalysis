@@ -415,6 +415,8 @@ class HistogramsModule(AnalysisModule):
         from .dataframebackend import _RDFNodeStats, _RDFHisto1DStats, _RDFMemoryStats
         logger.info(f"Number of uses per node type: {_RDFNodeStats!s}")
         logger.info(f"Histo1D calls per column type: {_RDFHisto1DStats!s}")
+        from .dataframebackend import _RDF_Histo1D_methods
+        logger.info(f"Histo1D helper instantiations: {_RDF_Histo1D_methods!s}")
         ## make a list of suggested nuisance parameters
         systNuis = []
         for systN, systVars in backend.allSysts.items():

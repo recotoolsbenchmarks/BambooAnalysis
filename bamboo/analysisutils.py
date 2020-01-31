@@ -365,6 +365,11 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
             for src in jesUncertaintySources:
                 params = gbl.JetCorrectorParameters(plf, src)
                 calc.addJESUncertainty(src, params)
+    else:
+        if jecLevels and jecLevels != "default":
+            logger.error("JEC levels specified, but no JEC tag; no correction will be done")
+        if jesUncertaintySources:
+            logger.error("JES uncertainty specified, but no JEC tag; none will be evaluated")
     variProxy._initFromCalc()
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:
@@ -465,6 +470,9 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
             for src in jesUncertaintySources:
                 params = gbl.JetCorrectorParameters(plf, src)
                 calc.addJESUncertainty(src, params)
+    else:
+        if jesUncertaintySources:
+            logger.error("JES uncertainty specified, but no JEC tag; none will be evaluated")
     variProxy._initFromCalc()
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:

@@ -339,36 +339,43 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
     jetcalcName = backend.symbol("JetVariationsCalculator <<name>>{{}}; // for {0}".format(uName), nameHint="bamboo_jetVarCalc{0}".format("".join(c for c in uName if c.isalnum())))
     variProxy._initCalc(op.extVar("JetVariationsCalculator", jetcalcName), calcHandle=getattr(gbl, jetcalcName), args=args)
     calc = variProxy.calc
-    from .jetdatabasecache import JetDatabaseCache
-    if smear is not None:
-        jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
-        mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
-        mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
-        calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
-    if jec is not None:
-        if jecLevels == "default":
-            # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
-            if jec.endswith("_DATA"):
-                jecLevels = ["L1FastJet", "L2Relative", "L2L3Residual"]
-            elif jec.endswith("_MC"):
-                # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
-                jecLevels = ["L1FastJet", "L2Relative"]
-            else:
-                raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed. Please specify the JEC levels explicitly")
-        jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
-        from .root import gbl
-        if jecLevels:
-            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
-            for jLev in jecLevels:
-                plf = jecDBCache.getPayload(jec, jLev, jetType)
-                params = gbl.JetCorrectorParameters(plf)
-                jecParams.push_back(params)
-            calc.setJEC(jecParams)
+    if smear is not None or jec is not None:
+        from .jetdatabasecache import JetDatabaseCache, sessionWithResponseChecks
+        with sessionWithResponseChecks() as session:
+            if smear is not None:
+                jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache, session=session)
+                mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType, session=session)
+                mcResSF = jrDBCache.getPayload(smear, "SF", jetType, session=session)
+                calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
+            if jec is not None:
+                if jecLevels == "default":
+                    # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
+                    if jec.endswith("_DATA"):
+                        jecLevels = ["L1FastJet", "L2Relative", "L2L3Residual"]
+                    elif jec.endswith("_MC"):
+                        # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
+                        jecLevels = ["L1FastJet", "L2Relative"]
+                    else:
+                        raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed. Please specify the JEC levels explicitly")
+                jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache, session=session)
+                from .root import gbl
+                if jecLevels:
+                    jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+                    for jLev in jecLevels:
+                        plf = jecDBCache.getPayload(jec, jLev, jetType, session=session)
+                        params = gbl.JetCorrectorParameters(plf)
+                        jecParams.push_back(params)
+                    calc.setJEC(jecParams)
+                if jesUncertaintySources:
+                    plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType, session=session)
+                    for src in jesUncertaintySources:
+                        params = gbl.JetCorrectorParameters(plf, src)
+                        calc.addJESUncertainty(src, params)
+    if jec is None:
+        if jecLevels and jecLevels != "default":
+            logger.error("JEC levels specified, but no JEC tag; no correction will be done")
         if jesUncertaintySources:
-            plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
-            for src in jesUncertaintySources:
-                params = gbl.JetCorrectorParameters(plf, src)
-                calc.addJESUncertainty(src, params)
+            logger.error("JES uncertainty specified, but no JEC tag; none will be evaluated")
     variProxy._initFromCalc()
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:
@@ -432,43 +439,47 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
     calc = variProxy.calc
     ## configure the calculator
     jetType = "AK4PFchs"
-    from .jetdatabasecache import JetDatabaseCache
-    if smear is not None:
-        jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
-        mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType)
-        mcResSF = jrDBCache.getPayload(smear, "SF", jetType)
-        calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
-    if jec is not None:
-        jecLevels_L1 = ["L1FastJet"]
-        # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
-        if jec.endswith("_DATA"):
-            jecLevels = jecLevels_L1 + ["L2Relative", "L2L3Residual"]
-        elif jec.endswith("_MC"):
-            # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
-            jecLevels = jecLevels_L1 + ["L2Relative"]
-        else:
-            raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed")
-        jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache)
-        from .root import gbl
-        if jecLevels:
-            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
-            for jLev in jecLevels:
-                plf = jecDBCache.getPayload(jec, jLev, jetType)
-                params = gbl.JetCorrectorParameters(plf)
-                jecParams.push_back(params)
-            calc.setJEC(jecParams)
-        if jecLevels_L1:
-            jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
-            for jLev in jecLevels_L1:
-                plf = jecDBCache.getPayload(jec, jLev, jetType)
-                params = gbl.JetCorrectorParameters(plf)
-                jecParams.push_back(params)
-            calc.setL1JEC(jecParams)
-        if jesUncertaintySources:
-            plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType)
-            for src in jesUncertaintySources:
-                params = gbl.JetCorrectorParameters(plf, src)
-                calc.addJESUncertainty(src, params)
+    if smear is not None or jec is not None:
+        from .jetdatabasecache import JetDatabaseCache, sessionWithResponseChecks
+        with sessionWithResponseChecks() as session:
+            if smear is not None:
+                jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=cachedir, mayWrite=mayWriteCache, session=session)
+                mcPTRes = jrDBCache.getPayload(smear, "PtResolution", jetType, session=session)
+                mcResSF = jrDBCache.getPayload(smear, "SF", jetType, session=session)
+                calc.setSmearing(mcPTRes, mcResSF, useGenMatch, genMatchDR, genMatchDPt)
+            if jec is not None:
+                jecLevels_L1 = ["L1FastJet"]
+                # "L3Absolute" left out because it is dummy according to https://twiki.cern.ch/twiki/bin/view/CMS/IntroToJEC#Mandatory_Jet_Energy_Corrections
+                if jec.endswith("_DATA"):
+                    jecLevels = jecLevels_L1 + ["L2Relative", "L2L3Residual"]
+                elif jec.endswith("_MC"):
+                    # "L2L3Residual" could be added, but it is dummy for MC according to https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookJetEnergyCorrections#JetCorApplication
+                    jecLevels = jecLevels_L1 + ["L2Relative"]
+                else:
+                    raise ValueError("JEC tag {0} does not end with '_DATA' or '_MC', so the levels cannot be guessed")
+                jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=cachedir, mayWrite=mayWriteCache, session=session)
+                from .root import gbl
+                if jecLevels:
+                    jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+                    for jLev in jecLevels:
+                        plf = jecDBCache.getPayload(jec, jLev, jetType, session=session)
+                        params = gbl.JetCorrectorParameters(plf)
+                        jecParams.push_back(params)
+                    calc.setJEC(jecParams)
+                if jecLevels_L1:
+                    jecParams = getattr(gbl, "std::vector<JetCorrectorParameters>")()
+                    for jLev in jecLevels_L1:
+                        plf = jecDBCache.getPayload(jec, jLev, jetType, session=session)
+                        params = gbl.JetCorrectorParameters(plf)
+                        jecParams.push_back(params)
+                    calc.setL1JEC(jecParams)
+                if jesUncertaintySources:
+                    plf = jecDBCache.getPayload(jec, "UncertaintySources", jetType, session=session)
+                    for src in jesUncertaintySources:
+                        params = gbl.JetCorrectorParameters(plf, src)
+                        calc.addJESUncertainty(src, params)
+    if jec is None and jesUncertaintySources:
+        logger.error("JES uncertainty specified, but no JEC tag; none will be evaluated")
     variProxy._initFromCalc()
     if enableSystematics is not None:
         if str(enableSystematics) == enableSystematics:

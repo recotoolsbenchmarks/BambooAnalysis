@@ -15,8 +15,21 @@ class StatusPermissionError(Exception):
     def __str__(self):
         return "No permission to update status file {0}".format(self.statusFile)
 
+@contextmanager
+def sessionWithResponseChecks():
+    def response_check(resp, *args, **kwargs):
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as ex:
+            logger.exception(f"Problem with request '{resp.request.method} {resp.request.url}'")
+    session = requests.Session()
+    session.hooks = {
+        "response" : response_check
+        }
+    yield session
+
 class JetDatabaseCache(object):
-    def __init__(self, name, service="https://api.github.com/repos", repository=None, branch="master", cachedir=None, mayWrite=True):
+    def __init__(self, name, service="https://api.github.com/repos", repository=None, branch="master", cachedir=None, mayWrite=True, session=None):
         self._mayWrite = mayWrite
         if cachedir is None:
             from .analysisutils import bamboo_cachedir
@@ -29,7 +42,11 @@ class JetDatabaseCache(object):
         self.branch = branch
         self._status = None
         self._baseUrl = None
-        self._init()
+        if session:
+            self._init(session=session)
+        else:
+            with sessionWithResponseChecks() as session:
+                self._init(session=session)
 
     @contextmanager
     def _statusLockAndSave(self, expires=None):
@@ -65,11 +82,11 @@ class JetDatabaseCache(object):
                 logger.debug("{0} locked, waiting another 5s".format(self.statusFile))
                 time.sleep(5) # wait my turn
 
-    def _get_master_sha(self):
+    def _get_master_sha(self, session=None):
         headers = {}
         if "branches_etag" in self._status and "sha" in self._status:
             headers["If-None-Match"] = self._status["branches_etag"]
-        r_branches = requests.get("{0}/git/refs/heads".format(self._baseUrl), headers=headers)
+        r_branches = session.get("{0}/git/refs/heads".format(self._baseUrl), headers=headers)
         if r_branches.status_code == 304:
             return self._status["sha"]
         else:
@@ -77,7 +94,7 @@ class JetDatabaseCache(object):
             self._status["branches_etag"] = r_branches.headers["ETag"]
             return r_master["object"]["sha"]
 
-    def _init(self):
+    def _init(self, session=None):
         if os.path.exists(self.statusFile):
             with open(self.statusFile) as sFile:
                 self._status = json.load(sFile)
@@ -98,12 +115,12 @@ class JetDatabaseCache(object):
                 }
             self._baseUrl = "/".join((self.service.rstrip("/"), self.repository.lstrip("/"))).rstrip("/")
 
-        masterSHA = self._get_master_sha()
+        masterSHA = self._get_master_sha(session=session)
         ## Update the *tree* of the (fetched tags of) textFiles if necessary
         if "sha" not in self._status or self._status["sha"] != masterSHA:
             logger.debug("Updating root of {0} at {1}".format(self.repository, masterSHA))
             with self._statusLockAndSave():
-                r_rootTree = requests.get("{0}/git/trees/{1}".format(self._baseUrl, masterSHA)).json()
+                r_rootTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, masterSHA)).json()
                 r_TF = next(itm for itm in r_rootTree["tree"] if itm["path"] == "textFiles")
                 if "textFiles" not in self._status:
                     self._status["textFiles"] = {"tree":{}}
@@ -111,7 +128,7 @@ class JetDatabaseCache(object):
                 if statTF.get("sha") != r_TF["sha"]:
                     stTags = statTF["tree"]
                     logger.debug("Updating 'textFiles' of {0} at {1} ({2})".format(self.repository, masterSHA, r_TF["sha"]))
-                    r_tagsTree = requests.get("{0}/git/trees/{1}".format(self._baseUrl, r_TF["sha"])).json()
+                    r_tagsTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, r_TF["sha"])).json()
                     for r_tg in r_tagsTree["tree"]:
                         if r_tg["path"] not in stTags:
                             logger.debug("New tag in {0}: {1}".format(self.repository, r_tg["path"]))
@@ -120,7 +137,7 @@ class JetDatabaseCache(object):
                             statTag = stTags[r_tg["path"]]
                             if r_tg["sha"] != statTag["sha"]:
                                 if "tree" in statTag:
-                                    self._updateTag(r_tg["path"], r_tg["sha"])
+                                    self._updateTag(r_tg["path"], r_tg["sha"], session=session)
                                 else: ## don't trigger fetch
                                     statTag["sha"] = r_tg["sha"]
                     toRemove = []
@@ -142,13 +159,13 @@ class JetDatabaseCache(object):
 
         return self
 
-    def _updateTag(self, tag, sha):
+    def _updateTag(self, tag, sha, session=None):
         statTag = self._status["textFiles"]["tree"][tag]
         if "tree" not in statTag:
             statTag["tree"] = {}
         tagPLs = statTag["tree"]
         logger.debug("Updating 'textFiles/{0}' of {1} to {2}".format(tag, self.repository, sha))
-        r_plTree = requests.get("{0}/git/trees/{1}".format(self._baseUrl, sha)).json()
+        r_plTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, sha)).json()
         for r_pl in r_plTree["tree"]:
             if r_pl["path"] not in tagPLs:
                 logger.debug("New payload in {0}/{1}: {2} ({3})".format(self.repository, tag, r_pl["path"], r_pl["sha"]))
@@ -173,34 +190,40 @@ class JetDatabaseCache(object):
             del tagPLs[plName]
         statTag["sha"] = sha
 
-    def getPayload(self, tag, what, jets):
+    def getPayload(self, tag, what, jets, session=None):
         try:
-            return self._getPayload(tag, "{0}_{1}_{2}.txt".format(tag, what, jets))
+            plName = "{0}_{1}_{2}.txt".format(tag, what, jets)
+            if not session:
+                with sessionWithResponseChecks() as session:
+                    return self._getPayload(tag, plName, session=session)
+            else:
+                return self._getPayload(tag, plName, session=session)
         except StatusPermissionError as ex:
             name = os.path.basename(self.cachedir)
             cachedir = os.path.dirname(self.cachedir)
             vName = name.lower()
-            cmds = ['from bamboo.jetdatabasecache import JetDatabaseCache',
+            cmds = ['import logging', 'logging.basicConfig(level=logging.DEBUG)',
+                    'from bamboo.jetdatabasecache import JetDatabaseCache',
                     '{0} = JetDatabaseCache("{1}", service="{2}", repository="{3}", branch="{4}", cachedir="{5}")'.format(vName, name, self.service, self.repository, self.branch, cachedir),
                     '{0}.getPayload("{1}", "{2}", "{3}")'.format(vName, tag, what, jets)
                    ]
             raise RuntimeError("\n>>> ".join(["Failed to update {0} (no permission).\nPlease update the cache by running in non-distributed mode (e.g. with --maxFile=1), or manually with".format(ex.statusFile)]+cmds))
 
-    def _getPayload(self, tag, fName):
+    def _getPayload(self, tag, fName, session=None):
         stTags = self._status["textFiles"]["tree"]
         if tag not in stTags:
             raise ValueError("Unknown tag: {0}".format(tag))
         stTag = stTags[tag]
         if "tree" not in stTag:
             with self._statusLockAndSave():
-                self._updateTag(tag, stTag["sha"])
+                self._updateTag(tag, stTag["sha"], session=session)
         if fName not in stTag["tree"]:
             raise ValueError("Unknown file: {0}/{1}".format(tag, fName))
         stPL = stTag["tree"][fName]
         if len(stPL) == 1:
             logger.debug("Getting payload for {0}/{1} ({2})".format(tag, fName, stPL["sha"]))
             with self._statusLockAndSave():
-                r_pl = requests.get("{0}/git/blobs/{1}".format(self._baseUrl, stPL["sha"])).json()
+                r_pl = session.get("{0}/git/blobs/{1}".format(self._baseUrl, stPL["sha"])).json()
                 if r_pl["encoding"] == "base64":
                     content = base64.b64decode(r_pl["content"])
                 else:
@@ -219,7 +242,7 @@ class JetDatabaseCache(object):
                     logger.debug("Saved as {0}".format(plFName))
         if "symlink" in stPL:
             logger.debug("Payload {0}/{1} is symlinked to {2}/{3}".format(tag, fName, *stPL["symlink"]))
-            return self._getPayload(*stPL["symlink"])
+            return self._getPayload(*stPL["symlink"], session=session)
         elif "path" in stPL:
             return stPL["path"]
 

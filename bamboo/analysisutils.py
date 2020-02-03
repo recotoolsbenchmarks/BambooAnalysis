@@ -237,23 +237,27 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     for smpN, smpCfg in config["samples"].items():
         if smpCfg.get("era") in eras:
             resultsName = "{0}.root".format(smpN)
-            smpOpts = dict()
-            for ky in ("group", "era"):
-                if ky in smpCfg:
-                    smpOpts[ky] = smpCfg[ky]
+            smpOpts = dict(smpCfg)
             isMC = ( smpCfg.get("group") != "data" )
-            smpOpts["type"] = ("mc" if isMC else "data")
+            if "type" not in smpOpts:
+                smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
                 if "cross-section" not in smpCfg:
                     logger.warning("Sample {0} is of type MC, but no cross-section specified".format(smpN))
                 smpOpts["cross-section"] = smpCfg.get("cross-section", 1.)
                 from .root import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
-                try:
-                    counters = readCounters(resultsFile)
-                    smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
-                except Exception as ex:
-                    logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpN, os.path.join(resultsdir, resultsName), ex))
+                if "generated-events" not in smpCfg:
+                    logger.error(f"No key 'generated-events' found for MC sample {smpNm}, normalization will be wrong")
+                else:
+                    try:
+                        smpOpts["generated-events"] = float(smpCfg["generated-events"])
+                    except ValueError: ## not float
+                        try:
+                            counters = readCounters(resultsFile)
+                            smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
+                        except Exception as ex:
+                            logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpN, os.path.join(resultsdir, resultsName), ex))
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotit_plots = dict()

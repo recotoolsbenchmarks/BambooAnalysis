@@ -53,11 +53,11 @@ lumiPerPeriod_default = {
 
 # TODO maybe move this elsewhere
 binningVariables_nano = {
-      "Eta" : lambda obj : obj.p4.Eta()
-    , "AbsEta" : lambda obj : op.abs(obj.p4.Eta())
+      "Eta" : lambda obj : obj.eta
+    , "AbsEta" : lambda obj : op.abs(obj.eta)
     , "ClusEta" : lambda el : el.eta+el.deltaEtaSC
     , "AbsClusEta" : lambda el : op.abs(el.eta+el.deltaEtaSC)
-    , "Pt" : lambda obj : obj.p4.Pt()
+    , "Pt" : lambda obj : obj.pt
     }
 
 def getBinningVarNames(jsonpath):

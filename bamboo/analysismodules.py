@@ -412,7 +412,7 @@ class HistogramsModule(AnalysisModule):
         end = timer()
         maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
         logger.info(f"{len(self.plotList):d} plots defined in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
-        from .dataframebackend import _RDFNodeStats, _RDFHisto1DStats, _RDFMemoryStats
+        from .dataframebackend import _RDFNodeStats, _RDFHisto1DStats
         logger.info(f"Number of uses per node type: {_RDFNodeStats!s}")
         logger.info(f"Histo1D calls per column type: {_RDFHisto1DStats!s}")
         from .dataframebackend import _RDF_Histo1D_methods

@@ -361,7 +361,7 @@ class DataframeBackend(FactoryBackend):
                 _RDF_Histo1D_methods[templTypes] = gbl.rdfhelpers.Histo1D(*templTypes)
             plotFun = partial(_RDF_Histo1D_methods[templTypes], nd.df)
         else:
-            logger.warning("Using Histo1D with type inference")
+            logger.warning(f"Using Histo{nVars:d}D with type inference")
             plotFun = getattr(nd.df, f"Histo{nVars:d}D")
         _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)

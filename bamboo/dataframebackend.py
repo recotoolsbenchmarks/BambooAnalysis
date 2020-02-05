@@ -14,8 +14,8 @@ from . import treeoperations as top
 
 from collections import defaultdict
 _RDFNodeStats = defaultdict(int)
-_RDFHisto1DStats = defaultdict(int)
-_RDF_Histo1D_methods = dict()
+_RDFHistoNDStats = defaultdict(int)
+_RDFHistoND_methods = dict()
 
 class SelWithDefines(top.CppStrRedir):
     def __init__(self, parent, variation="nominal"):
@@ -344,22 +344,27 @@ class DataframeBackend(FactoryBackend):
     @staticmethod
     def makeHistoND(nd, plotModel, axVars, weightName=None, plotName=None):
         nVars = len(axVars)
+        axTypes = tuple(nd.df.GetColumnType(cNm) for cNm in axVars)
         if weightName: ## nontrivial weight
             allVars = axVars + [ weightName ]
             logger.debug("Adding plot {0} with variables {1} and weight {2}", plotName, ", ".join(axVars), weightName)
         else:
             allVars = axVars
             logger.debug("Adding plot {0} with variables {1}", plotName, ", ".join(axVars))
-        allTypes = tuple(nd.df.GetColumnType(cNm) for cNm in allVars)
         from .root import gbl
-        ## TODO optimisation (avoiding JIT) goes here
-        if nVars == 1:
-            _RDFHisto1DStats[allTypes] += 1
+        if nVars < 3: ## only have templates for those
+            if weightName:
+                allTypes = tuple(chain(axTypes, [ nd.df.GetColumnType(weightName) ]))
+                kyTypes = (axTypes, allTypes[1])
+            else:
+                allTypes = axTypes
+                kyTypes = (axTypes,)
+            _RDFHistoNDStats[kyTypes] += 1
             templTypes = tuple(chain([nd.df.__cppname__], allTypes))
-            if templTypes not in _RDF_Histo1D_methods:
-                logger.info(f"Declaring Histo1D helper for types {templTypes}")
-                _RDF_Histo1D_methods[templTypes] = gbl.rdfhelpers.Histo1D(*templTypes)
-            plotFun = partial(_RDF_Histo1D_methods[templTypes], nd.df)
+            if kyTypes not in _RDFHistoND_methods:
+                logger.debug(f"Declaring Histo{nVars:d}D helper for types {templTypes}")
+                _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")(*templTypes)
+            plotFun = partial(_RDFHistoND_methods[kyTypes], nd.df)
         else:
             logger.warning(f"Using Histo{nVars:d}D with type inference")
             plotFun = getattr(nd.df, f"Histo{nVars:d}D")

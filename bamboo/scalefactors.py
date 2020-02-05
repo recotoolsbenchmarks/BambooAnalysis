@@ -139,7 +139,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
             raise ValueError("If combining by sampling, a seed function needs to be passed to get_scalefactor")
 
     if getFlavour is None:
-        getFlavour = lambda j : j.hadronFlavor
+        getFlavour = lambda j : j.hadronFlavour
     getFlavour = partial(lambda getter, j : op.extMethod("IJetScaleFactor::get_flavour")(getter(j)), getFlavour)
 
     lumiPerPeriod_default.update(lumiPerPeriod)

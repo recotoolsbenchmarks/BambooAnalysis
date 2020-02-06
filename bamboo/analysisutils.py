@@ -172,9 +172,9 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
     ## try to get them from a cache file or database (ordered by less-to-more risky)
     failed_names = set()
     for method, condition in [
-            (" from cache file", (lambda smpCfg : "files" in smpCfg and ( str(smpCfg["files"]) == smpCfg["files"] ))),
-            (" from SAMADhi"   , (lambda smpCfg : "db" in smpCfg and smpCfg["db"].startswith("samadhi:"))),
-            (" from DAS"       , (lambda smpCfg : "db" in smpCfg and smpCfg["db"].startswith("das:"))),
+            (" from cache file", (lambda smpCfg : "files" in smpCfg and isinstance(smpCfg["files"], str))),
+            (" from SAMADhi"   , (lambda smpCfg : "db" in smpCfg and (smpCfg["db"] if isinstance(smpCfg["db"], str) else smpCfg["db"][0]).startswith("samadhi:"))),
+            (" from DAS"       , (lambda smpCfg : "db" in smpCfg and (smpCfg["db"] if isinstance(smpCfg["db"], str) else smpCfg["db"][0]).startswith("das:"))),
             (""                , (lambda smpCfg : True))
             ]:
         for smpNm,smpCfg in samples.items():

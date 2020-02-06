@@ -45,6 +45,7 @@ ROOT::RDF::RResultPtr<TH1D> Histo1D(RDF& rdf, const ROOT::RDF::TH1DModel& model,
 {
     return rdf.template Histo1D<VAR1>(model, vName);
 }
+
 template<typename RDF,typename VAR1, typename VAR2, typename WEIGHT>
 ROOT::RDF::RResultPtr<TH2D> Histo2D(RDF& rdf, const ROOT::RDF::TH2DModel& model, std::string_view v1Name, std::string_view v2Name, std::string_view wName)
 {

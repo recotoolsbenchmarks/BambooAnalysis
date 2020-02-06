@@ -345,28 +345,36 @@ class DataframeBackend(FactoryBackend):
     def makeHistoND(nd, plotModel, axVars, weightName=None, plotName=None):
         nVars = len(axVars)
         axTypes = tuple(nd.df.GetColumnType(cNm) for cNm in axVars)
+        useExplicit = True
+        from .root import gbl
+        for axTp in axTypes:
+            try:
+                tp = getattr(gbl, axTp)
+                if hasattr(tp, "value_type"):
+                    useExplicit = False
+            except AttributeError:
+                pass
         if weightName: ## nontrivial weight
             allVars = axVars + [ weightName ]
             logger.debug("Adding plot {0} with variables {1} and weight {2}", plotName, ", ".join(axVars), weightName)
         else:
             allVars = axVars
             logger.debug("Adding plot {0} with variables {1}", plotName, ", ".join(axVars))
-        from .root import gbl
-        if nVars < 3: ## only have templates for those
+        if useExplicit and nVars < 3: ## only have templates for those
             if weightName:
-                allTypes = tuple(chain(axTypes, [ nd.df.GetColumnType(weightName) ]))
-                kyTypes = (axTypes, allTypes[1])
+                wType = nd.df.GetColumnType(weightName)
+                templTypes = tuple(chain([nd.df.__cppname__], axTypes, [ wType ]))
+                kyTypes = (nd.df.__cppname__, axTypes, wType)
             else:
-                allTypes = axTypes
-                kyTypes = (axTypes,)
+                templTypes = [nd.df.__cppname__] + axTypes
+                kyTypes = (nd.df.__cppname__, axTypes)
             _RDFHistoNDStats[kyTypes] += 1
-            templTypes = tuple(chain([nd.df.__cppname__], allTypes))
             if kyTypes not in _RDFHistoND_methods:
                 logger.debug(f"Declaring Histo{nVars:d}D helper for types {templTypes}")
                 _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")(*templTypes)
             plotFun = partial(_RDFHistoND_methods[kyTypes], nd.df)
         else:
-            logger.warning(f"Using Histo{nVars:d}D with type inference")
+            logger.debug(f"Using Histo{nVars:d}D with type inference")
             plotFun = getattr(nd.df, f"Histo{nVars:d}D")
         _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)

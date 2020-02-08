@@ -370,7 +370,7 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
         if str(enableSystematics) == enableSystematics:
             enableSystematics = [enableSystematics]
         avail = list(variProxy.calc.available())
-        enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
+        enable = tuple( vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) )
         if enable:
             for opWithSyst in variProxy.brMapMap[variProxy.withSystName].values():
                 opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
@@ -470,7 +470,7 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
         if str(enableSystematics) == enableSystematics:
             enableSystematics = [enableSystematics]
         avail = list(variProxy.calc.available())
-        enable = [ vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) ]
+        enable = tuple( vari for vari in avail if vari != "nominal" and any(vari.startswith(ena) for ena in enableSystematics) )
         if enable:
             for opWithSyst in variProxy.brMapMap[variProxy.withSystName].values():
                 opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc

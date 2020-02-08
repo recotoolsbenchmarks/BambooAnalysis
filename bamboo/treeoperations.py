@@ -65,8 +65,11 @@ class TupleOp:
     def __hash__(self):
         """ Value-based hash (lazily cached) """
         if self._cache.hash is None:
-            self._cache.hash = hash(self.__repr__())
+            self._cache.hash = self._hash()
         return self._cache.hash
+    def _hash(self):
+        """ __hash__ implementation - subclasses please override  (caching is in top-level __hash__) """
+        return hash(self.__repr__())
     def __eq__(self, other):
         """ Identity or value-based equality comparison (same object and unequal should be fast) """
         # _eq may end up being quite expensive, but should almost never be called
@@ -133,6 +136,8 @@ class ForwardingOp(TupleOp):
         return wrapRes
     def _repr(self):
         return "{0}({1!r})".format(self.__class__.__name__, self.wrapped)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped)))
     def _eq(self, other):
         return self.wrapped == other.wrapped
     def get_cppStr(self, defCache=cppNoRedir):
@@ -155,6 +160,8 @@ class Const(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.value)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.value == other.value
     # backends
@@ -181,6 +188,8 @@ class GetColumn(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.name)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name
     def get_cppStr(self, defCache=None):
@@ -207,6 +216,8 @@ class GetArrayColumn(TupleOp):
         return makeProxy(self.typeName, self, length=makeProxy(SizeType, self.length))
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.typeName, self.name, self.length)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name and self.length == other.length
     def get_cppStr(self, defCache=None):
@@ -295,6 +306,8 @@ class MathOp(TupleOp):
         return makeProxy(self.outType, self)
     def _repr(self):
         return "{0}({1}, {2}, outType={3!r})".format(self.__class__.__name__, self.op, ", ".join(repr(arg) for arg in self.args), self.outType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.op, self.outType], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.outType == other.outType and self.op == other.op and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -327,6 +340,8 @@ class GetItem(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.arg, self.typeName, self._index)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.arg), self.typeName, hash(self._index)))
     def _eq(self, other):
         return self.arg == other.arg and self.typeName == other.typeName and self._index == other._index
     def get_cppStr(self, defCache=cppNoRedir):
@@ -353,6 +368,8 @@ class Construct(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2})".format(self.__class__.__name__, self.typeName, ", ".join(repr(a) for a in self.args))
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.typeName ], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.typeName == other.typeName and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -424,6 +441,8 @@ class CallMethod(TupleOp):
         return makeProxy(self._retType, self)
     def _repr(self):
         return "{0}({1!r}, ({2}), returnType={3!r})".format(self.__class__.__name__, self.name, ", ".join(repr(arg) for arg in self.args), self._retType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.name, self._retType], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.name == other.name and self._retType == other._retType and self.args == other.args
     # backends
@@ -454,6 +473,8 @@ class CallMemberMethod(TupleOp):
         return makeProxy(self._retType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, ({3}), returnType={4!r})".format(self.__class__.__name__, self.this, self.name, ", ".join(repr(arg) for arg in self.args), self._retType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.this, self.name, self._retType ], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.this == other.this and self.name == other.name and self._retType == other._retType and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -492,6 +513,8 @@ class GetDataMember(TupleOp):
         return makeProxy("void", self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.this, self.name)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.this), self.name))
     def _eq(self, other):
         return self.this == other.this and self.name == other.name
     def get_cppStr(self, defCache=cppNoRedir):
@@ -512,6 +535,8 @@ class ExtVar(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.name)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name
     def get_cppStr(self, defCache=None):
@@ -533,6 +558,8 @@ class DefinedVar(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, nameHint={3!r})".format(self.__class__.__name__, self.typeName, self.definition, self._nameHint)
+    def _hash(self):
+        return hash((self.__class__.__name__, self.typeName, hash(self.definition), self._nameHint))
     def _eq(self, other):
         return self.typeName == other.typeName and self.definition == other.definition and self._nameHint == other._nameHint
     def get_cppStr(self, defCache=cppNoRedir):
@@ -560,6 +587,8 @@ class InitList(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}<{1}>({2})".format(self.__class__.__name__, self.typeName, ", ".join(repr(elm) for elm in self.elms))
+    def _hash(self):
+        return hash((chain([ self.__class__.__name__, self.typeName], (hash(e) for e in self.elms))))
     def _eq(self, other):
         return self.typeName == other.typeName and self.elms == other.elms
     def get_cppStr(self, defCache=cppNoRedir):
@@ -589,11 +618,13 @@ class LocalVariablePlaceholder(TupleOp):
         return self.name
     def _repr(self):
         return "{0}({1!r}, i={2!r})".format(self.__class__.__name__, self.typeHint, self.i)
+    def _hash(self):
+        return hash((self.__class__.__name__, self.typeHint, self.i))
     def _eq(self, other):
         ## NOTE this breaks the infinite recursion, but may not be 100% safe
         ## what should save the nested case is that the repr(parent) will be different for different levels of nesting
         ## since all LVP's are supposed to have an index, confusion between cases where they are combined differently should be eliminated as well
-        return self.typeHint == other.typeHint and repr(self._parent) == repr(other._parent) and self.i == other.i
+        return self.typeHint == other.typeHint and self.i == other.i and ( id(self._parent) == id(other._parent) or ( hash(self._parent) == hash(other._parent) and self._parent.__class__ == other._parent.__class__ and repr(self._parent) == repr(other._parent) ) )
 
 def collectNodes(expr, defCache=cppNoRedir, select=(lambda nd : True), stop=(lambda nd : False), includeLocal=True):
     # simple helper
@@ -695,6 +726,8 @@ class Select(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(SizeType), itemType=SizeType)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.predExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.predExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.predExpr == other.predExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -748,6 +781,8 @@ class Sort(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(SizeType), itemType=SizeType)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.funExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.funExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.funExpr == other.funExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -802,6 +837,8 @@ class Map(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(self.typeName), itemType=self.typeName)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r}, {4!r})".format(self.__class__.__name__, self.rng, self.funExpr, self._i, self.typeName)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.funExpr), hash(self._i), self.typeName))
     def _eq(self, other):
         return self.rng == other.rng and self.funExpr == other.funExpr and self._i == other._i and self.typeName == other.typeName
     def get_cppStr(self, defCache=cppNoRedir):
@@ -855,6 +892,8 @@ class Next(TupleOp):
         return makeProxy(SizeType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.predExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.predExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.predExpr == other.predExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -915,6 +954,8 @@ class Reduce(TupleOp):
         return makeProxy(self.resultType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r}, {4!r}, {5!r}, {6!r})".format(self.__class__.__name__, self.rng, self.resultType, self.start, self.accuExpr, self._i, self._prevRes)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), self.resultType, hash(self.start), hash(self.accuExpr), hash(self._i), hash(self._prevRes)))
     def _eq(self, other):
         return self.rng == other.rng and self.resultType == other.resultType and self.start == other.start and self.accuExpr == other.accuExpr and self._i == other._i and self._prevRes == other._prevRes
     def get_cppStr(self, defCache=cppNoRedir):
@@ -947,7 +988,7 @@ class Combine(TupleOp):
     def n(self):
         return len(self.ranges)
     def _clone(self, memo):
-        return self.__class__(list(rng.clone(memo=memo) for rng in self.ranges), self.candPredExpr.clone(memo=memo), tuple(i.clone(memo=memo) for i in self._i), canDefine=self.canDefine)
+        return self.__class__(tuple(rng.clone(memo=memo) for rng in self.ranges), self.candPredExpr.clone(memo=memo), tuple(i.clone(memo=memo) for i in self._i), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(num, ranges, candPredFun, samePred=None):
         ranges = ranges if len(ranges) > 1 else list(repeat(ranges[0], num))
@@ -965,7 +1006,7 @@ class Combine(TupleOp):
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))
         for i,ilvp in enumerate(idx):
             ilvp.i = maxLVIdx+1+i
-        res = Combine(list(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
+        res = Combine(tuple(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
         for ilvp in idx:
             ilvp._parent = res
         from .treeproxies import CombinationListProxy
@@ -975,7 +1016,7 @@ class Combine(TupleOp):
         return "ROOT::VecOps::RVec<rdfhelpers::Combination<{0:d}>>".format(self.n)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
-            for arg in self.ranges+[self.candPredExpr]:
+            for arg in chain(self.ranges, [self.candPredExpr]):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
@@ -987,6 +1028,8 @@ class Combine(TupleOp):
         return makeProxy(self.resultType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.ranges, self.candPredExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, tuple(hash(r) for r in self.ranges), hash(self.candPredExpr), tuple(hash(i) for i in self._i)))
     def _eq(self, other):
         return self.ranges == other.ranges and self.candPredExpr == other.candPredExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -1041,13 +1084,15 @@ class OpWithSyst(ForwardingOp):
         self.wrapped = self.variations[newVariation]
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped), self.systName, self.variations))
     def _eq(self, other):
         return super(OpWithSyst, self)._eq(other) and self.systName == other.systName and self.variations == other.variations
 
 class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
     def __init__(self, wrapped, systName, variations=None):
-        super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else [ "{0}{1}".format(systName, vard) for vard in ["up", "down"] ]))
+        super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else tuple("{0}{1}".format(systName, vard) for vard in ["up", "down"])))
     def _clone(self, memo):
         return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
     def changeVariation(self, newVariation):
@@ -1064,10 +1109,16 @@ class SystAltColumnOp(OpWithSyst):
     """ Change the wrapped operation (from a map) """
     def __init__(self, wrapped, name, varMap, valid=None):
         super(SystAltColumnOp, self).__init__(wrapped, name)
-        self.variations = valid if valid else list(varMap.keys())
+        self.variations = valid if valid else tuple(varMap.keys())
         self.varMap = varMap
     def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict((nm, vop.clone(memo=memo)) for nm,vop in self.varMap.items()), valid=list(self.variations))
+        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict((nm, vop.clone(memo=memo)) for nm,vop in self.varMap.items()), valid=tuple(self.variations))
+    def _repr(self):
+        return "{0}({1!r}, {2!r}, {3!r}, {4!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations, self.varMap)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped), self.systName, tuple(self.variations), tuple((ky, hash(val)) for ky,val in self.varMap.items())))
+    def _eq(self, other):
+        return super(SystAltColumnOp, self)._eq(other) and self.variations == other.variations and self.varMap == other.varMap
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if newVariation not in self.variations:

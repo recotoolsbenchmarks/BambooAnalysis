@@ -1131,11 +1131,14 @@ class OpWithSyst(ForwardingOp):
             return self.__class__(clWr, self.systName, variations=self.variations)
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value
-
-        Default implementation: assume variation contains alternative expression, so change the wrapped node
         """
+        if self._cache: # validate this assumption
+            raise RuntimeError("Cannot change variation of an expression that is already frozen")
         if newVariation not in self.variations:
             raise ValueError("Invalid variation: {0}".format(newVariation))
+        self._changeVariation(newVariation)
+    def _changeVariation(self, newVariation):
+        """ changeVariation specifics (after validating newVariation, and changability). Default: assume variation contains alternative expression, so change the wrapped node """
         self.wrapped = self.variations[newVariation]
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
@@ -1148,15 +1151,14 @@ class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
     def __init__(self, wrapped, systName, variations=None):
         super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else tuple("{0}{1}".format(systName, vard) for vard in ["up", "down"])))
-    def changeVariation(self, newVariation):
+    def _changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if self._cache: # validate this assumption
-            raise RuntimeError("Cannot change variation of an expression that is already frozen")
-        if newVariation not in self.variations:
-            raise ValueError("Invalid variation: {0}".format(newVariation))
         newVariation = (newVariation[len(self.systName):] if newVariation.startswith(self.systName) else newVariation).capitalize() ## translate to name in C++
-        if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
-            self.wrapped.args[-1].name = newVariation
+        wrOrig = self.wrapped
+        assert isinstance(wrOrig, CallMemberMethod) and isinstance(wrOrig.args[-1], ExtVar)
+        if wrOrig.args[-1].name == "Nominal" and newVariation != "Nominal":
+            replArgs = tuple(list(wrOrig.args)[:-1]+[ ExtVar(wrOrig.args[-1].typeName, newVariation) ])
+            self.wrapped = CallMemberMethod(wrOrig.this, wrOrig.name, replArgs, returnType=wrOrig._retType, canDefine=wrOrig.canDefine)
 
 class SystAltColumnOp(OpWithSyst):
     """ Change the wrapped operation (from a map) """
@@ -1175,10 +1177,7 @@ class SystAltColumnOp(OpWithSyst):
         return hash((self.__class__.__name__, hash(self.wrapped), self.systName, tuple(self.variations), tuple((ky, hash(val)) for ky,val in self.varMap.items())))
     def _eq(self, other):
         return super(SystAltColumnOp, self)._eq(other) and self.variations == other.variations and self.varMap == other.varMap
-    def changeVariation(self, newVariation):
-        """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if newVariation not in self.variations:
-            raise ValueError("Invalid branch name: {0}".format(newVariation))
+    def _changeVariation(self, newVariation):
         if newVariation in self.varMap:
             self.wrapped = self.varMap[newVariation]
 

@@ -33,17 +33,17 @@ class TupleOp:
     def __init__(self):
         self._cache = TupleOpCache()
         self.canDefine = True
-    def clone(self, memo=None):
+    def clone(self, memo=None, select=lambda nd : True):
         """ Create an independent copy (with empty repr/hash cache) of the (sub)expression """
         if memo is None: ## top-level, construct the dictionary
             memo = dict()
         if id(self) in memo:
             return memo[id(self)]
         else:
-            cp = self._clone(memo)
+            cp = self._clone(memo, select)
             memo[id(self)] = cp
             return cp
-    def _clone(self, memo): ## simple version, call clone of attributes without worrying about memo
+    def _clone(self, memo, select): ## simple version, call clone of attributes without worrying about memo
         """ Implementation of clone - to be overridden by all subclasses (memo is dealt with by clone, so simply construct, calling .clone(memo=memo) on TupleOp attributes """
         return self.__class__()
     def deps(self, defCache=None, select=(lambda x : True), includeLocal=False):
@@ -123,8 +123,8 @@ class ForwardingOp(TupleOp):
         super(ForwardingOp, self).__init__()
         self.wrapped = wrapped
         self.canDefine = canDefine if canDefine is not None else self.wrapped.canDefine
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.wrapped.clone(memo=memo, select=select), canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if select(self.wrapped):
             yield self.wrapped
@@ -152,7 +152,7 @@ class Const(TupleOp):
         super(Const, self).__init__()
         self.typeName = typeName
         self.value = value
-    def _clone(self, memo):
+    def _clone(self, memo, select):
         return self.__class__(self.typeName, self.value)
     @property
     def result(self):
@@ -180,7 +180,7 @@ class GetColumn(TupleOp):
         super(GetColumn, self).__init__()
         self.typeName = typeName
         self.name = name
-    def _clone(self, memo):
+    def _clone(self, memo, select):
         return self.__class__(self.typeName, self.name)
     @property
     def result(self):
@@ -203,8 +203,8 @@ class GetArrayColumn(TupleOp):
         self.typeName = typeName
         self.name = name
         self.length = length
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.name, self.length.clone(memo=memo))
+    def _clone(self, memo, select):
+        return self.__class__(self.typeName, self.name, self.length.clone(memo=memo, select=select))
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             if select(self.length):
@@ -292,8 +292,8 @@ class MathOp(TupleOp):
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         self.canDefine = kwargs.pop("canDefine", all(a.canDefine for a in self.args))
         assert len(kwargs) == 0
-    def _clone(self, memo):
-        return self.__class__(self.op, *(a.clone(memo=memo) for a in self.args), outType=self.outType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.op, *(a.clone(memo=memo, select=select) for a in self.args), outType=self.outType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -322,8 +322,8 @@ class GetItem(TupleOp):
         self.typeName = valueType
         self._index = adaptArg(index, typeHint=indexType)
         self.canDefine = canDefine if canDefine is not None else ( self.arg.canDefine and self._index.canDefine )
-    def _clone(self, memo):
-        return self.__class__(self.arg.clone(memo=memo), self.typeName, self._index.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.arg.clone(memo=memo, select=select), self.typeName, self._index.clone(memo=memo, select=select), canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.arg, self._index):
@@ -354,8 +354,8 @@ class Construct(TupleOp):
         self.typeName = typeName
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         self.canDefine = canDefine if canDefine is not None else all(a.canDefine for a in self.args)
-    def _clone(self, memo):
-        return self.__class__(self.typeName, tuple(a.clone(memo=memo) for a in self.args), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.typeName, tuple(a.clone(memo=memo, select=select) for a in self.args), canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -427,8 +427,8 @@ class CallMethod(TupleOp):
             except Exception as ex:
                 logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
         return guessReturnType(mp)
-    def _clone(self, memo):
-        return self.__class__(self.name, tuple(a.clone(memo=memo) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.name, tuple(a.clone(memo=memo, select=select) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -459,8 +459,8 @@ class CallMemberMethod(TupleOp):
         self.args = tuple(adaptArg(arg) for arg in args)
         self._retType = returnType if returnType else guessReturnType(getattr(this._typ, self.name))
         self.canDefine = canDefine if canDefine is not None else self.this.canDefine and all(a.canDefine for a in self.args)
-    def _clone(self, memo):
-        return self.__class__(self.this.clone(memo=memo), self.name, tuple(a.clone(memo=memo) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.this.clone(memo=memo, select=select), self.name, tuple(a.clone(memo=memo, select=select) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in chain((self.this,), self.args):
@@ -488,8 +488,8 @@ class GetDataMember(TupleOp):
         self.this = adaptArg(this)
         self.name = name ## NOTE can only be a hardcoded string this way
         self.canDefine = canDefine if canDefine is not None else self.this.canDefine
-    def _clone(self, memo):
-        return self.__class__(self.this.clone(memo=memo), self.name, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.this.clone(memo=memo, select=select), self.name, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             if select(self.this):
@@ -527,7 +527,7 @@ class ExtVar(TupleOp):
         super(ExtVar, self).__init__()
         self.typeName = typeName
         self.name = name
-    def _clone(self, memo):
+    def _clone(self, memo, select):
         return self.__class__(self.typeName, self.name)
     @property
     def result(self):
@@ -550,7 +550,7 @@ class DefinedVar(TupleOp):
         self.typeName = typeName
         self.definition = definition
         self._nameHint = nameHint
-    def _clone(self, memo):
+    def _clone(self, memo, select):
         return self.__class__(self.typeName, self.definition, nameHint=self._nameHint)
     @property
     def result(self):
@@ -573,8 +573,8 @@ class InitList(TupleOp):
         self.typeName = typeName
         self.elms = tuple(adaptArg(e, typeHint=elmType) for e in elms)
         self.canDefine = canDefine if canDefine is not None else all(elm.canDefine for elm in self.elms)
-    def _clone(self, memo):
-        return self.__class__(self.typeName, tuple(elm.clone(memo=memo) for elm in self.elms), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.typeName, tuple(elm.clone(memo=memo, select=select) for elm in self.elms), canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for elm in self.elms:
@@ -603,7 +603,7 @@ class LocalVariablePlaceholder(TupleOp):
         self._parent = parent
         self.i = i ## FIXME this one is set **late** - watch out with what we call
         self.canDefine = False
-    def _clone(self, memo):
+    def _clone(self, memo, select):
         return self.__class__(self.typeHint, parent=self._parent, i=self.i)
     @property
     def result(self):
@@ -699,8 +699,8 @@ class Select(TupleOp):
         self.predExpr = predExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.predExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.predExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.rng.clone(memo=memo, select=select), self.predExpr.clone(memo=memo, select=select), self._i.clone(memo=memo, select=select), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred):
         """ Factory method from a range and predicate (callable) """
@@ -755,8 +755,8 @@ class Sort(TupleOp):
         self.funExpr = funExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.funExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.funExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.rng.clone(memo=memo, select=select), self.funExpr.clone(memo=memo, select=select), self._i.clone(memo=memo, select=select), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun):
         idx = LocalVariablePlaceholder(SizeType)
@@ -811,8 +811,8 @@ class Map(TupleOp):
         self._i = idx
         self.typeName = typeName
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.funExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.funExpr.clone(memo=memo), self._i.clone(memo=memo), self.typeName, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.rng.clone(memo=memo, select=select), self.funExpr.clone(memo=memo, select=select), self._i.clone(memo=memo, select=select), self.typeName, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun, typeName=None):
         idx = LocalVariablePlaceholder(SizeType)
@@ -867,8 +867,8 @@ class Next(TupleOp):
         self.predExpr = predExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.predExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.predExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.rng.clone(memo=memo, select=select), self.predExpr.clone(memo=memo, select=select), self._i.clone(memo=memo, select=select), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred): ## FIXME you are here
         idx = LocalVariablePlaceholder(SizeType)
@@ -923,8 +923,8 @@ class Reduce(TupleOp):
         self._i = idx
         self._prevRes = prevRes
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(start, (self._i, self._prevRes)) and _canDefine(accuExpr, (self._i, self._prevRes))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.resultType, self.start.clone(memo=memo), self.accuExpr.clone(memo=memo), self._i.clone(memo=memo), self._prevRes.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(self.rng.clone(memo=memo, select=select), self.resultType, self.start.clone(memo=memo, select=select), self.accuExpr.clone(memo=memo, select=select), self._i.clone(memo=memo, select=select), self._prevRes.clone(memo=memo, select=select), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, start, accuFun):
         resultType = start._typeName
@@ -987,8 +987,8 @@ class Combine(TupleOp):
     @property
     def n(self):
         return len(self.ranges)
-    def _clone(self, memo):
-        return self.__class__(tuple(rng.clone(memo=memo) for rng in self.ranges), self.candPredExpr.clone(memo=memo), tuple(i.clone(memo=memo) for i in self._i), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        return self.__class__(tuple(rng.clone(memo=memo, select=select) for rng in self.ranges), self.candPredExpr.clone(memo=memo, select=select), tuple(i.clone(memo=memo, select=select) for i in self._i), canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(num, ranges, candPredFun, samePred=None):
         ranges = ranges if len(ranges) > 1 else list(repeat(ranges[0], num))
@@ -1072,8 +1072,8 @@ class OpWithSyst(ForwardingOp):
         super(OpWithSyst, self).__init__(wrapped)
         self.systName = systName
         self.variations = variations
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
+    def _clone(self, memo, select):
+        return self.__class__(self.wrapped.clone(memo=memo, select=select), self.systName, variations=self.variations)
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value
 
@@ -1093,8 +1093,8 @@ class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
     def __init__(self, wrapped, systName, variations=None):
         super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else tuple("{0}{1}".format(systName, vard) for vard in ["up", "down"])))
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
+    def _clone(self, memo, select):
+        return self.__class__(self.wrapped.clone(memo=memo, select=select), self.systName, variations=self.variations)
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
         if self._cache: # validate this assumption
@@ -1111,8 +1111,8 @@ class SystAltColumnOp(OpWithSyst):
         super(SystAltColumnOp, self).__init__(wrapped, name)
         self.variations = valid if valid else tuple(varMap.keys())
         self.varMap = varMap
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict((nm, vop.clone(memo=memo)) for nm,vop in self.varMap.items()), valid=tuple(self.variations))
+    def _clone(self, memo, select):
+        return self.__class__(self.wrapped.clone(memo=memo, select=select), self.systName, dict((nm, vop.clone(memo=memo, select=select)) for nm,vop in self.varMap.items()), valid=tuple(self.variations))
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r}, {4!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations, self.varMap)
     def _hash(self):

@@ -302,7 +302,7 @@ class MathOp(TupleOp):
         assert len(kwargs) == 0
     def _clone(self, memo, select):
         argsCl = tuple(a.clone(memo=memo, select=select) for a in self.args)
-        if select(self) or any(id(aCl) != id(aOrig) or aCl, aOrig in zip(argsCl, self.args)):
+        if select(self) or any(id(aCl) != id(aOrig) for aCl, aOrig in zip(argsCl, self.args)):
             return self.__class__(self.op, *argsCl, outType=self.outType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
@@ -335,7 +335,7 @@ class GetItem(TupleOp):
     def _clone(self, memo, select):
         argCl = self.arg.clone(memo=memo, select=select)
         idxCl = self._index.clone(memo=memo, select=select)
-        if select(self) or id(argcl) != id(self.arg) or id(self._index) != id(idxCl):
+        if select(self) or id(argCl) != id(self.arg) or id(self._index) != id(idxCl):
             return self.__class__(argCl, self.typeName, idxCl, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
@@ -730,7 +730,7 @@ class Select(TupleOp):
         rngCl = self.rng.clone(memo=memo, select=select)
         predCl = self.predExpr.clone(memo=memo, select=select)
         iCl = self._i.clone(memo=memo, select=select)
-        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self.i):
+        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self._i):
             return self.__class__(rngCl, predCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred):
@@ -790,7 +790,7 @@ class Sort(TupleOp):
         rngCl = self.rng.clone(memo=memo, select=select)
         funCl = self.funExpr.clone(memo=memo, select=select)
         iCl = self._i.clone(memo=memo, select=select)
-        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self.i):
+        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self._i):
             return self.__class__(rngCl, funCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun):
@@ -850,7 +850,7 @@ class Map(TupleOp):
         rngCl = self.rng.clone(memo=memo, select=select)
         funCl = self.funExpr.clone(memo=memo, select=select)
         iCl = self._i.clone(memo=memo, select=select)
-        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self.i):
+        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self._i):
             return self.__class__(rngCl, funCl, iCl, self.typeName, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun, typeName=None):
@@ -910,7 +910,7 @@ class Next(TupleOp):
         rngCl = self.rng.clone(memo=memo, select=select)
         predCl = self.predExpr.clone(memo=memo, select=select)
         iCl = self._i.clone(memo=memo, select=select)
-        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self.i):
+        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self._i):
             return self.__class__(rngCl, predCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred): ## FIXME you are here

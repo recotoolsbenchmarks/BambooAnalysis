@@ -220,7 +220,7 @@ class DataframeBackend(FactoryBackend):
                         else:
                             ctChanged = []
                             for ct in ctToChange: ## empty if sele._cuts are not affected
-                                newct = ct.clone()
+                                newct = ct.clone(select=hasthissystV)
                                 for nd in top.collectNodes(newct, select=hasthissystV):
                                     nd.changeVariation(varn)
                                 ctChanged.append(newct)
@@ -242,7 +242,7 @@ class DataframeBackend(FactoryBackend):
                         if wfToChange or varNd != nomNd or ( nomParentNd and varn in nomParentNd.wName ):
                             wfChanged = []
                             for wf in wfToChange:
-                                newf = wf.clone()
+                                newf = wf.clone(select=hasthissystV)
                                 for nd in top.collectNodes(newf, select=hasthissystV):
                                     nd.changeVariation(varn)
                                 wfChanged.append(newf)
@@ -284,7 +284,7 @@ class DataframeBackend(FactoryBackend):
                         varVars = []
                         for i,xvar in enumerate(plot.variables):
                             if i in idxVarsToChange:
-                                varVar = xvar.clone()
+                                varVar = xvar.clone(select=hasthissystV)
                                 for nd in top.collectNodes(varVar, select=hasthissystV):
                                     nd.changeVariation(varn)
                             else:

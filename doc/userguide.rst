@@ -133,6 +133,8 @@ of the analysis configuration file (in this order of precedence); if the values
 are callable, the result of calling them on the :py:class:`~bamboo.plots.Plot`
 is used (which may be useful to adjust e.g. the axis range to the binning; by
 default the binning range is used as x-axis range).
+The full list of plotIt_ configuration options can be found
+`on this page <http://cp3-llbb.github.io/plotit/>`_.
 
 Each entry in the ``samples`` dictionary (the keys are the names of the samples)
 is another dictionary. The files to processed can be specified directly as a

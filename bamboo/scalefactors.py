@@ -20,7 +20,8 @@ from . import treefunctions as op
 
 #: Integrated luminosity (in 1/pb) per data taking period
 lumiPerPeriod_default = {
-    ## 2017 - using approved normtag + 07Aug2017 re-reco golden JSON
+    ## 2016 - using approved normtag + 07Aug2017 re-reco golden JSON
+    # ReReco/Final/Cert_271036-284044_13TeV_ReReco_07Aug2017_Collisions16_JSON.txt
       "Run2016B" : 5750.491
     , "Run2016C" : 2572.903
     , "Run2016D" : 4242.292
@@ -34,13 +35,15 @@ lumiPerPeriod_default = {
     , "Run276501to276811" : 3191.207
 
     ## 2017 - using approved normtag + re-reco golden JSON
+    # ReReco/Cert_294927-306462_13TeV_EOY2017ReReco_Collisions17_JSON_v1.txt
     , "Run2017B" : 4793.970
     , "Run2017C" : 9632.746
     , "Run2017D" : 4247.793
     , "Run2017E" : 9314.581
-    , "Run2017F" : 13540.062
+    , "Run2017F" : 13539.905
     
     ## 2018 - using approved normtag + re-reco golden JSON
+    # ReReco/Cert_314472-325175_13TeV_17SeptEarlyReReco2018ABC_PromptEraD_Collisions18_JSON.txt
     , "Run2018A" : 14027.614
     , "Run2018B" : 7066.552
     , "Run2018C" : 6898.817

@@ -260,10 +260,13 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                             logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpN, os.path.join(resultsdir, resultsName), ex))
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
+    plotDefaults_yml = plotitCfg.pop("plotdefaults", {})
     plotit_plots = dict()
     for plot in plotList:
         if len(plot.variables) == 1:
             plotOpts = dict(plotit_plotdefaults)
+            if plotDefaults_yml:
+                plotOpts.update(plotDefaults_yml)
             if plotDefaults:
                 plotOpts.update(plotDefaults)
             plotOpts.update(plot.plotopts)

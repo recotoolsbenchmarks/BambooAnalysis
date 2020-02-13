@@ -11,7 +11,7 @@ if(EXISTS "$ENV{CMAKE_PREFIX_PATH}/include/boost")
     set(Boost_NO_BOOST_CMAKE ON)
 endif()
 
-find_package(ROOT REQUIRED COMPONENTS Hist ROOTVecOps)
+find_package(ROOT REQUIRED COMPONENTS MathCore Hist ROOTVecOps)
 find_package(Boost REQUIRED)
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -19,7 +19,7 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 add_library(BambooRandom SHARED src/bamboorandom.cc)
 target_compile_features(BambooRandom PRIVATE cxx_std_17)
 target_include_directories(BambooRandom PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
-target_link_libraries(BambooRandom)
+target_link_libraries(BambooRandom ROOT::MathCore)
 install(TARGETS BambooRandom LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc)

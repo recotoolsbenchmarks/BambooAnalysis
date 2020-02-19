@@ -137,15 +137,28 @@ public:
   virtual ~BTaggingScaleFactor() {}
 
   virtual float get(const Parameters& parameters, Flavour flavour, SystVariation variation) const override final {
+
+    std::vector<float> values;
     switch(flavour) {
       case Flavour::Beauty:
-        return m_beautyValues.get(parameters)[static_cast<std::size_t>(variation)];
+        values = m_beautyValues.get(parameters);
+        break;
       case Flavour::Charm:
-        return m_charmValues .get(parameters)[static_cast<std::size_t>(variation)];
+        values = m_charmValues.get(parameters);
+        break;
       case Flavour::Light:
-        return m_lightValues .get(parameters)[static_cast<std::size_t>(variation)];
+        values = m_lightValues.get(parameters);
+        break;
       default:
         throw std::invalid_argument("Unsupported flavour: "+std::to_string(flavour));
+    }
+    switch(variation) {
+      case Nominal:
+        return values[Nominal];
+      case Up:
+        return values[Nominal]+values[Up];
+      case Down:
+        return values[Nominal]-values[Down];
     }
   }
 private:

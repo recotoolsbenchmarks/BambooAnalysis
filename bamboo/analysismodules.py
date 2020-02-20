@@ -185,7 +185,7 @@ class AnalysisModule(object):
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
-                analysisCfg = parseAnalysisConfig(anaCfgName, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=(not self.args.onlypost), redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)

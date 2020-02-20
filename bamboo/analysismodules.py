@@ -326,7 +326,7 @@ class AnalysisModule(object):
             if "run_range" in sConfig:
                 opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             opts["sample"] = sName
-            sInputFiles = sConfig["files"]
+            sInputFiles = sConfig.get("files", [])
             if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
                 logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
                 sInputFiles = sInputFiles[:self.args.maxFiles]

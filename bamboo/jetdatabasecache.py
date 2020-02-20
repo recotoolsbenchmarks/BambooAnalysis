@@ -246,8 +246,23 @@ class JetDatabaseCache(object):
         elif "path" in stPL:
             return stPL["path"]
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    import IPython
-    jecdb = JetDatabaseCache("JECDB", repository="cms-jet/JECDatabase", cachedir=".")
-    IPython.embed()
+def checkCMS_CLI():
+    """ Command-line script to update and check the status of the JEC/JER database caches """
+    import argparse
+    parser = argparse.ArgumentParser(description="Update or explore the JEC/JER database caches")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Run in quiet mode")
+    parser.add_argument("-i", "--interactive", action="store_true", help="Open an IPython shell to explore the database caches")
+    parser.add_argument("--readonly", action="store_true", help="Open the caches in readonly mode (they will not be able to automatically update, in this case)")
+    parser.add_argument("--cachedir", type=str, help="Alternative cache root directory")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=(logging.INFO if args.quiet else logging.DEBUG))
+    mayWrite = not args.readonly
+    with sessionWithResponseChecks() as session:
+        logger.info("Loading JECDatabase from 'cms-jet/JECDatabase', with {0}".format(f"cache dir in {args.cachedir}" if args.cachedir else "default cache dir"))
+        jecDBCache = JetDatabaseCache("JECDatabase", repository="cms-jet/JECDatabase", cachedir=args.cachedir, mayWrite=(not args.readonly))
+        logger.info("Loading JRDatabase from 'cms-jet/JRDatabase', with {0}".format(f"cache dir in {args.cachedir}" if args.cachedir else "default cache dir"))
+        jrDBCache = JetDatabaseCache("JRDatabase", repository="cms-jet/JRDatabase", cachedir=args.cachedir, mayWrite=(not args.readonly))
+        if args.interactive:
+            import IPython
+            IPython.embed(header='JEC and JR database caches are available in `jecDBCache` and `jrDBCache`\nExample: pl = jecDBCache.getPayload("Summer19UL17_RunE_V1_SimpleL1_DATA", "L1FastJet", "AK4PFchs")')

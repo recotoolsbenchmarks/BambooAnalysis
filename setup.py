@@ -101,7 +101,8 @@ setup(
     entry_points={
         'console_scripts': [
             "bambooRun=bamboo.scripts.bambooRun:main",
-            "makePUReWeightJSON=bamboo.scripts.makePUReWeightJSON:main"
+            "makePUReWeightJSON=bamboo.scripts.makePUReWeightJSON:main",
+            "checkBambooCMSJetDatabaseCaches=bamboo.jetdatabasecache:checkCMS_CLI"
             ]
         },
 

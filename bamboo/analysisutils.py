@@ -90,6 +90,7 @@ def sample_resolveFiles(smpCfg, redodbqueries=False, overwritesamplefilelists=Fa
             if protocol == "das":
                 dasConfig = envConfig["das"]
                 dasQuery = "file dataset={0}".format(dbLoc)
+                logger.debug(f"Querying DAS: '{dasQuery}'")
                 entryFiles = [ _dasLFNtoPFN(lfn, dasConfig) for lfn in [ ln.strip() for ln in subprocess.check_output(["dasgoclient", "-query", dasQuery]).decode().split() ] if len(lfn) > 0 ]
                 files += entryFiles
                 if len(entryFiles) == 0:

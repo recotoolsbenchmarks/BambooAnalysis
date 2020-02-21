@@ -294,8 +294,10 @@ The jet collection as stored on the input file, finally, can be retrieved as
    repository changes and the ``mayWriteCache`` argument to
    :py:meth:`bamboo.analysisutils.configureJets` (see the example above)
    helps ensure that only one process write to the cache at a time.
-   In case of doubt one can remove the cache directories and status files from
-   ``~/.bamboo/cache``, they will be recreated automatically at the next use.
+   In case of doubt one can use the ``checkBambooCMSJetDatabaseCaches`` script
+   to update or check the cache interactively and, as a last resort, remove
+   the cache directories and status files from ``~/.bamboo/cache``:
+   they will be recreated automatically at the next use.
 
 
 .. _reciperochester:

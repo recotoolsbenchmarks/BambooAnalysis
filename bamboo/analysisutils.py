@@ -494,6 +494,53 @@ def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatc
                 opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
             logger.info("Enabled systematic variations for MET: {0}".format(" ".join(enable)))
 
+def splitVariation(variProxy, variation, regions, nomName="nom"):
+    """
+    Split a systematic variation between (kinematic) regions (to decorrelate the nuisance parameter)
+
+    :param variProxy: jet variations proxy, e.g. ``tree._Jet``
+    :param variation: name of the variation that should be split (e.g. "jer")
+    :param regions: map of region names and selections (for non-collection objects: boolean expression, for collection objects: a callable that returns a boolean for an item from the collection)
+    :param nomName: name of the nominal variation ("nom" for postprocessed, "nominal" for calculator)
+
+    :Example:
+
+    >>> splitVariation(tree._Jet, "jer", {"forward" : lambda j : j.eta > 0., "backward" : lambda j : j.eta < 0.})
+    """
+    if not ( hasattr(variProxy, "brMapMap") and f"{variation}up" in variProxy.brMapMap and f"{variation}down" in variProxy.brMapMap):
+        raise RuntimeError(f"Could not find up and down variation for {variation} (available: {list(brMapMap.keys())!s})")
+    from itertools import chain
+    from functools import partial
+    from . import treefunctions as op
+    from .treeoperations import adaptArg
+    from .treeproxies import ListBase
+    nomBrMap = variProxy.brMapMap[nomName]
+    nomProxy = variProxy[nomName]
+    for direction in ("up", "down"):
+        origVarName = f"{variation}{direction}"
+        origBrMap = variProxy.brMapMap[origVarName]
+        for regNm, regSel in regions.items():
+            if isinstance(nomProxy, ListBase): ## collection
+                regBrMap = { attN : adaptArg(op.map(nomProxy, partial(
+                    lambda osel,oatt,attn,obj : op.switch(osel(obj),
+                        oatt.result[obj._idx], getattr(obj, attn)), regSel, origAtt, attN)
+                    )) for attN, origAtt in origBrMap.items() }
+            else: ## non-collection
+                regBrMap = { attN : adaptArg(op.switch(regSel, origAtt, getattr(nomProxy, attN)))
+                             for attN, origAtt in origBrMap.items() }
+            variProxy.brMapMap[f"{variation}{regNm}{direction}"] = regBrMap
+    ## adjust varMap and enabled variations for with-syst ops (as in initFromCalc and configure* above)
+    origVarNames = tuple(f"{variation}{direction}" for direction in ("up", "down"))
+    newVarNames = tuple(f"{variation}{regNm}{direction}" for regNm in regions.keys() for direction in ("up", "down"))
+    for attN,opWithSyst in variProxy.brMapMap[getattr(variProxy, "withSystName", "nomWithSyst")].items():
+        if opWithSyst._cache:
+            raise RuntimeError("Expression has already been used, changing now would lead to undefined behaviour")
+        for nvN in newVarNames:
+            if attN in variProxy.brMapMap[nvN]:
+                opWithSyst.varMap[nvN] = variProxy.brMapMap[nvN][attN]
+        opWithSyst.variations = tuple(chain(
+            (varnm for varnm in opWithSyst.variations if varnm not in origVarNames), newVarNames))
+
 def forceDefine(arg, selection):
     """ Force the definition of an expression as a column at a selection stage
 

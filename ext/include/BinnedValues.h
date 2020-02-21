@@ -222,6 +222,7 @@ class BinnedValues {
     }
 
     public:
+    // returns { E, ΔE+, ΔE- }
     virtual std::vector<float> get(const Parameters& parameters) const {
         static auto double_errors = [](std::vector<float>& values) {
             values[Up] *= 2;

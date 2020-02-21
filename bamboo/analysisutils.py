@@ -278,7 +278,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
     with open(cfgName, "w") as plotitFile:
         yaml.dump(plotitCfg, plotitFile)
 
-    out_extraOpts = ["-y"]
+    out_extraOpts = []
     if len(eras) > 1 and eraMode in ("all", "combined"):
         out_extraOpts.append((os.path.join(workdir, "plots"), []))
     if len(eras) == 1 or eraMode in ("split", "all"):
@@ -291,7 +291,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
             os.makedirs(plotsdir)
         try:
             plotItLog = os.path.join(plotsdir, "out.log")
-            plotItArgs = [plotIt, "-i", workdir, "-o", plotsdir]+extraOpts+[cfgName]
+            plotItArgs = [plotIt, "-i", workdir, "-o", plotsdir, "-y"]+extraOpts+[cfgName]
             if verbose:
                 logger.debug("Running command `{0}`, with logfile {1}".format(" ".join(plotItArgs), plotItLog))
             with open(plotItLog, "w") as logFile:

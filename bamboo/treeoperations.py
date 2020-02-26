@@ -33,19 +33,21 @@ class TupleOp:
     def __init__(self):
         self._cache = TupleOpCache()
         self.canDefine = True
-    def clone(self, memo=None):
+    def clone(self, memo=None, select=lambda nd : True):
         """ Create an independent copy (with empty repr/hash cache) of the (sub)expression """
         if memo is None: ## top-level, construct the dictionary
             memo = dict()
         if id(self) in memo:
             return memo[id(self)]
         else:
-            cp = self._clone(memo)
-            memo[id(self)] = cp
-            return cp
-    def _clone(self, memo): ## simple version, call clone of attributes without worrying about memo
-        """ Implementation of clone - to be overridden by all subclasses (memo is dealt with by clone, so simply construct, calling .clone(memo=memo) on TupleOp attributes """
-        return self.__class__()
+            cp = self._clone(memo, select)
+            cln = cp if cp is not None else self
+            memo[id(self)] = cln
+            return cln
+    def _clone(self, memo, select): ## simple version, call clone of attributes without worrying about memo
+        """ Implementation of clone - to be overridden by all subclasses (memo is dealt with by clone, so simply construct, calling .clone(memo=memo, select=select) on TupleOp attributes. Return None if no clone is needed (based on select) """
+        if select(self):
+            return self.__class__()
     def deps(self, defCache=None, select=(lambda x : True), includeLocal=False):
         """ Dependent TupleOps iterator """
         yield from []
@@ -65,8 +67,11 @@ class TupleOp:
     def __hash__(self):
         """ Value-based hash (lazily cached) """
         if self._cache.hash is None:
-            self._cache.hash = hash(self.__repr__())
+            self._cache.hash = self._hash()
         return self._cache.hash
+    def _hash(self):
+        """ __hash__ implementation - subclasses please override  (caching is in top-level __hash__) """
+        return hash(self.__repr__())
     def __eq__(self, other):
         """ Identity or value-based equality comparison (same object and unequal should be fast) """
         # _eq may end up being quite expensive, but should almost never be called
@@ -120,8 +125,10 @@ class ForwardingOp(TupleOp):
         super(ForwardingOp, self).__init__()
         self.wrapped = wrapped
         self.canDefine = canDefine if canDefine is not None else self.wrapped.canDefine
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        clWr = self.wrapped.clone(memo=memo, select=select)
+        if select(self) or id(clWr) != id(self.wrapped):
+            return self.__class__(clWr, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if select(self.wrapped):
             yield self.wrapped
@@ -133,6 +140,8 @@ class ForwardingOp(TupleOp):
         return wrapRes
     def _repr(self):
         return "{0}({1!r})".format(self.__class__.__name__, self.wrapped)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped)))
     def _eq(self, other):
         return self.wrapped == other.wrapped
     def get_cppStr(self, defCache=cppNoRedir):
@@ -147,14 +156,17 @@ class Const(TupleOp):
         super(Const, self).__init__()
         self.typeName = typeName
         self.value = value
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.value)
+    def _clone(self, memo, select):
+        if select(self):
+            return self.__class__(self.typeName, self.value)
     @property
     def result(self):
         from .treeproxies import makeProxy
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.value)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.value == other.value
     # backends
@@ -173,14 +185,17 @@ class GetColumn(TupleOp):
         super(GetColumn, self).__init__()
         self.typeName = typeName
         self.name = name
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.name)
+    def _clone(self, memo, select):
+        if select(self):
+            return self.__class__(self.typeName, self.name)
     @property
     def result(self):
         from .treeproxies import makeProxy
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.name)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name
     def get_cppStr(self, defCache=None):
@@ -194,8 +209,10 @@ class GetArrayColumn(TupleOp):
         self.typeName = typeName
         self.name = name
         self.length = length
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.name, self.length.clone(memo=memo))
+    def _clone(self, memo, select):
+        lnCl = self.length.clone(memo=memo, select=select)
+        if select(self) or id(lnCl) != id(self.length):
+            return self.__class__(self.typeName, self.name, lnCl)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             if select(self.length):
@@ -207,6 +224,8 @@ class GetArrayColumn(TupleOp):
         return makeProxy(self.typeName, self, length=makeProxy(SizeType, self.length))
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.typeName, self.name, self.length)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name and self.length == other.length
     def get_cppStr(self, defCache=None):
@@ -281,8 +300,10 @@ class MathOp(TupleOp):
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         self.canDefine = kwargs.pop("canDefine", all(a.canDefine for a in self.args))
         assert len(kwargs) == 0
-    def _clone(self, memo):
-        return self.__class__(self.op, *(a.clone(memo=memo) for a in self.args), outType=self.outType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        argsCl = tuple(a.clone(memo=memo, select=select) for a in self.args)
+        if select(self) or any(id(aCl) != id(aOrig) for aCl, aOrig in zip(argsCl, self.args)):
+            return self.__class__(self.op, *argsCl, outType=self.outType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -295,6 +316,8 @@ class MathOp(TupleOp):
         return makeProxy(self.outType, self)
     def _repr(self):
         return "{0}({1}, {2}, outType={3!r})".format(self.__class__.__name__, self.op, ", ".join(repr(arg) for arg in self.args), self.outType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.op, self.outType], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.outType == other.outType and self.op == other.op and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -309,8 +332,11 @@ class GetItem(TupleOp):
         self.typeName = valueType
         self._index = adaptArg(index, typeHint=indexType)
         self.canDefine = canDefine if canDefine is not None else ( self.arg.canDefine and self._index.canDefine )
-    def _clone(self, memo):
-        return self.__class__(self.arg.clone(memo=memo), self.typeName, self._index.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        argCl = self.arg.clone(memo=memo, select=select)
+        idxCl = self._index.clone(memo=memo, select=select)
+        if select(self) or id(argCl) != id(self.arg) or id(self._index) != id(idxCl):
+            return self.__class__(argCl, self.typeName, idxCl, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.arg, self._index):
@@ -327,6 +353,8 @@ class GetItem(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.arg, self.typeName, self._index)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.arg), self.typeName, hash(self._index)))
     def _eq(self, other):
         return self.arg == other.arg and self.typeName == other.typeName and self._index == other._index
     def get_cppStr(self, defCache=cppNoRedir):
@@ -339,8 +367,10 @@ class Construct(TupleOp):
         self.typeName = typeName
         self.args = tuple(adaptArg(a, typeHint="Double_t") for a in args)
         self.canDefine = canDefine if canDefine is not None else all(a.canDefine for a in self.args)
-    def _clone(self, memo):
-        return self.__class__(self.typeName, tuple(a.clone(memo=memo) for a in self.args), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        argsCl = tuple(a.clone(memo=memo, select=select) for a in self.args)
+        if select(self) or any(id(argCl) != id(arg) for argCl, arg in zip(argsCl, self.args)):
+            return self.__class__(self.typeName, argsCl, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -353,6 +383,8 @@ class Construct(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2})".format(self.__class__.__name__, self.typeName, ", ".join(repr(a) for a in self.args))
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.typeName ], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.typeName == other.typeName and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -410,8 +442,10 @@ class CallMethod(TupleOp):
             except Exception as ex:
                 logger.error("Exception in getting method pointer {0}: {1}".format(name, ex))
         return guessReturnType(mp)
-    def _clone(self, memo):
-        return self.__class__(self.name, tuple(a.clone(memo=memo) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        argsCl = tuple(a.clone(memo=memo, select=select) for a in self.args)
+        if select(self) or any(id(argCl) != id(arg) for argCl, arg in zip(argsCl, self.args)):
+            return self.__class__(self.name, argsCl, returnType=self._retType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in self.args:
@@ -424,6 +458,8 @@ class CallMethod(TupleOp):
         return makeProxy(self._retType, self)
     def _repr(self):
         return "{0}({1!r}, ({2}), returnType={3!r})".format(self.__class__.__name__, self.name, ", ".join(repr(arg) for arg in self.args), self._retType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.name, self._retType], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.name == other.name and self._retType == other._retType and self.args == other.args
     # backends
@@ -440,8 +476,11 @@ class CallMemberMethod(TupleOp):
         self.args = tuple(adaptArg(arg) for arg in args)
         self._retType = returnType if returnType else guessReturnType(getattr(this._typ, self.name))
         self.canDefine = canDefine if canDefine is not None else self.this.canDefine and all(a.canDefine for a in self.args)
-    def _clone(self, memo):
-        return self.__class__(self.this.clone(memo=memo), self.name, tuple(a.clone(memo=memo) for a in self.args), returnType=self._retType, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        thisCl = self.this.clone(memo=memo, select=select)
+        argsCl =  tuple(a.clone(memo=memo, select=select) for a in self.args)
+        if select(self) or id(thisCl) != id(self.this) or any(id(argCl) != id(arg) for argCl, arg in zip(argsCl, self.args)):
+            return self.__class__(thisCl, self.name, argsCl, returnType=self._retType, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in chain((self.this,), self.args):
@@ -454,6 +493,8 @@ class CallMemberMethod(TupleOp):
         return makeProxy(self._retType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, ({3}), returnType={4!r})".format(self.__class__.__name__, self.this, self.name, ", ".join(repr(arg) for arg in self.args), self._retType)
+    def _hash(self):
+        return hash(tuple(chain([ self.__class__.__name__, self.this, self.name, self._retType ], (hash(a) for a in self.args))))
     def _eq(self, other):
         return self.this == other.this and self.name == other.name and self._retType == other._retType and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
@@ -467,8 +508,10 @@ class GetDataMember(TupleOp):
         self.this = adaptArg(this)
         self.name = name ## NOTE can only be a hardcoded string this way
         self.canDefine = canDefine if canDefine is not None else self.this.canDefine
-    def _clone(self, memo):
-        return self.__class__(self.this.clone(memo=memo), self.name, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        thisCl = self.this.clone(memo=memo, select=select)
+        if select(self) or id(thisCl) != id(self.this):
+            return self.__class__(thisCl, self.name, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             if select(self.this):
@@ -492,6 +535,8 @@ class GetDataMember(TupleOp):
         return makeProxy("void", self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.this, self.name)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.this), self.name))
     def _eq(self, other):
         return self.this == other.this and self.name == other.name
     def get_cppStr(self, defCache=cppNoRedir):
@@ -504,14 +549,17 @@ class ExtVar(TupleOp):
         super(ExtVar, self).__init__()
         self.typeName = typeName
         self.name = name
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.name)
+    def _clone(self, memo, select):
+        if select(self):
+            return self.__class__(self.typeName, self.name)
     @property
     def result(self):
         from .treeproxies import makeProxy
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.typeName, self.name)
+    def _hash(self):
+        return hash(self._repr())
     def _eq(self, other):
         return self.typeName == other.typeName and self.name == other.name
     def get_cppStr(self, defCache=None):
@@ -525,14 +573,17 @@ class DefinedVar(TupleOp):
         self.typeName = typeName
         self.definition = definition
         self._nameHint = nameHint
-    def _clone(self, memo):
-        return self.__class__(self.typeName, self.definition, nameHint=self._nameHint)
+    def _clone(self, memo, select):
+        if select(self):
+            return self.__class__(self.typeName, self.definition, nameHint=self._nameHint)
     @property
     def result(self):
         from .treeproxies import makeProxy
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, nameHint={3!r})".format(self.__class__.__name__, self.typeName, self.definition, self._nameHint)
+    def _hash(self):
+        return hash((self.__class__.__name__, self.typeName, hash(self.definition), self._nameHint))
     def _eq(self, other):
         return self.typeName == other.typeName and self.definition == other.definition and self._nameHint == other._nameHint
     def get_cppStr(self, defCache=cppNoRedir):
@@ -546,8 +597,10 @@ class InitList(TupleOp):
         self.typeName = typeName
         self.elms = tuple(adaptArg(e, typeHint=elmType) for e in elms)
         self.canDefine = canDefine if canDefine is not None else all(elm.canDefine for elm in self.elms)
-    def _clone(self, memo):
-        return self.__class__(self.typeName, tuple(elm.clone(memo=memo) for elm in self.elms), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        elmsCl = tuple(elm.clone(memo=memo, select=select) for elm in self.elms)
+        if select(self) or any(id(elmCl) != id(elm) for elmCl, elm in zip(elmsCl, self.elms)):
+            return self.__class__(self.typeName, elmsCl, canDefine=self.canDefine)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for elm in self.elms:
@@ -560,6 +613,8 @@ class InitList(TupleOp):
         return makeProxy(self.typeName, self)
     def _repr(self):
         return "{0}<{1}>({2})".format(self.__class__.__name__, self.typeName, ", ".join(repr(elm) for elm in self.elms))
+    def _hash(self):
+        return hash((chain([ self.__class__.__name__, self.typeName], (hash(e) for e in self.elms))))
     def _eq(self, other):
         return self.typeName == other.typeName and self.elms == other.elms
     def get_cppStr(self, defCache=cppNoRedir):
@@ -574,8 +629,9 @@ class LocalVariablePlaceholder(TupleOp):
         self._parent = parent
         self.i = i ## FIXME this one is set **late** - watch out with what we call
         self.canDefine = False
-    def _clone(self, memo):
-        return self.__class__(self.typeHint, parent=self._parent, i=self.i)
+    def _clone(self, memo, select):
+        if select(self):
+            return self.__class__(self.typeHint, parent=self._parent, i=self.i)
     @property
     def result(self):
         from .treeproxies import makeProxy
@@ -589,11 +645,13 @@ class LocalVariablePlaceholder(TupleOp):
         return self.name
     def _repr(self):
         return "{0}({1!r}, i={2!r})".format(self.__class__.__name__, self.typeHint, self.i)
+    def _hash(self):
+        return hash((self.__class__.__name__, self.typeHint, self.i))
     def _eq(self, other):
         ## NOTE this breaks the infinite recursion, but may not be 100% safe
         ## what should save the nested case is that the repr(parent) will be different for different levels of nesting
         ## since all LVP's are supposed to have an index, confusion between cases where they are combined differently should be eliminated as well
-        return self.typeHint == other.typeHint and repr(self._parent) == repr(other._parent) and self.i == other.i
+        return self.typeHint == other.typeHint and self.i == other.i and ( id(self._parent) == id(other._parent) or ( hash(self._parent) == hash(other._parent) and self._parent.__class__ == other._parent.__class__ and repr(self._parent) == repr(other._parent) ) )
 
 def collectNodes(expr, defCache=cppNoRedir, select=(lambda nd : True), stop=(lambda nd : False), includeLocal=True):
     # simple helper
@@ -668,8 +726,12 @@ class Select(TupleOp):
         self.predExpr = predExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.predExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.predExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = self.rng.clone(memo=memo, select=select)
+        predCl = self.predExpr.clone(memo=memo, select=select)
+        iCl = self._i.clone(memo=memo, select=select)
+        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self._i):
+            return self.__class__(rngCl, predCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred):
         """ Factory method from a range and predicate (callable) """
@@ -695,6 +757,8 @@ class Select(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(SizeType), itemType=SizeType)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.predExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.predExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.predExpr == other.predExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -722,8 +786,12 @@ class Sort(TupleOp):
         self.funExpr = funExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.funExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.funExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = self.rng.clone(memo=memo, select=select)
+        funCl = self.funExpr.clone(memo=memo, select=select)
+        iCl = self._i.clone(memo=memo, select=select)
+        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self._i):
+            return self.__class__(rngCl, funCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun):
         idx = LocalVariablePlaceholder(SizeType)
@@ -748,6 +816,8 @@ class Sort(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(SizeType), itemType=SizeType)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.funExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.funExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.funExpr == other.funExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -776,8 +846,12 @@ class Map(TupleOp):
         self._i = idx
         self.typeName = typeName
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.funExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.funExpr.clone(memo=memo), self._i.clone(memo=memo), self.typeName, canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = self.rng.clone(memo=memo, select=select)
+        funCl = self.funExpr.clone(memo=memo, select=select)
+        iCl = self._i.clone(memo=memo, select=select)
+        if select(self) or id(rngCl) != id(self.rng) or id(funCl) != id(self.funExpr) or id(iCl) != id(self._i):
+            return self.__class__(rngCl, funCl, iCl, self.typeName, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, fun, typeName=None):
         idx = LocalVariablePlaceholder(SizeType)
@@ -802,6 +876,8 @@ class Map(TupleOp):
         return VectorProxy(self, typeName="ROOT::VecOps::RVec<{0}>".format(self.typeName), itemType=self.typeName)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r}, {4!r})".format(self.__class__.__name__, self.rng, self.funExpr, self._i, self.typeName)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.funExpr), hash(self._i), self.typeName))
     def _eq(self, other):
         return self.rng == other.rng and self.funExpr == other.funExpr and self._i == other._i and self.typeName == other.typeName
     def get_cppStr(self, defCache=cppNoRedir):
@@ -830,8 +906,12 @@ class Next(TupleOp):
         self.predExpr = predExpr
         self._i = idx
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(self.predExpr, (self._i,))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.predExpr.clone(memo=memo), self._i.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = self.rng.clone(memo=memo, select=select)
+        predCl = self.predExpr.clone(memo=memo, select=select)
+        iCl = self._i.clone(memo=memo, select=select)
+        if select(self) or id(rngCl) != id(self.rng) or id(predCl) != id(self.predExpr) or id(iCl) != id(self._i):
+            return self.__class__(rngCl, predCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, pred): ## FIXME you are here
         idx = LocalVariablePlaceholder(SizeType)
@@ -855,6 +935,8 @@ class Next(TupleOp):
         return makeProxy(SizeType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.rng, self.predExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), hash(self.predExpr), hash(self._i)))
     def _eq(self, other):
         return self.rng == other.rng and self.predExpr == other.predExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -884,8 +966,14 @@ class Reduce(TupleOp):
         self._i = idx
         self._prevRes = prevRes
         self.canDefine = canDefine if canDefine is not None else self.rng.canDefine and _canDefine(start, (self._i, self._prevRes)) and _canDefine(accuExpr, (self._i, self._prevRes))
-    def _clone(self, memo):
-        return self.__class__(self.rng.clone(memo=memo), self.resultType, self.start.clone(memo=memo), self.accuExpr.clone(memo=memo), self._i.clone(memo=memo), self._prevRes.clone(memo=memo), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = self.rng.clone(memo=memo, select=select)
+        startCl = self.start.clone(memo=memo, select=select)
+        accuCl = self.accuExpr.clone(memo=memo, select=select)
+        iCl = self._i.clone(memo=memo, select=select)
+        prevCl = self._prevRes.clone(memo=memo, select=select)
+        if select(self) or id(rngCl) != id(self.rng) or id(startCl) != id(self.start) or id(accuCl) != id(self.accuExpr) or id(iCl) != id(self._i) or id(prevCl) != id(self._prevRes):
+            return self.__class__(rngCl, self.resultType, startCl, accuCl, iCl, prevCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(rng, start, accuFun):
         resultType = start._typeName
@@ -915,6 +1003,8 @@ class Reduce(TupleOp):
         return makeProxy(self.resultType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r}, {4!r}, {5!r}, {6!r})".format(self.__class__.__name__, self.rng, self.resultType, self.start, self.accuExpr, self._i, self._prevRes)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.rng), self.resultType, hash(self.start), hash(self.accuExpr), hash(self._i), hash(self._prevRes)))
     def _eq(self, other):
         return self.rng == other.rng and self.resultType == other.resultType and self.start == other.start and self.accuExpr == other.accuExpr and self._i == other._i and self._prevRes == other._prevRes
     def get_cppStr(self, defCache=cppNoRedir):
@@ -946,8 +1036,12 @@ class Combine(TupleOp):
     @property
     def n(self):
         return len(self.ranges)
-    def _clone(self, memo):
-        return self.__class__(list(rng.clone(memo=memo) for rng in self.ranges), self.candPredExpr.clone(memo=memo), tuple(i.clone(memo=memo) for i in self._i), canDefine=self.canDefine)
+    def _clone(self, memo, select):
+        rngCl = tuple(rng.clone(memo=memo, select=select) for rng in self.ranges)
+        predCl = self.candPredExpr.clone(memo=memo, select=select)
+        iCl = tuple(i.clone(memo=memo, select=select) for i in self._i)
+        if select(self) or any(id(rCl) != id(rng) for rCl, rng in zip(rngCl, self.ranges)) or id(predCl) != id(self.candPredExpr) or any(id(iiCl) != id(iOr) for iiCl,iOr in zip(iCl, self._i)):
+            return self.__class__(rngCl, predCl, iCl, canDefine=self.canDefine)
     @staticmethod
     def fromRngFun(num, ranges, candPredFun, samePred=None):
         ranges = ranges if len(ranges) > 1 else list(repeat(ranges[0], num))
@@ -965,7 +1059,7 @@ class Combine(TupleOp):
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))
         for i,ilvp in enumerate(idx):
             ilvp.i = maxLVIdx+1+i
-        res = Combine(list(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
+        res = Combine(tuple(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
         for ilvp in idx:
             ilvp._parent = res
         from .treeproxies import CombinationListProxy
@@ -975,7 +1069,7 @@ class Combine(TupleOp):
         return "ROOT::VecOps::RVec<rdfhelpers::Combination<{0:d}>>".format(self.n)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
-            for arg in self.ranges+[self.candPredExpr]:
+            for arg in chain(self.ranges, [self.candPredExpr]):
                 if select(arg):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
@@ -987,6 +1081,8 @@ class Combine(TupleOp):
         return makeProxy(self.resultType, self)
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.ranges, self.candPredExpr, self._i)
+    def _hash(self):
+        return hash((self.__class__.__name__, tuple(hash(r) for r in self.ranges), hash(self.candPredExpr), tuple(hash(i) for i in self._i)))
     def _eq(self, other):
         return self.ranges == other.ranges and self.candPredExpr == other.candPredExpr and self._i == other._i
     def get_cppStr(self, defCache=cppNoRedir):
@@ -1029,49 +1125,59 @@ class OpWithSyst(ForwardingOp):
         super(OpWithSyst, self).__init__(wrapped)
         self.systName = systName
         self.variations = variations
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
+    def _clone(self, memo, select):
+        clWr = self.wrapped.clone(memo=memo, select=select)
+        if select(self) or id(clWr) != id(self.wrapped):
+            return self.__class__(clWr, self.systName, variations=self.variations)
     def changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value
-
-        Default implementation: assume variation contains alternative expression, so change the wrapped node
         """
+        if self._cache: # validate this assumption
+            raise RuntimeError("Cannot change variation of an expression that is already frozen")
         if newVariation not in self.variations:
             raise ValueError("Invalid variation: {0}".format(newVariation))
+        self._changeVariation(newVariation)
+    def _changeVariation(self, newVariation):
+        """ changeVariation specifics (after validating newVariation, and changability). Default: assume variation contains alternative expression, so change the wrapped node """
         self.wrapped = self.variations[newVariation]
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped), self.systName, self.variations))
     def _eq(self, other):
         return super(OpWithSyst, self)._eq(other) and self.systName == other.systName and self.variations == other.variations
 
 class ScaleFactorWithSystOp(OpWithSyst):
     """ Scalefactor (ILeptonScaleFactor::get() call), to be modified with Up/Down variations (these are cached) """
     def __init__(self, wrapped, systName, variations=None):
-        super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else [ "{0}{1}".format(systName, vard) for vard in ["up", "down"] ]))
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, variations=self.variations)
-    def changeVariation(self, newVariation):
+        super(ScaleFactorWithSystOp, self).__init__(wrapped, systName, variations=(variations if variations else tuple("{0}{1}".format(systName, vard) for vard in ["up", "down"])))
+    def _changeVariation(self, newVariation):
         """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if self._cache: # validate this assumption
-            raise RuntimeError("Cannot change variation of an expression that is already frozen")
-        if newVariation not in self.variations:
-            raise ValueError("Invalid variation: {0}".format(newVariation))
         newVariation = (newVariation[len(self.systName):] if newVariation.startswith(self.systName) else newVariation).capitalize() ## translate to name in C++
-        if self.wrapped.args[-1].name == "Nominal" and newVariation != self.wrapped.args[-1].name:
-            self.wrapped.args[-1].name = newVariation
+        wrOrig = self.wrapped
+        assert isinstance(wrOrig, CallMemberMethod) and isinstance(wrOrig.args[-1], ExtVar)
+        if wrOrig.args[-1].name == "Nominal" and newVariation != "Nominal":
+            replArgs = tuple(list(wrOrig.args)[:-1]+[ ExtVar(wrOrig.args[-1].typeName, newVariation) ])
+            self.wrapped = CallMemberMethod(wrOrig.this, wrOrig.name, replArgs, returnType=wrOrig._retType, canDefine=wrOrig.canDefine)
 
 class SystAltColumnOp(OpWithSyst):
     """ Change the wrapped operation (from a map) """
     def __init__(self, wrapped, name, varMap, valid=None):
         super(SystAltColumnOp, self).__init__(wrapped, name)
-        self.variations = valid if valid else list(varMap.keys())
+        self.variations = valid if valid else tuple(varMap.keys())
         self.varMap = varMap
-    def _clone(self, memo):
-        return self.__class__(self.wrapped.clone(memo=memo), self.systName, dict((nm, vop.clone(memo=memo)) for nm,vop in self.varMap.items()), valid=list(self.variations))
-    def changeVariation(self, newVariation):
-        """ Assumed to be called on a fresh copy - *will* change the underlying value """
-        if newVariation not in self.variations:
-            raise ValueError("Invalid branch name: {0}".format(newVariation))
+    def _clone(self, memo, select):
+        clWr = self.wrapped.clone(memo=memo, select=select)
+        varCl = dict((nm, vop.clone(memo=memo, select=select)) for nm,vop in self.varMap.items())
+        if select(self) or id(clWr) != id(self.wrapped) or any(id(vCl) != id(self.varMap[ky]) for ky,vCl in varCl.items()):
+            return self.__class__(clWr, self.systName, varCl, valid=tuple(self.variations))
+    def _repr(self):
+        return "{0}({1!r}, {2!r}, {3!r}, {4!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations, self.varMap)
+    def _hash(self):
+        return hash((self.__class__.__name__, hash(self.wrapped), self.systName, tuple(self.variations), tuple((ky, hash(val)) for ky,val in self.varMap.items())))
+    def _eq(self, other):
+        return super(SystAltColumnOp, self)._eq(other) and self.variations == other.variations and self.varMap == other.varMap
+    def _changeVariation(self, newVariation):
         if newVariation in self.varMap:
             self.wrapped = self.varMap[newVariation]
 

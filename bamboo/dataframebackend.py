@@ -474,12 +474,12 @@ class LazyDataframeBackend(FactoryBackend):
     def buildGraph(self, plotList):
         ## this is the extra method: do all the addSelection/addPlot/addDerivedPlot calls in a better order
         ## collect all plots
-        allPlots = list(plotList)
-        depPlots = []
-        for plot in plotList:
+        def getDeps_r(plot):
             if isinstance(plot, DerivedPlot):
-                depPlots.extend(plot.dependencies)
-        allPlots += depPlots
+                for dp in plot.dependencies:
+                    yield dp
+                    yield from getDeps_r(dp)
+        allPlots = list(plotList) + list(chain.from_iterable(getDeps_r(p) for p in plotList))
         for plot in allPlots:
             if isinstance(plot, Plot):
                 if plot.selection.name not in self._definedSel:

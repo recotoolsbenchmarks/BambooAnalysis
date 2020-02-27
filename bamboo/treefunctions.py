@@ -314,7 +314,14 @@ def deltaR(a1, a2):
 
     >>> elelDR = op.deltaR(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("ROOT::Math::VectorUtil::DeltaR", returnType="Float_t")(a1, a2)
+    a1 = _to.adaptArg(a1)
+    a2 = _to.adaptArg(a2)
+    if all(isinstance(arg, _to.Construct) and arg.typeName.startswith("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhi") for arg in (a1, a2)):
+        return sqrt(extMethod("rdfhelpers::deltaR2", returnType="double")(
+            a2.args[1].result-a1.args[1].result,
+            a2.args[2].result-a1.args[2].result))
+    else:
+        return extMethod("ROOT::Math::VectorUtil::DeltaR", returnType="Float_t")(a1, a2)
 
 ## range operations
 def rng_len(sth):

@@ -59,4 +59,13 @@ ROOT::RDF::RResultPtr<TH2D> Histo2D(RDF& rdf, const ROOT::RDF::TH2DModel& model,
 }
 }
 
+template<typename V1, typename V2>
+double deltaR2(V1 deta, V2 dphi) {
+  if ( dphi > M_PI ) {
+    dphi -= 2.0*M_PI;
+  } else if ( dphi <= -M_PI ) {
+    dphi += 2.0*M_PI;
+  }
+  return deta*deta + dphi*dphi;
+}
 };

@@ -12,12 +12,12 @@ def c_bool(arg):
         return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "true"))
     else:
         return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "false"))
-def c_int(num):
+def c_int(num, typeName="Int_t"):
     """ Construct an integer number constant """
-    return _tp.makeConst(num, "Int_t")
-def c_float(num):
+    return _tp.makeConst(num, typeName)
+def c_float(num, typeName="Float_t"):
     """ Construct a floating-point number constant """
-    return _tp.makeConst(num, "Float_t")
+    return _tp.makeConst(num, typeName)
 
 ## boolean logic
 def NOT(sth):

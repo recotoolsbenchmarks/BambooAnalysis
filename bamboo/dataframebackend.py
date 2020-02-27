@@ -403,7 +403,10 @@ class DataframeBackend(FactoryBackend):
                 colNToKeep.push_back(cn)
 
         for dN, dExpr in definedBranches.items():
-            selND._define(dN, top.adaptArg(dExpr))
+            if dN not in allcolN:
+                selND._define(dN, top.adaptArg(dExpr))
+            elif dN not in defcolN:
+                logger.warning(f"Requested to add column {dN} with expression, but a column with the same name on the input tree exists. The latter will be copied instead")
             colNToKeep.push_back(dN)
 
         selDF = selND.df

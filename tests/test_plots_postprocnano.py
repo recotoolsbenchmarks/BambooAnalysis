@@ -7,7 +7,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 def decoNano():
     from bamboo import treefunctions as op
     from bamboo.root import gbl
-    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
+    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape_puWeight.root"))
     tree = f.Get("Events")
     from bamboo.treedecorators import decorateNanoAOD
     from bamboo.dataframebackend import DataframeBackend

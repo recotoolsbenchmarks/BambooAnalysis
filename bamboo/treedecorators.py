@@ -297,6 +297,14 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         def __call__(self, me):
             return getattr(self._parent, self.name).orig
 
+    def addP4ToObj(obj_dict, prefix, lvNms):
+        if f"{prefix}pt" in lvNms and f"{prefix}phi" in lvNms:
+            obj_dict["p4"] = funProxy(lambda inst:
+                                Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >",
+                                          (inst.pt, (inst.eta if f"{prefix}eta" in lvNms else 0.), inst.phi, (inst.mass if f"{prefix}mass" in lvNms else 0.))
+                                        ).result
+                                )
+
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
     ## NOTE first attempt: fill all, take some out later
@@ -347,6 +355,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             }
         grp_lvNms = set(lvNm for lvNm in allTreeLeafs.keys() if lvNm.startswith(prefix))
         grp_dict.update(dict((lvNm[len(prefix):], proxy(GetColumn(allTreeLeafs[lvNm].GetTypeName(), lvNm))) for lvNm in grp_lvNms))
+        addP4ToObj(grp_dict, prefix, grp_lvNms)
         grpcls = type("{0}LeafGroupProxy".format(grpNm), (LeafGroupProxy,), grp_dict)
         for lvNm in grp_lvNms:
             del tree_dict[lvNm]
@@ -422,9 +431,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 addSetParentToPostConstr(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
         ## create p4 branches (naive, but will be reused for variation case)
-        p4AttNames = ("pt", "eta", "phi", "mass")
-        if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
-            itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
+        addP4ToObj(itm_dict, prefix, itm_lvs)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
         ## insert variations using kinematic calculator, from branches, or not
         if addCalculators and sizeNm in addCalculators:

@@ -261,7 +261,7 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
     ## nominal: with systematic variations (all are valid, but not all need to modify)
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
-        SystAltColumnOp(
+        SystAltOp(
             getCol(vAtts[nomName]), systName,
             dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
             valid=tuple(var for var in allVars if var in vAtts),
@@ -318,7 +318,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 toRem.append(nm)
         for nm in toRem:
             del tree_dict[nm]
-        brMap["nomWithSyst"] = SystAltColumnOp(brMap["nom"], "puWeight",
+        brMap["nomWithSyst"] = SystAltOp(brMap["nom"], "puWeight",
             dict(brMap), valid=tuple(var for var in brMap.keys() if var != "nom")
             )
         varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)

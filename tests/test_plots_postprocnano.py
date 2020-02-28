@@ -37,7 +37,8 @@ def test(decoNano):
     plots.append(Plot.make1D("hasMuonJ_prodBTags", op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB), hasMuJ, EquidistantBinning(1, 0., 1.), title="Product of jet b-tags", xTitle="X"))
     plots.append(Plot.make1D("MET", tup.MET.pt, noSel, EquidistantBinning(50, 0., 100.), title="MET pt", xTitle="MET"))
     plots.append(Plot.make1D("hasMuonJ_MET", tup.MET.pt, hasMuJ, EquidistantBinning(50, 0., 100.), title="MET pt", xTitle="MET"))
-    hasTwoJets = noSel.refine("hasTwoJets", cut=(op.rng_len(cleanedJets) > 1))
+    addsyst5p = op.systematic(op.c_float(1.), name="addSyst", up=op.c_float(1.05), down=op.c_float(0.95))
+    hasTwoJets = noSel.refine("hasTwoJets", cut=(op.rng_len(cleanedJets) > 1), weight=addsyst5p)
     plots.append(Plot.make1D("2J_cleanedProdBRegCorr", op.rng_product(cleanedJetsByDeepFlav[:2], lambda j : j.bRegCorr), hasTwoJets, EquidistantBinning(50, 0.5, 1.5)))
 
     assert all(h for p in plots for h in be.getPlotResults(p))

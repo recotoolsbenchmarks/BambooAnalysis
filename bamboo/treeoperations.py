@@ -1138,8 +1138,8 @@ class OpWithSyst(ForwardingOp):
             raise ValueError("Invalid variation: {0}".format(newVariation))
         self._changeVariation(newVariation)
     def _changeVariation(self, newVariation):
-        """ changeVariation specifics (after validating newVariation, and changability). Default: assume variation contains alternative expression, so change the wrapped node """
-        self.wrapped = self.variations[newVariation]
+        """ changeVariation specifics (after validating newVariation, and changability) - to be implemented by concrete classes """
+        pass
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
     def _hash(self):

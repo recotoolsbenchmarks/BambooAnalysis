@@ -319,8 +319,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         for nm in toRem:
             del tree_dict[nm]
         brMap["nomWithSyst"] = SystAltColumnOp(brMap["nom"], "puWeight",
-            dict((var, vop.name) for var,vop in brMap.items()),
-            valid=[ var for var in brMap.keys() if var != "nom"]
+            dict(brMap), valid=[ var for var in brMap.keys() if var != "nom"]
             )
         varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
         addSetParentToPostConstr(varsProxy)

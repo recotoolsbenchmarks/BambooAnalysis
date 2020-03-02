@@ -1138,8 +1138,8 @@ class OpWithSyst(ForwardingOp):
             raise ValueError("Invalid variation: {0}".format(newVariation))
         self._changeVariation(newVariation)
     def _changeVariation(self, newVariation):
-        """ changeVariation specifics (after validating newVariation, and changability). Default: assume variation contains alternative expression, so change the wrapped node """
-        self.wrapped = self.variations[newVariation]
+        """ changeVariation specifics (after validating newVariation, and changability) - to be implemented by concrete classes """
+        pass
     def _repr(self):
         return "{0}({1!r}, {2!r}, {3!r})".format(self.__class__.__name__, self.wrapped, self.systName, self.variations)
     def _hash(self):
@@ -1160,10 +1160,10 @@ class ScaleFactorWithSystOp(OpWithSyst):
             replArgs = tuple(list(wrOrig.args)[:-1]+[ ExtVar(wrOrig.args[-1].typeName, newVariation) ])
             self.wrapped = CallMemberMethod(wrOrig.this, wrOrig.name, replArgs, returnType=wrOrig._retType, canDefine=wrOrig.canDefine)
 
-class SystAltColumnOp(OpWithSyst):
+class SystAltOp(OpWithSyst):
     """ Change the wrapped operation (from a map) """
     def __init__(self, wrapped, name, varMap, valid=None):
-        super(SystAltColumnOp, self).__init__(wrapped, name)
+        super(SystAltOp, self).__init__(wrapped, name)
         self.variations = valid if valid else tuple(varMap.keys())
         self.varMap = varMap
     def _clone(self, memo, select):
@@ -1176,7 +1176,7 @@ class SystAltColumnOp(OpWithSyst):
     def _hash(self):
         return hash((self.__class__.__name__, hash(self.wrapped), self.systName, tuple(self.variations), tuple((ky, hash(val)) for ky,val in self.varMap.items())))
     def _eq(self, other):
-        return super(SystAltColumnOp, self)._eq(other) and self.variations == other.variations and self.varMap == other.varMap
+        return super(SystAltOp, self)._eq(other) and self.variations == other.variations and self.varMap == other.varMap
     def _changeVariation(self, newVariation):
         if newVariation in self.varMap:
             self.wrapped = self.varMap[newVariation]

@@ -39,7 +39,7 @@ def nanojetargsMC16():
 @pytest.fixture(scope="module")
 def nanojetargsMC16_postvalues():
     from bamboo.root import gbl
-    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
+    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape_puWeight.root"))
     tup = f.Get("Events")
     res = []
     for i in range(tup.GetEntries()):
@@ -77,7 +77,7 @@ def nanojetargsMC16_postvalues():
 def nanoMETargsMC16_postvalues():
     from bamboo.root import gbl
     RVec_float = getattr(gbl, "ROOT::VecOps::RVec<float>")
-    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape.root"))
+    f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape_puWeight.root"))
     tup = f.Get("Events")
     res = []
     for i in range(tup.GetEntries()):

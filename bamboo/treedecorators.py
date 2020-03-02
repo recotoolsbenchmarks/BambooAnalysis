@@ -338,7 +338,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             logger.warning("No branch name starting with {0} in the tree - skipping group".format(prefix))
         else:
             grp_found.append(prefix)
-            if prefix.startswith("MET") and "{0}_pt_nom".format(prefix) in allTreeLeafs:
+            if prefix.startswith("MET") and "{0}_pt_nom".format(prefix.rstrip("_")) in allTreeLeafs:
                 grp_readVar.append(prefix)
     for prefix in grp_found:
         grpNm = prefix.rstrip("_")

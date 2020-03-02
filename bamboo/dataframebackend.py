@@ -333,7 +333,11 @@ class DataframeBackend(FactoryBackend):
     def defineAndGetVarNames(nd, variables, uName=None):
         varNames = []
         for i,var in enumerate(variables):
-            if nd._getColName(var):
+            if isinstance(var, top.GetColumn):
+                varNames.append(var.name)
+            elif isinstance(var, top.ForwardingOp) and isinstance(var.wrapped, top.GetColumn):
+                varNames.append(var.wrapped.name)
+            elif nd._getColName(var):
                 varNames.append(nd._getColName(var))
             else:
                 nm = f"v{i:d}_{uName}"

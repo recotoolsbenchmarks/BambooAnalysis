@@ -258,8 +258,13 @@ Both with variations read from a postprocessed NanoAOD and calculated on the
 fly, the different jet collections are available from ``t._Jet``, e.g.
 ``t._Jet["nom"]`` (postprocessed) or ``t._Jet["nominal"]`` (calculated),
 ``t._Jet["jerup"]``, ``t._Jet["jerdown"]``, ``t._Jet["jesTotalUp"]``,
-``t._Jet["jesTotalDown"]`` etc. depending on the configured variations.
-``t.Jet`` will be changed for one of these for each systematic variation,
+``t._Jet["jesTotalDown"]`` etc. depending on the configured variations
+(when accessing these directly, ``t._Jet[variation][j.idx]`` should be used
+to retrieve the entry corresponding to a specific jet ``j``, if the latter is
+obtained from a selected and/or sorted version of the original collection |---|
+``object.idx`` is always the index in the collection as found in the tree).
+
+``t.Jet`` will be changed for one of the above for each systematic variation,
 if it affects a plot, in case automatically producing the systematic variations
 is enabled (the collections from ``t._Jet`` will not be changed).
 The automatic calculation of systematic variations can be disabled globally

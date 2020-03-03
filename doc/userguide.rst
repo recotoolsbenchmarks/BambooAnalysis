@@ -346,8 +346,17 @@ whereas the :py:func:`~bamboo.treefunctions.select` method returns
 a reduced collection (internally, only a list of indices to the passing objects
 is created, and the result is a proxy that uses this list).
 Some of the ``rng_...`` methods are extremely powerful, e.g.
-:py:func:`~bamboo.treefunctions.rng_find` and 
+:py:func:`~bamboo.treefunctions.rng_find` and
 :py:func:`~bamboo.treefunctions.rng_max_element_by`.
+
+.. tip:: In addition to the branches read from the input tree, all elements of
+    collections have an ``idx`` attribute which contains their index in the
+    *original* collection, also in case they are obtained from a subset
+    (with :py:func:`~bamboo.treefunctions.select` or a slice), differently
+    ordered version (with :py:func:`~bamboo.treefunctions.sort`), or systematic
+    variation (e.g. for :ref:`jets<recipejetsystematic>`) of the collection.
+    This can be especially useful to ensure that two objects are (not)
+    identical, or when directly comparing systematic variations.
 
 The proxy classes are generated on the fly with all branches as attributes, so
 tab-completion can be used to have a look at what's there:

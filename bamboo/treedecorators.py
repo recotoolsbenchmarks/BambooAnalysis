@@ -59,21 +59,29 @@ def getMuonMomentumVarName_calc(nm):
 
 ## TODO: make configurable
 def getJetMETVarName_postproc(nm):
-    if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) == 2:
-        return tuple(nm.split("_"))
-    elif nm.split("_")[0] == "btagSF":
-        if "shape" not in nm.split("_"):
-            if "_" not in nm:
-                return "btagSF", "nom"
-            else: ## btag SF up and down
-                return "btagSF", "{0}{1}".format(*nm.split("_"))
-        else:
-            if nm == "btagSF_shape":
-                return "btagSF_shape", "nom"
-            elif nm.startswith("btagSF_shape_") and nm.endswith("_jes"):
-                return "btagSF_shape", "jesTotal{0}".format(nm.split("_")[2])
-            else:
-                return "btagSF_shape", "{0}_{1}_{3}{2}".format(*nm.split("_"))
+    if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
+        return (nm.split("_")[0], "_".join(nm.split("_")[1:]))
+    elif nm.startswith("btagSF"):
+        for tagger in ["csvv2", "deepcsv", "deepjet", "cmva"]:
+            for wp in ["L", "M", "T", "shape"]:
+                sfName = f"btagSF_{tagger}_{wp}"
+                if not nm.startswith(sfName):
+                    continue
+                if nm == sfName:
+                    return nm, "nom"
+                upOrDown = "up" if "up" in nm else "down"
+                if wp != "shape": # b-tag SF systematics
+                    return sfName, f"{sfName}{upOrDown}"
+                else:
+                    syst = nm.split(f"{sfName}_{upOrDown}_")[1]
+                    if "jes" not in syst: # b-tag shape systematics
+                        return sfName, f"{sfName}_{syst}{upOrDown}"
+                    else: # jes systematics
+                        if syst == "jes":
+                            syst = "jesTotal"
+                        else:
+                            return sfName, f"{syst}{upOrDown}"
+
 def getPUWeightVarName_postproc(nm):
     if nm.startswith("puWeight"):
         if nm == "puWeight":

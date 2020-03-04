@@ -314,9 +314,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         else GetArrayColumn(lv.GetTypeName(), lvNm, GetColumn(allTreeLeafs[lv.GetLeafCount().GetName()].GetTypeName(), lv.GetLeafCount().GetName()))
         )) for lvNm,lv in allTreeLeafs.items()))
     tree_children = list()
-    def setTreeAtt(name, proxy):
+    def setTreeAtt(name, proxy, setParent=True):
         tree_dict[name] = proxy
-        tree_children.append(proxy)
+        if setParent:
+            tree_children.append(proxy)
 
     ## weights with variations
     if "puWeightUp" in allTreeLeafs:
@@ -335,7 +336,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
             )
         varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
         setTreeAtt("_puWeight", varsProxy)
-        setTreeAtt("puWeight", varsProxy["nomWithSyst"])
+        setTreeAtt("puWeight", varsProxy["nomWithSyst"], False)
     ## non-collection branches to group
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
     simpleGroupPrefixes_opt = ("METFixEE2017_",)
@@ -383,8 +384,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                         )
             varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
             setTreeAtt(f"_{grpNm}", varsProxy)
-            setTreeAtt(grpNm], varsProxy["nomWithSyst"])
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
+            setTreeAtt(grpNm, varsProxy["nomWithSyst"])
+            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy["nomWithSyst"].brMap.values())))))
 
     ## SOA, nanoAOD style (LeafCount, shared)
     containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet")
@@ -460,7 +461,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
 
             ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
             varsProxy = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
+            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy["nomWithSyst"].brMap.values())))))
             setTreeAtt(f"_{grpNm}", varsProxy)
             setTreeAtt(grpNm, varsProxy["nomWithSyst"])
 
@@ -470,7 +471,6 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
 
     TreeProxy = type("{0}Proxy".format(aTree.GetName()), (TreeBaseProxy,), tree_dict)
     treeProxy = TreeProxy(aTree)
-
     for pc in tree_children:
         pc._parent = treeProxy
 

@@ -70,13 +70,6 @@ def getJetMETVarName_postproc(nm):
                         else:
                             return sfName, f"{syst}{upOrDown}"
 
-def getPUWeightVarName_postproc(nm):
-    if nm.startswith("puWeight"):
-        if nm == "puWeight":
-            return "puWeight", "nom"
-        else:
-            return "puWeight", nm
-
 ## Attribute classes (like property) to customize the proxy classes
 
 class proxy(object): ## the default one
@@ -272,7 +265,44 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
         for attNm,vAtts in var_atts.items())
     return cls_alt, brMapMap
 
-def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
+## Helper classes
+class NanoSystematicVarSpec:
+    """ Interface for classes that specify how to incorporate systematics in the decorated tree """
+    def appliesTo(self, name):
+        """ Return true if this systematic variation requires action for this variable, group, or collection """
+        return False
+    def varName(self, branchName):
+        pass
+    @property
+    def nomName(self):
+        return "nom"
+    @property
+    def systName(self):
+        pass
+    def get(self, name):
+        ## TODO the specifics of this one (may not be identical between variable, group, and collection)
+        return None
+
+class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
+    """ Read variations of a single branch from branches with the same name with a suffix """
+    def __init__(self, commonName, sep="_"):
+        self.prefix = commonName
+        self.sep = sep
+    def appliesTo(self, name):
+        return name.startswith(self.prefix)
+    def varName(self, branchName):
+        variNm = normVarName(branchName[len(self.prefix):].lstrip(self.sep))
+        return self.prefix, variNm if variNm else self.nomName
+    @property
+    def nomName(self):
+        return "nom"
+    @property
+    def systName(self):
+        return self.prefix
+NanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
+
+def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None,
+        systVariations=[ NanoPUWeightVar ]):
     """ Decorate a CMS NanoAOD Events tree
 
     Variation branches following the NanoAODTools conventions (e.g. Jet_pt_nom)
@@ -319,24 +349,27 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         if setParent:
             tree_children.append(proxy)
 
-    ## weights with variations
-    if "puWeightUp" in allTreeLeafs:
-        brMap = {}
+    ## variables with variations
+    for vari in systVariations:
         toRem = []
+        brMap = {}
+        attNm = None
         for nm,nmAtt in tree_dict.items():
-            test = getPUWeightVarName_postproc(nm)
-            if test is not None:
-                attNm,varNm = test
-                brMap[normVarName(varNm)] = nmAtt.op
+            if vari.appliesTo(nm): ## only for single-variable variations
+                attNm,varNm = vari.varName(nm)
+                brMap[varNm] = nmAtt.op
                 toRem.append(nm)
-        for nm in toRem:
-            del tree_dict[nm]
-        brMap["nomWithSyst"] = SystAltOp(brMap["nom"], "puWeight",
-            dict(brMap), valid=tuple(var for var in brMap.keys() if var != "nom")
-            )
-        varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
-        setTreeAtt("_puWeight", varsProxy)
-        setTreeAtt("puWeight", varsProxy["nomWithSyst"], False)
+        if len(brMap) > 1:
+            for nm in toRem:
+                del tree_dict[nm]
+            logger.debug(f"Detected systematic variations for variable {attNm} (variations: {list(brMap.keys())!r}")
+            brMap["nomWithSyst"] = SystAltOp(brMap[vari.nomName], vari.systName,
+                dict(brMap), valid=tuple(var for var in brMap.keys() if var != vari.nomName)
+                )
+            varsProxy = AltLeafVariations(None, brMap, typeName=brMap[vari.nomName].typeName)
+            setTreeAtt(f"_{attNm}", varsProxy)
+            setTreeAtt(attNm, varsProxy["nomWithSyst"], False)
+
     ## non-collection branches to group
     simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
     simpleGroupPrefixes_opt = ("METFixEE2017_",)

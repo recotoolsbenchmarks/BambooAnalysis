@@ -5,6 +5,9 @@ from . import treeproxies as _tp
 from .root import loadBambooExtensions
 loadBambooExtensions()
 
+import logging
+_logger = logging.getLogger(__name__)
+
 ## simple type support
 def c_bool(arg):
     """ Construct a boolean constant """
@@ -35,14 +38,19 @@ def OR(*args):
         return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0], _tp.boolType))
     else:
         return _to.MathOp("or", *[ _to.adaptArg(arg, _tp.boolType) for arg in args ], outType=_tp.boolType).result
-def switch(test, trueBranch, falseBranch):
+def switch(test, trueBranch, falseBranch, checkTypes=True):
     """ Pick one or another value, based on a third one (ternary operator in C++)
 
     :Example:
 
     >>> op.switch(runOnMC, mySF, 1.) ## incomplete pseudocode
     """
-    assert trueBranch._typeName == falseBranch._typeName
+    if checkTypes:
+        aType = trueBranch._typeName
+        bType = falseBranch._typeName
+        if aType != bType:
+            if not any(aType in typeGroup and bType in typeGroup for typeGroup in (_tp._boolTypes, _tp._integerTypes, _tp._floatTypes)):
+                logger.warning(f"Possibly incompatible types: {aType} and {bType}")
     return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
 def multiSwitch(*args):
     """ Construct arbitrary-length switch (if-elif-elif-...-else sequence)

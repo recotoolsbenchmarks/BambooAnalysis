@@ -268,9 +268,10 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
 ## Helper classes
 class NanoSystematicVarSpec:
     """ Interface for classes that specify how to incorporate systematics or on-the-fly corrections in the decorated tree """
-    def __init__(self, systName, nomName="nom", exclVars=None, isCalc=False):
+    def __init__(self, systName, nomName="nom", origName=None, exclVars=None, isCalc=False):
         self.systName = systName
         self.nomName = nomName
+        self.origName = origName
         self.exclVars = exclVars if exclVars is not None else tuple()
         self.isCalc = isCalc
     def appliesTo(self, name):
@@ -295,15 +296,28 @@ class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
 
 nanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
 
+class ReadJetMETVar(NanoSystematicVarSpec):
+    def __init__(self, jetsName, jetAttrs, metName, metAttrs, systName="jet", nomName="nom", origName="raw", exclVars=None):
+        super(ReadJetMETVar, self).__init__(
+                systName, nomName=nomName, origName=origName, isCalc=True,
+                exclVars=(exclVars if exclVars is not None else (origName,)))
+        self.jetsName = jetsName
+        self.metName = metName
+        self.jetAttrs = jetAttrs
+        self.metAttrs = metAttrs
+    def appliesTo(self, name):
+        return name in (self.jetsName, self.metName)
+    def getVarName(self, nm, collgrpname=None):
+        pass ## TODO migrate above here
+
 class CalcCollection(NanoSystematicVarSpec):
     def __init__(self, collName, calcAttrs, systName=None, nomName="nominal", origName="raw", exclVars=None):
         super(CalcCollection, self).__init__(
                 (systName if systName is not None else collName.lower()),
                 exclVars=(exclVars if exclVars is not None else (origName,)),
-                nomName=nomName, isCalc=True)
+                nomName=nomName, origName=origName, isCalc=True)
         self.collName = collName
         self.calcAttrs = calcAttrs
-        self.origName = origName
     def appliesTo(self, name):
         return name == self.collName
     def getVarName(self, nm, collgrpname=None):
@@ -313,16 +327,15 @@ class CalcCollection(NanoSystematicVarSpec):
 class CalcJetMETVar(NanoSystematicVarSpec):
     def __init__(self, jetsName, jetAttrs, metName, metAttrs, systName="jet", nomName="nominal", origName="raw", exclVars=None):
         super(CalcJetMETVar, self).__init__(
-                systName, nomName=nomName, isCalc=True,
+                systName, nomName=nomName, origName=origName, isCalc=True,
                 exclVars=(exclVars if exclVars is not None else (origName,)))
         self.jetsName = jetsName
         self.metName = metName
         self.jetAttrs = jetAttrs
         self.metAttrs = metAttrs
-        self.origName = origName
     def appliesTo(self, name):
         return name in (self.jetsName, self.metName)
-    def getVarName(self, nm, collgrpname=None): ## FIXME getVarName needs to get group / prefix
+    def getVarName(self, nm, collgrpname=None):
         if collgrpname == self.jetsName and nm in self.jetAttrs:
             return nm, self.origName
         if collgrpname == self.metName and nm in self.metAttrs:
@@ -445,7 +458,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
             if vari.appliesTo(grpNm):
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(
                         grpNm, grp_dict, vari.getVarName,
-                        systName=vari.systName, nomName=(getattr(vari, "origName", vari.nomName) if vari.isCalc else vari.nomName), exclVars=vari.exclVars,
+                        systName=vari.systName, nomName=(vari.origName if vari.isCalc and vari.origName else vari.nomName), exclVars=vari.exclVars,
                         attCls=altProxy, altBases=(AltLeafGroupProxy,)
                         )
                 withSyst = "nomWithSyst"
@@ -522,7 +535,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
             if vari.appliesTo(grpNm):
                 altItemType, brMapMap = _makeAltClassAndMaps(
                         grpNm, itm_dict, vari.getVarName,
-                        systName=vari.systName, nomName=(getattr(vari, "origName", vari.nomName) if vari.isCalc else vari.nomName), exclVars=vari.exclVars,
+                        systName=vari.systName, nomName=(vari.origName if vari.isCalc and vari.origName else vari.nomName), exclVars=vari.exclVars,
                         getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
                         )
                 withSyst = "nomWithSyst"

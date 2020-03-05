@@ -9,9 +9,9 @@ def decoNano():
     from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016.root"))
     tree = f.Get("Events")
-    from bamboo.treedecorators import decorateNanoAOD
+    from bamboo.treedecorators import decorateNanoAOD, nanoRochesterCalc, nanoJetMETCalc
     from bamboo.dataframebackend import DataframeBackend
-    tup = decorateNanoAOD(tree, isMC=True, addCalculators=("nJet", "MET", "nMuon"))
+    tup = decorateNanoAOD(tree, isMC=True, systVariations=[ nanoRochesterCalc, nanoJetMETCalc ])
     be, noSel = DataframeBackend.create(tup)
     from bamboo.analysisutils import configureJets, configureType1MET, configureRochesterCorrection
     configureJets(tup._Jet, "AK4PFchs", isMC=True, backend=be, uName="test_nanodeco")

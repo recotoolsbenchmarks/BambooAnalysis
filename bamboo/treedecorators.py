@@ -194,15 +194,14 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
-def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="nom", exclVars=None,
-        getCol=lambda op : op, attCls=None, altBases=None): ## internal, leaf/group/collection
-    ## getVarName should return the variable and variation name (nomName for the nominal one)
+def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=None, altBases=None): ## internal, leaf/group/collection
+    ## vari.getVarName should return the variable and variation name (nomName for the nominal one)
     ## if this is a systematic variation branch - otherwise None
     dict_alt = dict(dict_orig)
     ## collect ops of kinematic variables that change (nominal as well as varied)
     var_atts = defaultdict(dict)
     for nm, nmAtt in dict_orig.items():
-        test = getVarName(nm, collgrpname=name)
+        test = vari.getVarName(nm, collgrpname=name)
         if test is not None:
             attNm, varNm = test
             var_atts[attNm][normVarName(varNm)] = nmAtt.op
@@ -219,11 +218,12 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
                 brMapMap[var] = {}
             brMapMap[var][attNm] = getCol(vop)
     ## nominal: with systematic variations (all are valid, but not all need to modify)
-    allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
+    nomName = vari.origName if ( vari.isCalc and vari.origName ) else vari.nomName
+    allVars = list(k for k in brMapMap.keys() if k not in vari.exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltOp(
-            getCol(vAtts[nomName]), systName,
-            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
+            getCol(vAtts[nomName]), vari.systName,
+            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in vari.exclVars),
             valid=tuple(var for var in allVars if var in vAtts),
             ))
         for attNm,vAtts in var_atts.items())
@@ -430,11 +430,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
         setTreeAtt(grpNm, grp_proxy)
         for vari in systVariations:
             if vari.appliesTo(grpNm):
-                grpcls_alt, brMapMap = _makeAltClassAndMaps(
-                        grpNm, grp_dict, vari.getVarName,
-                        systName=vari.systName, nomName=(vari.origName if ( vari.isCalc and vari.origName ) else vari.nomName), exclVars=vari.exclVars,
-                        attCls=altProxy, altBases=(AltLeafGroupProxy,)
-                        )
+                grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, vari,
+                        attCls=altProxy, altBases=(AltLeafGroupProxy,))
                 withSyst = "nomWithSyst"
                 if vari.isCalc:
                     varsProxy = CalcLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt, withSystName=withSyst)
@@ -487,11 +484,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
         ## insert variations using kinematic calculator, from branches, or not
         for vari in systVariations:
             if vari.appliesTo(grpNm):
-                altItemType, brMapMap = _makeAltClassAndMaps(
-                        grpNm, itm_dict, vari.getVarName,
-                        systName=vari.systName, nomName=(vari.origName if vari.isCalc and vari.origName else vari.nomName), exclVars=vari.exclVars,
-                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
-                        )
+                altItemType, brMapMap = _makeAltClassAndMaps(grpNm, itm_dict, vari,
+                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,))
                 withSyst = "nomWithSyst"
                 if vari.isCalc:
                     varsProxy = CalcCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType, withSystName=withSyst)

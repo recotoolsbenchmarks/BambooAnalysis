@@ -34,42 +34,6 @@ def normVarName(varName):
     else:
         return varName
 
-def getMETVarName_calc(nm):
-    if nm in ("pt", "phi"):
-        return nm, "raw"
-
-def getJetEnergyVarName_calc(nm):
-    if nm in ("pt", "mass"):
-        return nm, "raw"
-def getMuonMomentumVarName_calc(nm):
-    if nm == "pt":
-        return nm, "raw"
-
-## TODO: make configurable
-def getJetMETVarName_postproc(nm, collgrpname=None):
-    if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
-        return (nm.split("_")[0], "_".join(nm.split("_")[1:]))
-    elif nm.startswith("btagSF"):
-        for tagger in ["csvv2", "deepcsv", "deepjet", "cmva"]:
-            for wp in ["L", "M", "T", "shape"]:
-                sfName = f"btagSF_{tagger}_{wp}"
-                if not nm.startswith(sfName):
-                    continue
-                if nm == sfName:
-                    return nm, "nom"
-                upOrDown = "up" if "up" in nm else "down"
-                if wp != "shape": # b-tag SF systematics
-                    return sfName, f"{sfName}{upOrDown}"
-                else:
-                    syst = nm.split(f"{sfName}_{upOrDown}_")[1]
-                    if "jes" not in syst: # b-tag shape systematics
-                        return sfName, f"{sfName}_{syst}{upOrDown}"
-                    else: # jes systematics
-                        if syst == "jes":
-                            syst = "jesTotal"
-                        else:
-                            return sfName, f"{syst}{upOrDown}"
-
 ## Attribute classes (like property) to customize the proxy classes
 
 class proxy(object): ## the default one
@@ -297,18 +261,42 @@ class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
 nanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
 
 class ReadJetMETVar(NanoSystematicVarSpec):
-    def __init__(self, jetsName, jetAttrs, metName, metAttrs, systName="jet", nomName="nom", origName="raw", exclVars=None):
+    def __init__(self, jetsName, metName, systName="jet", nomName="nom", origName="raw", exclVars=None, bTaggers=None, bTagWPs=None):
         super(ReadJetMETVar, self).__init__(
-                systName, nomName=nomName, origName=origName, isCalc=True,
+                systName, nomName=nomName, origName=origName, isCalc=False,
                 exclVars=(exclVars if exclVars is not None else (origName,)))
         self.jetsName = jetsName
         self.metName = metName
-        self.jetAttrs = jetAttrs
-        self.metAttrs = metAttrs
+        self.bTaggers = bTaggers if bTaggers is not None else []
+        self.bTagWPs = bTagWPs if bTagWPs is not None else []
     def appliesTo(self, name):
         return name in (self.jetsName, self.metName)
     def getVarName(self, nm, collgrpname=None):
-        pass ## TODO migrate above here
+        if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
+            return (nm.split("_")[0], "_".join(nm.split("_")[1:]))
+        elif nm.startswith("btagSF"):
+            for tagger in self.bTaggers:
+                for wp in self.bTagWPs:
+                    sfName = f"btagSF_{tagger}_{wp}"
+                    if not nm.startswith(sfName):
+                        continue
+                    if nm == sfName:
+                        return nm, "nom"
+                    upOrDown = "up" if "up" in nm else "down"
+                    if wp != "shape": # b-tag SF systematics
+                        return sfName, f"{sfName}{upOrDown}"
+                    else:
+                        syst = nm.split(f"{sfName}_{upOrDown}_")[1]
+                        if "jes" not in syst: # b-tag shape systematics
+                            return sfName, f"{sfName}_{syst}{upOrDown}"
+                        else: # jes systematics
+                            if syst == "jes":
+                                syst = "jesTotal"
+                            else:
+                                return sfName, f"{syst}{upOrDown}"
+
+nanoReadJetMETVar = ReadJetMETVar("Jet", "MET", bTaggers=["csvv2", "deepcsv", "deepjet", "cmva"], bTagWPs=["L", "M", "T", "shape"])
+nanoReadJetMETVar_METFixEE2017 = ReadJetMETVar("Jet", "METFixEE2017", bTaggers=["csvv2", "deepcsv", "deepjet", "cmva"], bTagWPs=["L", "M", "T", "shape"])
 
 class CalcCollection(NanoSystematicVarSpec):
     def __init__(self, collName, calcAttrs, systName=None, nomName="nominal", origName="raw", exclVars=None):
@@ -345,7 +333,7 @@ nanoRochesterCalc = CalcCollection("Muon", ("pt",))
 nanoJetMETCalc = CalcJetMETVar("Jet", ("pt", "mass"), "MET", ("pt", "phi"))
 nanoJetMETCalc_METFixEE2017 = CalcJetMETVar("Jet", ("pt", "mass"), "METFixEE2017", ("pt", "phi"))
 
-def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPUWeightVar ]):
+def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
     """ Decorate a CMS NanoAOD Events tree
 
     Variation branches following the NanoAODTools conventions (e.g. Jet_pt_nom)
@@ -359,6 +347,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
     """
     if description is None:
         description = dict()
+    if systVariations is None:
+        systVariations = []
 
     class GetItemRefCollection:
         def __init__(self, name):
@@ -382,7 +372,6 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
 
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
-    ## NOTE first attempt: fill all, take some out later
     tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm) if not lv.GetLeafCount()
         else GetArrayColumn(lv.GetTypeName(), lvNm, GetColumn(allTreeLeafs[lv.GetLeafCount().GetName()].GetTypeName(), lv.GetLeafCount().GetName()))
         )) for lvNm,lv in allTreeLeafs.items()))
@@ -419,14 +408,11 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
     simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_", "HTXS_")
     ## check which are there, and for which we need to read variations
     grp_found = []
-    grp_readVar = []
     for prefix in (chain(simpleGroupPrefixes, simpleGroupPrefixes_opt, simpleGroupPrefixes_Gen) if isMC else chain(simpleGroupPrefixes, simpleGroupPrefixes_opt)):
         if prefix not in simpleGroupPrefixes_opt and not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
             logger.warning("No branch name starting with {0} in the tree - skipping group".format(prefix))
         else:
             grp_found.append(prefix)
-            if prefix.startswith("MET") and "{0}_pt_nom".format(prefix.rstrip("_")) in allTreeLeafs:
-                grp_readVar.append(prefix)
     for prefix in grp_found:
         grpNm = prefix.rstrip("_")
         grp_dict = {
@@ -442,23 +428,11 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
         ## default group proxy, replaced below if needed
         grp_proxy = grpcls(grpNm, None)
         setTreeAtt(grpNm, grp_proxy)
-        if prefix in grp_readVar:
-            if prefix.startswith("MET"):
-                grpcls_alt, brMapMap = _makeAltClassAndMaps(
-                        grpNm, grp_dict, getJetMETVarName_postproc,
-                        systName="jet", nomName="nom", exclVars=("raw",),
-                        attCls=altProxy, altBases=(AltLeafGroupProxy,)
-                        )
-            varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
-            setTreeAtt(f"_{grpNm}", varsProxy)
-            setTreeAtt(grpNm, varsProxy["nomWithSyst"])
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy["nomWithSyst"].brMap.values())))))
-
         for vari in systVariations:
             if vari.appliesTo(grpNm):
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(
                         grpNm, grp_dict, vari.getVarName,
-                        systName=vari.systName, nomName=(vari.origName if vari.isCalc and vari.origName else vari.nomName), exclVars=vari.exclVars,
+                        systName=vari.systName, nomName=(vari.origName if ( vari.isCalc and vari.origName ) else vari.nomName), exclVars=vari.exclVars,
                         attCls=altProxy, altBases=(AltLeafGroupProxy,)
                         )
                 withSyst = "nomWithSyst"
@@ -476,16 +450,11 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
     containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
     ## check which are there, and for which we need to read variations
     cnt_found = []
-    cnt_readVar = []
     for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
         if sizeNm not in allTreeLeafs:
             logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
         else:
             cnt_found.append(sizeNm)
-            if sizeNm == "nJet" and "Jet_pt_nom" in allTreeLeafs:
-                cnt_readVar.append(sizeNm)
-            if sizeNm == "nMuon" and "Muon_corrected_pt" in allTreeLeafs:
-                cnt_readVar.append(sizeNm)
 
     for sizeNm in cnt_found:
         grpNm = sizeNm[1:]
@@ -504,7 +473,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
                 collGetter = (
-                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix in cnt_readVar or any(vari.appliesTo(collPrefix) for vari in systVariations) else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if any(vari.appliesTo(collPrefix) for vari in systVariations) else
                         GetItemRefCollection(collPrefix))
                 tree_children.append(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
@@ -516,21 +485,6 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=[ nanoPU
         coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
         setTreeAtt(grpNm, coll_orig)
         ## insert variations using kinematic calculator, from branches, or not
-        if sizeNm in cnt_readVar:
-            if sizeNm == "nJet":
-                altItemType, brMapMap = _makeAltClassAndMaps(
-                        grpNm, itm_dict, getJetMETVarName_postproc,
-                        systName="jet", nomName="nom", exclVars=("raw",),
-                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
-                        )
-
-            ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
-            varsProxy = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy["nomWithSyst"].brMap.values())))))
-            setTreeAtt(f"_{grpNm}", varsProxy)
-            setTreeAtt(grpNm, varsProxy["nomWithSyst"])
-
-        ## new style generic solution - TODO: implement one case (for each of calc and read)
         for vari in systVariations:
             if vari.appliesTo(grpNm):
                 altItemType, brMapMap = _makeAltClassAndMaps(

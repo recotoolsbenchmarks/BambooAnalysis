@@ -366,7 +366,7 @@ class DataframeBackend(FactoryBackend):
                 templTypes = tuple(chain([nd.df.__cppname__], axTypes, [ wType ]))
                 kyTypes = (nd.df.__cppname__, axTypes, wType)
             else:
-                templTypes = [nd.df.__cppname__] + axTypes
+                templTypes = [nd.df.__cppname__] + list(axTypes)
                 kyTypes = (nd.df.__cppname__, axTypes)
             _RDFHistoNDStats[kyTypes] += 1
             if kyTypes not in _RDFHistoND_methods:

@@ -94,14 +94,14 @@ class SelWithDefines(top.CppStrRedir):
 
     def __call__(self, arg):
         """ Get the C++ string corresponding to an op """
-        if not self.shouldDefine(arg): ## the easy case
+        nm = self._getColName(arg)
+        if ( not self.shouldDefine(arg) ) and not nm: ## the easy case
             try:
                 return arg.get_cppStr(defCache=self)
             except Exception as ex:
                 logger.error("Could not get cpp string for {0!r}: {1!r}", arg, ex)
                 return "NONE"
         else:
-            nm = self._getColName(arg)
             if not nm: ## define it then
                 nm = self.backend.getUColName()
                 self._define(nm, arg)

@@ -666,7 +666,7 @@ def _collectDeps(self, defCache=cppNoRedir):
         cn = defCache(dep)
         if not cn:
             logger.warning("Probably a problem in triggering definition for {0}".format(dep))
-    return set(dep for dep in self.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn) or isinstance(op, LocalVariablePlaceholder) or defCache.shouldDefine(op))))
+    return set(dep for dep in self.deps(defCache=defCache, select=(lambda op : isinstance(op, GetColumn) or isinstance(op, GetArrayColumn) or isinstance(op, LocalVariablePlaceholder) or defCache.shouldDefine(op) or (defCache._getColName(op) is not None))))
 
 def _canDefine(expr, local):
     return not any(ind is not None for ind in collectNodes(expr, select=(lambda nd : isinstance(nd, LocalVariablePlaceholder) and nd not in local), stop=(lambda nd : nd.canDefine), includeLocal=False))
@@ -691,7 +691,7 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
                 ld.name,
                 "{0} {1}".format(ld.typeHint, ld.name),
                 ld.name))
-        elif defCache.shouldDefine(ld):
+        elif defCache.shouldDefine(ld) or (defCache._getColName(ld) is not None):
             nm = defCache._getColName(ld)
             if not nm:
                 print("ERROR: no column name for {0}".format(ld))

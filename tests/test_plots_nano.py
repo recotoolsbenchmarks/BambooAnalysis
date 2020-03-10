@@ -29,6 +29,7 @@ def test(decoNano):
     from bamboo.plots import Plot, Selection
     from bamboo.plots import EquidistantBinning as EqBin
     from bamboo.analysisutils import forceDefine
+    from functools import partial
     forceDefine(tup._Muon.calcProd, noSel)
     plots = []
     electrons = op.select(tup.Electron, lambda ele : op.AND(ele.cutBased_Sum16 >= 3, ele.pt > 15., op.abs(ele.eta) < 2.4))
@@ -44,6 +45,8 @@ def test(decoNano):
     hasMuJ = hasMuon.refine("hasMuonJ", cut=(op.rng_len(cleanedJets) > 0), weight=op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB))
     plots.append(Plot.make1D("hasMuonJ_prodBTags", op.rng_product(cleanedJetsByDeepFlav, lambda jet: jet.btagDeepB), hasMuJ, EqBin(1, 0., 1.), title="Product of jet b-tags", xTitle="X"))
     plots.append(Plot.make1D("cleanedjet_pt", op.map(cleanedJets, lambda j : j.pt), noSel, EqBin(30, 30., 730.), title="Jet p_{T} (GeV)"))
+    muRecoilJets = op.select(cleanedJets, partial((lambda l,j : op.deltaR(l.p4, j.p4) > 0.7), muons[0]))
+    hasMuRecJ = hasMuon.refine("hasMuonRecJ", cut=(op.rng_len(muRecoilJets) > 0))
     dijets = op.combine(cleanedJets, N=2, pred=lambda j1,j2 : op.deltaR(j1.p4, j2.p4) > 0.6, samePred=lambda j1,j2 : j1.pt > j2.pt)
     plots.append(Plot.make1D("nCleanediJets", op.rng_len(dijets), noSel, EqBin(50, 0., 50.), title="Number of cleaned dijets", xTitle="N_{jj}"))
     alljetpairs = op.combine(cleanedJets, N=2, samePred=lambda j1,j2 : j1.pt > j2.pt)

@@ -198,32 +198,33 @@ class AnalysisModule(object):
                     if not os.path.exists(resultsdir):
                         raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
                     ## TODO check for all output files?
+                elif not tasks:
+                    logger.warning("No tasks defined, skipping to postprocess")
                 else:
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                     else:
                         os.makedirs(resultsdir)
                     ## store one "skeleton" tree (for more efficient "onlypost" later on
-                    if taskArgs:
-                        (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
-                        aFileName = aTaskIn[0]
-                        from .root import gbl
-                        aFile = gbl.TFile.Open(aFileName)
-                        if not aFile:
-                            logger.warning(f"Could not open file {aFileName}, no skeleton tree will be saved")
+                    (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
+                    aFileName = aTaskIn[0]
+                    from .root import gbl
+                    aFile = gbl.TFile.Open(aFileName)
+                    if not aFile:
+                        logger.warning(f"Could not open file {aFileName}, no skeleton tree will be saved")
+                    else:
+                        treeName = analysisCfg.get("tree", "Events")
+                        aTree = aFile.Get(treeName)
+                        if not aTree:
+                            logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
                         else:
-                            treeName = analysisCfg.get("tree", "Events")
-                            aTree = aFile.Get(treeName)
-                            if not aTree:
-                                logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
-                            else:
-                                outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
-                                outf = gbl.TFile.Open(outfName, "RECREATE")
-                                skeletonTree = aTree.CloneTree(1) ## copy header and a single event
-                                outf.Write()
-                                outf.Close()
-                                logger.debug(f"Skeleton tree written to {outfName}")
-                    ##
+                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
+                            outf = gbl.TFile.Open(outfName, "RECREATE")
+                            skeletonTree = aTree.CloneTree(1) ## copy header and a single event
+                            outf.Write()
+                            outf.Close()
+                            logger.debug(f"Skeleton tree written to {outfName}")
+                    ## run all tasks
                     if not self.args.distributed: ## sequential mode
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             output = os.path.join(resultsdir, output)

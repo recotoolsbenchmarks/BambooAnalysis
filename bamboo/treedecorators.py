@@ -218,12 +218,13 @@ def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=No
                 brMapMap[var] = {}
             brMapMap[var][attNm] = getCol(vop)
     ## nominal: with systematic variations (all are valid, but not all need to modify)
-    nomName = vari.origName if ( vari.isCalc and vari.origName ) else vari.nomName
-    allVars = list(k for k in brMapMap.keys() if k not in vari.exclVars and k != nomName)
+    nomName = vari.origName if vari.isCalc else vari.nomName(name)
+    exclVars = vari.exclVars(name)
+    allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltOp(
             getCol(vAtts[nomName]), vari.systName,
-            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in vari.exclVars),
+            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
             valid=tuple(var for var in allVars if var in vAtts),
             ))
         for attNm,vAtts in var_atts.items())
@@ -232,21 +233,25 @@ def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=No
 ## Helper classes
 class NanoSystematicVarSpec:
     """ Interface for classes that specify how to incorporate systematics or on-the-fly corrections in the decorated tree """
-    def __init__(self, systName, nomName="nom", origName=None, exclVars=None, isCalc=False):
+    def __init__(self, systName, nomName=None, origName=None, exclVars=None, isCalc=False):
         self.systName = systName
-        self.nomName = nomName
+        self._nomName = nomName
         self.origName = origName
-        self.exclVars = exclVars if exclVars is not None else tuple()
+        self._exclVars = exclVars if exclVars is not None else tuple()
         self.isCalc = isCalc
     def appliesTo(self, name):
         """ Return true if this systematic variation requires action for this variable, group, or collection """
         return False
     def getVarName(self, branchName, collgrpname=None):
         pass
+    def nomName(self, name):
+        return self._nomName
+    def exclVars(self, name):
+        return self._exclVars
 
 class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
     """ Read variations of a single branch from branches with the same name with a suffix """
-    def __init__(self, commonName, sep="_", systName=None, nomName="nom", exclVars=None):
+    def __init__(self, commonName, sep="_", systName=None, nomName=None, exclVars=None):
         super(ReadVariableVarWithSuffix, self).__init__(
                 (systName if systName is not None else commonName),
                 nomName=nomName, exclVars=exclVars, isCalc=False)
@@ -261,16 +266,29 @@ class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
 nanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
 
 class ReadJetMETVar(NanoSystematicVarSpec):
-    def __init__(self, jetsName, metName, systName="jet", nomName="nom", origName="raw", exclVars=None, bTaggers=None, bTagWPs=None):
+    def __init__(self, jetsName, metName, systName="jet", jetsNomName="nom", jetsOrigName="raw", metNomName="jer", metOrigName="raw", jetsExclVars=None, metExclVars=None, bTaggers=None, bTagWPs=None):
         super(ReadJetMETVar, self).__init__(
-                systName, nomName=nomName, origName=origName, isCalc=False,
-                exclVars=(exclVars if exclVars is not None else (origName,)))
+                systName, nomName=jetsNomName, origName=jetsOrigName, isCalc=False,
+                exclVars=(jetsExclVars if jetsExclVars is not None else (jetsOrigName,)))
         self.jetsName = jetsName
         self.metName = metName
+        self.metOrigname = metOrigName
         self.bTaggers = bTaggers if bTaggers is not None else []
         self.bTagWPs = bTagWPs if bTagWPs is not None else []
+        self.metNomName = metNomName
+        self.metExclVars = (metExclVars if metExclVars is not None else (metOrigName,))
     def appliesTo(self, name):
         return name in (self.jetsName, self.metName)
+    def nomName(self, name):
+        if name == self.metName:
+            return self.metNomName
+        else:
+            return self._nomName
+    def exclVars(self, name):
+        if name == self.metName:
+            return self.metExclVars
+        else:
+            return self._exclVars
     def getVarName(self, nm, collgrpname=None):
         if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
             return (nm.split("_")[0], "_".join(nm.split("_")[1:]))

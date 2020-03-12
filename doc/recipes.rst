@@ -417,6 +417,30 @@ so they are listed separately from those in the base class.
 This is also used to copy all user-defined arguments to the commands that are
 passed to the worker tasks, when running in distributed mode.
 
+.. _recipecustomanacfg:
+
+Editing the analysis configuration
+----------------------------------
+
+Similarly to the above, it is possible to modify the analysis configuration 
+(loaded from the YAML file) from a module before the configuration 
+is used to create jobs (in distributed mode), run on any file (in sequential mode),
+or run plotIt (in the postprocessing step).
+This allows e.g. to change the samples that are going to be used, change the list 
+of systematics, etc., without having to edit manually the YAML file or maintaining separate files.
+Below is an example of how this works:
+
+.. code-block:: python
+
+    class MyModule(...):
+
+        def customizeAnalysisCfg(self, analysisCfg):
+            for smp in list(analysisCfg["samples"]):
+                if not analysisCfg["samples"][smp].get("is_signal", False):
+                    del analysisCfg["samples"][smp]
+            
+
+
 .. _recipemvaevaluate:
 
 Evaluate an MVA classifier

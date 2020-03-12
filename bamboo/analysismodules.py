@@ -145,6 +145,9 @@ class AnalysisModule(object):
             return tup, smpNm, smpCfg
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
+    def customizeAnalysisCfg(self, analysisCfg):
+        """ Hook to modify the analysis configuration before jobs are created (only called in driver or non-distributed mode) """
+        pass
     def run(self):
         """ Main method
 
@@ -187,6 +190,7 @@ class AnalysisModule(object):
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
                 analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=(not self.args.onlypost), redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                self.customizeAnalysisCfg(analysisCfg)
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
@@ -231,8 +235,9 @@ class AnalysisModule(object):
                             else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
                                 chunks = splitInChunks(inputs, chunkLength=max(1, min(-split, len(inputs))))
                             cmds = []
+                            os.makedirs(os.path.join(workdir, "infiles"), exist_ok=True)
                             for i,chunk in enumerate(chunks):
-                                cfn = os.path.join(workdir, "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
+                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
                                 writeFileList(chunk, cfn)
                                 cmds.append(" ".join([str(a) for a in commArgs] + [
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+

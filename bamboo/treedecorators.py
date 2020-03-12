@@ -351,7 +351,71 @@ nanoRochesterCalc = CalcCollection("Muon", ("pt",))
 nanoJetMETCalc = CalcJetMETVar("Jet", ("pt", "mass"), "MET", ("pt", "phi"))
 nanoJetMETCalc_METFixEE2017 = CalcJetMETVar("Jet", ("pt", "mass"), "METFixEE2017", ("pt", "phi"))
 
-def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
+class NanoAODDescription:
+    """ Description of the expected NanoAOD structure, and configuration for systematics and corrections
+
+    Essentially, a collection of three containers:
+    - :py:attr:`~.collections` a list of collections (by the name of the length leaf)
+    - :py:attr:`~.groups` a list of non-collection groups (by prefix, e.g. ``HLT_``)
+    - :py:attr:`~.systVariations` a list of :py:class:`~.NanoSystematicVarSpec` instances, to configure reading systematics variations from branches, or calculating them on the fly
+
+    The recommended way to obtain a configuration is from the factory method :py:meth:`~.get`
+    """
+    ProductionVersions = dict()
+    def __init__(self, groups=None, collections=None, systVariations=None):
+        self.groups = list(groups) if groups is not None else []
+        self.collections = list(collections) if collections is not None else []
+        self.systVariations = list(systVariations) if systVariations is not None else []
+    def clone(self, addGroups=None, removeGroups=None, addCollections=None, removeCollections=None, systVariations=None):
+        groups = self.groups
+        if removeGroups:
+            groups = [ grp for grp in groups if grp not in removeGroups ]
+        if addGroups:
+            groups = groups + [ grp for grp in addGroups if grp not in groups ]
+        collections = self.collections
+        if removeCollections:
+            collections = [ grp for grp in collections if grp not in removeCollections ]
+        if addCollections:
+            collections = collections + [ grp for grp in addCollections if grp not in collections ]
+        return self.__class__(groups=groups, collections=collections, systVariations=systVariations)
+    @staticmethod
+    def get(tag, year="2016", isMC=False, addGroups=None, removeGroups=None, addCollections=None, removeCollections=None, systVariations=None):
+        """ Create a suitable NanoAODDescription instance based on a production version
+
+        A production version is defined by a tag, data-taking year, and a flag
+        to distinguish data from simulation.
+        Any number of groups or collections can be added or removed from this.
+        The ``systVariations`` option
+
+        :Example:
+
+        >>> decorateNanoAOD(tree, NanoAODDescription.get("v5", year="2016", isMC=True, systVariations=[nanoRochesterCalc, nanoJetMETCalc]))
+        >>> decorateNanoAOD(tree, NanoAODDescription.get("v5", year="2017", isMC=True, systVariations=[nanoPUWeightVar, nanoReadJetMETVar_METFixEE2017]))
+
+        :param tag: production version (e.g. "v5")
+        :param year: data-taking year
+        :param isMC: simulation or not
+        :param addGroups: (optional) list of groups of leaves to add (e.g. ``["L1_", "HLT_"]``, if not present)
+        :param removeGroups: (optional) list of groups of leaves to remove (e.g. ``["L1_"]``, if skimmed)
+        :param addCollections: (optional) list of containers to add (e.g. ``["nMyJets"]``)
+        :param removeCollections: (optional) list of containers to remove (e.g. ``["nPhoton", "nTau"]``)
+        :param systVariations: list of correction or systematic variation on-the-fly calculators or configurations to add (:py:class:`~.NanoSystematicVarSpec` instances)
+        """
+        return NanoAODDescription.ProductionVersions[(tag, year, isMC)].clone(addGroups=addGroups, removeGroups=removeGroups, addCollections=addCollections, removeCollections=removeCollections, systVariations=systVariations)
+
+_ndpv = NanoAODDescription.ProductionVersions
+_ndpv[("v5", "2016", False)] = NanoAODDescription(
+        groups=["CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_"],
+        collections=["nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet"])
+_ndpv[("v5", "2016", True )] = _ndpv[("v5", "2016", False)].clone(
+        addGroups=["GenMET_", "Generator_", "LHE_", "HTXS_"],
+        addCollections=["nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8"])
+_ndpv[("v5", "2017", False)] = _ndpv[("v5", "2016", False)].clone(addGroups=["METFixEE2017_"])
+_ndpv[("v5", "2017", True )] = _ndpv[("v5", "2016", True )].clone(addGroups=["METFixEE2017_"])
+_ndpv[("v5", "2018", False)] = _ndpv[("v5", "2016", False)]
+_ndpv[("v5", "2018", True )] = _ndpv[("v5", "2016", True )]
+
+def decorateNanoAOD(aTree, description=None):
     """ Decorate a CMS NanoAOD Events tree
 
     Variation branches following the NanoAODTools conventions (e.g. Jet_pt_nom)
@@ -359,14 +423,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
     precendence, if requested).
 
     :param aTree: TTree to decorate
-    :param description: reserved for future version/flavour-dependence
-    :param isMC: simulation or not
-    :param systVariations: systematic variations and on-th-fly corrections to add (list of :py:class:`bamboo.treedecorators.NanoSystematicVarSpec` instances)
+    :param description: description of the tree format, and configuration for reading or calculating systematic variations and corrections, a :py:class:`~.NanoAODDescription` instance (see also :py:meth:`.NanoAODDescription.get`)
     """
     if description is None:
-        description = dict()
-    if systVariations is None:
-        systVariations = []
+        raise ValueError('A description is needed to correctly decorate a NanoAOD (but it may be as simple as ``description=NanoAODDescription.get("v5")``)')
 
     class GetItemRefCollection:
         def __init__(self, name):
@@ -400,7 +460,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
             tree_children.append(proxy)
 
     ## variables with variations
-    for vari in systVariations:
+    for vari in description.systVariations:
         toRem = []
         brMap = {}
         attNm = None
@@ -421,13 +481,9 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
             setTreeAtt(attNm, varsProxy["nomWithSyst"], False)
 
     ## non-collection branches to group
-    simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
-    simpleGroupPrefixes_opt = ("METFixEE2017_",)
-    simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_", "HTXS_")
-    ## check which are there, and for which we need to read variations
     grp_found = []
-    for prefix in (chain(simpleGroupPrefixes, simpleGroupPrefixes_opt, simpleGroupPrefixes_Gen) if isMC else chain(simpleGroupPrefixes, simpleGroupPrefixes_opt)):
-        if prefix not in simpleGroupPrefixes_opt and not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
+    for prefix in description.groups:
+        if not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
             logger.warning("No branch name starting with {0} in the tree - skipping group".format(prefix))
         else:
             grp_found.append(prefix)
@@ -446,7 +502,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
         ## default group proxy, replaced below if needed
         grp_proxy = grpcls(grpNm, None)
         setTreeAtt(grpNm, grp_proxy)
-        for vari in systVariations:
+        for vari in description.systVariations:
             if vari.appliesTo(grpNm):
                 grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, vari,
                         attCls=altProxy, altBases=(AltLeafGroupProxy,))
@@ -461,11 +517,8 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
 
 
     ## SOA, nanoAOD style (LeafCount, shared)
-    containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet")
-    containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
-    ## check which are there, and for which we need to read variations
     cnt_found = []
-    for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
+    for sizeNm in description.collections:
         if sizeNm not in allTreeLeafs:
             logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
         else:
@@ -488,7 +541,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
                 collGetter = (
-                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if any(vari.appliesTo(collPrefix) for vari in systVariations) else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if any(vari.appliesTo(collPrefix) for vari in description.systVariations) else
                         GetItemRefCollection(collPrefix))
                 tree_children.append(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
@@ -500,7 +553,7 @@ def decorateNanoAOD(aTree, description=None, isMC=False, systVariations=None):
         coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
         setTreeAtt(grpNm, coll_orig)
         ## insert variations using kinematic calculator, from branches, or not
-        for vari in systVariations:
+        for vari in description.systVariations:
             if vari.appliesTo(grpNm):
                 altItemType, brMapMap = _makeAltClassAndMaps(grpNm, itm_dict, vari,
                         getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,))

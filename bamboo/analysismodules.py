@@ -507,21 +507,20 @@ class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    def prepareTree(self, tree, sample=None, sampleCfg=None, isMC=None, systVariations=[]):
+    def prepareTree(self, tree, sample=None, sampleCfg=None, description=None):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
         In addition to the arguments needed for the base class
         :py:meth:`~bamboo.analysismodules.AnalysisModule.prepareTree`` method,
-        the automatic choice for data or MC can be overridden, and the collections
-        to which on-the-fly corrections will be applied, should be passed,
-        such that the decorations can be constructed accordingly.
+        a description of the tree, and settings for reading systematic variations
+        or corrections from alternative branches, or calculating these on the fly,
+        should be passed, such that the decorations can be constructed accordingly.
 
-        :param isMC: (optional) MC or data; otherwise ``self.isMC(sample)`` will be used.
-        :param systVariations: list of systematic variations and on-th-fly corrections to add (list of :py:class:`bamboo.treedecorators.NanoSystematicVarSpec` instances)
+        :param description: description of the tree format, and configuration for reading or calculating systematic variations and corrections, a :py:class:`~bamboo.treedecorators.NanoAODDescription` instance (see also :py:meth:`bamboo.treedecorators.NanoAODDescription.get`)
         """
         from bamboo.treedecorators import decorateNanoAOD
         from bamboo.dataframebackend import DataframeBackend
-        t = decorateNanoAOD(tree, isMC=(isMC if isMC is not None else self.isMC(sample)), systVariations=systVariations)
+        t = decorateNanoAOD(tree, description=description)
         be, noSel = DataframeBackend.create(t)
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):

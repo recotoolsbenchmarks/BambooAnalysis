@@ -9,9 +9,9 @@ def decoNano():
     from bamboo.root import gbl
     f = gbl.TFile.Open(os.path.join(testData, "DY_M50_2016postproc_JMEKin_bTagShape_puWeight.root"))
     tree = f.Get("Events")
-    from bamboo.treedecorators import decorateNanoAOD, nanoPUWeightVar, nanoReadJetMETVar
+    from bamboo.treedecorators import decorateNanoAOD, NanoAODDescription, nanoPUWeightVar, nanoReadJetMETVar
     from bamboo.dataframebackend import DataframeBackend
-    tup = decorateNanoAOD(tree, isMC=True, systVariations=[nanoPUWeightVar, nanoReadJetMETVar])
+    tup = decorateNanoAOD(tree, NanoAODDescription.get("v5", year="2016", isMC=True, systVariations=[nanoPUWeightVar, nanoReadJetMETVar]))
     be, noSel = DataframeBackend.create(tup)
     yield tup
 

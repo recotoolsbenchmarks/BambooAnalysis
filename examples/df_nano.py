@@ -16,7 +16,7 @@ if hasattr(ROOT, "enableJSVis"): ROOT.enableJSVis() ## for inline plots in the n
 # `decorateNanoAOD` will wrap the NanoAOD in a more pythonic set of objects, `DataframeBackend` takes care of
 # passing the right instructions to a `ROOT::RDataFrame` instance when we define plots.
 f = ROOT.TFile.Open("NanoAOD_SingleMu_test.root")
-t = decorateNanoAOD(f.Get("Events"))
+t = decorateNanoAOD(f.Get("Events"), NanoAODDescription.get("v5", year="2016", isMC=True))
 be, noSel = DataframeBackend.create(t)
 noSel = addLumiMask(noSel, "Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt",
             runRange=(276831, 277420), runAndLS=(t.run, t.luminosityBlock))

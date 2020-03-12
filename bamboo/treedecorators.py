@@ -1,7 +1,8 @@
 """
-Main user-visible module of tree operations, separate from the operation definitions
-and proxy classes
-User-facing module
+Expressions are constructed by executing python code on decorated versions of
+decorated trees. The :py:mod:`bamboo.treedecorators` module contains helper
+methods to do so for commonly used formats, e.g. :py:func:`~.decorateNanoAOD`
+for CMS NanoAOD.
 """
 
 from collections import defaultdict
@@ -14,9 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def allLeafs(branch):
-    """
-    Recursively collect TTree leaves (TLeaf and TBranchElement)
-    """
+    # Recursively collect TTree leaves (TLeaf and TBranchElement)
     for br in branch.GetListOfBranches():
         from .root import gbl
         if isinstance(br, gbl.TBranchElement):
@@ -26,7 +25,7 @@ def allLeafs(branch):
                 yield lv
 
 def normVarName(varName):
-    """ Normalize variation name: if ending in up or down, make sure this part has no capitals (for plotIt) """
+    # Normalize variation name: if ending in up or down, make sure this part has no capitals (for plotIt)
     if len(varName) >= 2 and varName[-2:].upper() == "UP":
         return "{0}up".format(varName[:-2])
     elif len(varName) >= 4 and varName[-4:].upper() == "DOWN":
@@ -232,8 +231,19 @@ def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=No
 
 ## Helper classes
 class NanoSystematicVarSpec:
-    """ Interface for classes that specify how to incorporate systematics or on-the-fly corrections in the decorated tree """
+    """ Interface for classes that specify how to incorporate systematics or on-the-fly corrections in the decorated tree
+
+    See :py:class:`~.NanoAODDescription` and :py:func:`~.decorateNanoAOD`
+    """
     def __init__(self, systName, nomName=None, origName=None, exclVars=None, isCalc=False):
+        """ Base class constructor
+
+        :param systName: name of the systematic source, for automatic systematics (if applicable)
+        :param nomName: nominal variation name (for non-calculated variations; can be customised through :py:meth:`~.nomName`)
+        :param origName: original variation name (for calculated variations)
+        :param exclVars: variations that are found but should not be used in automatic systematics (can be customised through :py:meth:`~.nomName`)
+        :param isCalc: boolean indicating whether variations are calculated or read from alternative branches
+        """
         self.systName = systName
         self._nomName = nomName
         self.origName = origName
@@ -243,10 +253,13 @@ class NanoSystematicVarSpec:
         """ Return true if this systematic variation requires action for this variable, group, or collection """
         return False
     def getVarName(self, branchName, collgrpname=None):
+        """ Get the variable name and variation corresponding to an (unprefixed, in case of groups or collections) branch name """
         pass
     def nomName(self, name):
+        """ Nominal systematic variation name for a group/collection """
         return self._nomName
     def exclVars(self, name):
+        """ Systematic variations to exclude for a group/collection """
         return self._exclVars
 
 class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
@@ -258,8 +271,10 @@ class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
         self.prefix = commonName
         self.sep = sep
     def appliesTo(self, name):
+        """ True if name starts with the prefix """
         return name.startswith(self.prefix)
     def getVarName(self, branchName, collgrpname=None):
+        """ Split into prefix and variation (if present, else nominal) """
         variNm = normVarName(branchName[len(self.prefix):].lstrip(self.sep))
         return self.prefix, variNm if variNm else self.nomName
 
@@ -317,6 +332,7 @@ nanoReadJetMETVar = ReadJetMETVar("Jet", "MET", bTaggers=["csvv2", "deepcsv", "d
 nanoReadJetMETVar_METFixEE2017 = ReadJetMETVar("Jet", "METFixEE2017", bTaggers=["csvv2", "deepcsv", "deepjet", "cmva"], bTagWPs=["L", "M", "T", "shape"])
 
 class CalcCollection(NanoSystematicVarSpec):
+    """ Base class for :py:class:`~.NanoSystematicVarSpec` with a calculator """
     def __init__(self, collName, calcAttrs, systName=None, nomName="nominal", origName="raw", exclVars=None):
         super(CalcCollection, self).__init__(
                 (systName if systName is not None else collName.lower()),
@@ -325,12 +341,15 @@ class CalcCollection(NanoSystematicVarSpec):
         self.collName = collName
         self.calcAttrs = calcAttrs
     def appliesTo(self, name):
+        """ True if name equals the collection name """
         return name == self.collName
     def getVarName(self, nm, collgrpname=None):
+        """ Valid if name is a calculated attribute """
         if nm in self.calcAttrs:
             return nm, self.origName
 
 class CalcJetMETVar(NanoSystematicVarSpec):
+    """ :py:class:`~.NanoSystematicVarSpec` for on-the-fly Jet and MET correction and systematic variation calculation """
     def __init__(self, jetsName, jetAttrs, metName, metAttrs, systName="jet", nomName="nominal", origName="raw", exclVars=None):
         super(CalcJetMETVar, self).__init__(
                 systName, nomName=nomName, origName=origName, isCalc=True,
@@ -355,9 +374,9 @@ class NanoAODDescription:
     """ Description of the expected NanoAOD structure, and configuration for systematics and corrections
 
     Essentially, a collection of three containers:
-    - :py:attr:`~.collections` a list of collections (by the name of the length leaf)
-    - :py:attr:`~.groups` a list of non-collection groups (by prefix, e.g. ``HLT_``)
-    - :py:attr:`~.systVariations` a list of :py:class:`~.NanoSystematicVarSpec` instances, to configure reading systematics variations from branches, or calculating them on the fly
+       - :py:attr:`~.collections` a list of collections (by the name of the length leaf)
+       - :py:attr:`~.groups` a list of non-collection groups (by prefix, e.g. ``HLT_``)
+       - :py:attr:`~.systVariations` a list of :py:class:`~.NanoSystematicVarSpec` instances, to configure reading systematics variations from branches, or calculating them on the fly
 
     The recommended way to obtain a configuration is from the factory method :py:meth:`~.get`
     """
@@ -400,6 +419,8 @@ class NanoAODDescription:
         :param addCollections: (optional) list of containers to add (e.g. ``["nMyJets"]``)
         :param removeCollections: (optional) list of containers to remove (e.g. ``["nPhoton", "nTau"]``)
         :param systVariations: list of correction or systematic variation on-the-fly calculators or configurations to add (:py:class:`~.NanoSystematicVarSpec` instances)
+
+        See also :py:func:`~.decorateNanoAOD`
         """
         return NanoAODDescription.ProductionVersions[(tag, year, isMC)].clone(addGroups=addGroups, removeGroups=removeGroups, addCollections=addCollections, removeCollections=removeCollections, systVariations=systVariations)
 

@@ -50,7 +50,7 @@ def switch(test, trueBranch, falseBranch, checkTypes=True):
         bType = falseBranch._typeName
         if aType != bType:
             if not any(aType in typeGroup and bType in typeGroup for typeGroup in (_tp._boolTypes, _tp._integerTypes, _tp._floatTypes)):
-                logger.warning(f"Possibly incompatible types: {aType} and {bType}")
+                _logger.warning(f"Possibly incompatible types: {aType} and {bType}")
     return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
 def multiSwitch(*args):
     """ Construct arbitrary-length switch (if-elif-elif-...-else sequence)

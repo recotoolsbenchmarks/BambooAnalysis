@@ -437,16 +437,15 @@ class LazyDataframeBackend(FactoryBackend):
 
     For testing, there is an extra method to instantiate what's needed for a bunch of plots
     """
-    def __init__(self, worker):
-        self.worker = worker
+    def __init__(self, tree, outFileName=None):
+        super(LazyDataframeBackend, self).__init__(tree, outFileName=outFileName)
         self.selections = dict()
         self.definesPerSelection = dict()
         self.plotsPerSelection = dict()
         self._definedSel = set()
     @staticmethod
     def create(decoTree, outFileName=None):
-        worker = DataframeBackend(decoTree._tree, outFileName=None)
-        inst = LazyDataframeBackend(worker)
+        inst = LazyDataframeBackend(decoTree._tree, outFileName=outFileName)
         rootSel = Selection(inst, "none")
         return inst, rootSel
     def addSelection(self, selection):
@@ -457,19 +456,16 @@ class LazyDataframeBackend(FactoryBackend):
     def addPlot(self, plot, autoSyst=True):
         ## keep track and do nothing
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
-    def addDerivedPlot(self, plot):
-        ## no nodes to be made
-        self.worker.addDerivedPlot(plot)
     def _buildSelGraph(self, selName, plotList):
         sele = self.selections[selName]
         if sele.parent and sele.parent.name not in self._definedSel:
             self._buildSelGraph(sele.parent.name, plotList)
-        self.worker.addSelection(sele)
+        super(LazyDataframeBackend, self).addSelection(sele)
         for op in self.definesPerSelection[selName]:
-            self.worker.define(op, sele)
+            super(LazyDataframeBackend, self).define(op, sele)
         for plot, autoSyst in self.plotsPerSelection[selName]:
             if plot in plotList:
-                self.worker.addPlot(plot, autoSyst=autoSyst)
+                super(LazyDataframeBackend, self).addPlot(plot, autoSyst=autoSyst)
         self._definedSel.add(selName)
     def buildGraph(self, plotList):
         ## this is the extra method: do all the addSelection/addPlot/addDerivedPlot calls in a better order
@@ -484,21 +480,5 @@ class LazyDataframeBackend(FactoryBackend):
             if isinstance(plot, Plot):
                 if plot.selection.name not in self._definedSel:
                     self._buildSelGraph(plot.selection.name, allPlots)
-    def getPlotResults(self, plot):
-        return self.worker.getPlotResults(plot)
-    def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
-        ## pass to worker, no way to be lazy about this
-        return self.worker.writeSkim(sele, outputFile, treeName, definedBranches=definedBranches, origBranchesToKeep=origBranchesToKeep, maxSelected=maxSelected)
-
-    ## more that are not in the list (TODO add to interface)
-    def getUColName(self):
-        return self.worker.getUColName()
-    def shouldDefine(self, op, defCache=None):
-        return self.worker.shouldDefine(op, defCache=defCache)
-    def symbol(self, decl, resultType=None, args=None, nameHint=None):
-        return self.worker.symbol(decl, resultType=resultType, args=args, nameHint=nameHint)
     def define(self, op, selection):
         self.definesPerSelection[selection.name].append(op)
-    @property
-    def allSysts(self):
-        return self.worker.allSysts

@@ -21,7 +21,7 @@ def sessionWithResponseChecks():
         try:
             resp.raise_for_status()
         except requests.exceptions.HTTPError as ex:
-            logger.exception(f"Problem with request '{resp.request.method} {resp.request.url}'")
+            logger.exception(f"Problem with request '{resp.request.method} {resp.request.url}' (traceback below)")
     session = requests.Session()
     session.hooks = {
         "response" : response_check
@@ -87,9 +87,9 @@ class JetDatabaseCache(object):
         if "branches_etag" in self._status and "sha" in self._status:
             headers["If-None-Match"] = self._status["branches_etag"]
         r_branches = session.get("{0}/git/refs/heads".format(self._baseUrl), headers=headers)
-        if r_branches.status_code == 304:
+        if r_branches.status_code == requests.codes.not_modified:
             return self._status["sha"]
-        else:
+        elif r_branches.status_code == requests.codes.ok:
             r_master = next(itm for itm in r_branches.json() if itm["ref"] == "refs/heads/master")
             self._status["branches_etag"] = r_branches.headers["ETag"]
             return r_master["object"]["sha"]
@@ -117,43 +117,48 @@ class JetDatabaseCache(object):
 
         masterSHA = self._get_master_sha(session=session)
         ## Update the *tree* of the (fetched tags of) textFiles if necessary
-        if "sha" not in self._status or self._status["sha"] != masterSHA:
-            logger.debug("Updating root of {0} at {1}".format(self.repository, masterSHA))
-            with self._statusLockAndSave():
-                r_rootTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, masterSHA)).json()
-                r_TF = next(itm for itm in r_rootTree["tree"] if itm["path"] == "textFiles")
-                if "textFiles" not in self._status:
-                    self._status["textFiles"] = {"tree":{}}
-                statTF = self._status["textFiles"]
-                if statTF.get("sha") != r_TF["sha"]:
-                    stTags = statTF["tree"]
-                    logger.debug("Updating 'textFiles' of {0} at {1} ({2})".format(self.repository, masterSHA, r_TF["sha"]))
-                    r_tagsTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, r_TF["sha"])).json()
-                    for r_tg in r_tagsTree["tree"]:
-                        if r_tg["path"] not in stTags:
-                            logger.debug("New tag in {0}: {1}".format(self.repository, r_tg["path"]))
-                            stTags[r_tg["path"]] = {"sha": r_tg["sha"]}
-                        else:
-                            statTag = stTags[r_tg["path"]]
-                            if r_tg["sha"] != statTag["sha"]:
-                                if "tree" in statTag:
-                                    self._updateTag(r_tg["path"], r_tg["sha"], session=session)
-                                else: ## don't trigger fetch
-                                    statTag["sha"] = r_tg["sha"]
-                    toRemove = []
-                    for tagName, statTag in stTags.items():
-                        if not any(r_tg["path"] == tagName for r_tg in r_tagsTree["tree"]):
-                            logger.debug("Tag {0} was removed from {1}".format(tagName, self.repository))
-                            tagDir = os.path.join(self.cachedir, tagName)
-                            if os.path.isdir(tagDir):
-                                import shutil
-                                logger.debug("Should remove cache directory {0}".format(tagDir))
-                                #shutil.rmtree(tagDir)
-                            toRemove.append(tagName)
-                    for tagName in toRemove:
-                        del stTags[tagName]
-                    statTF["sha"] = r_TF["sha"]
-                self._status["sha"] = masterSHA
+        if masterSHA is None:
+            logger.warning(f"Unable to check if the repository {self._baseUrl} has been updated, assuming last known state")
+        elif "sha" not in self._status or self._status["sha"] != masterSHA:
+            if not self._mayWrite:
+                logger.warning(f"Repository {self._baseUrl} has been updated. Please update the status file by running checkBambooCMSJetDatabaseCaches (or equivalent). This instance has no write access, and will use the cached listing and contents.")
+            else:
+                logger.debug("Updating root of {0} at {1}".format(self.repository, masterSHA))
+                with self._statusLockAndSave():
+                    r_rootTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, masterSHA)).json()
+                    r_TF = next(itm for itm in r_rootTree["tree"] if itm["path"] == "textFiles")
+                    if "textFiles" not in self._status:
+                        self._status["textFiles"] = {"tree":{}}
+                    statTF = self._status["textFiles"]
+                    if statTF.get("sha") != r_TF["sha"]:
+                        stTags = statTF["tree"]
+                        logger.debug("Updating 'textFiles' of {0} at {1} ({2})".format(self.repository, masterSHA, r_TF["sha"]))
+                        r_tagsTree = session.get("{0}/git/trees/{1}".format(self._baseUrl, r_TF["sha"])).json()
+                        for r_tg in r_tagsTree["tree"]:
+                            if r_tg["path"] not in stTags:
+                                logger.debug("New tag in {0}: {1}".format(self.repository, r_tg["path"]))
+                                stTags[r_tg["path"]] = {"sha": r_tg["sha"]}
+                            else:
+                                statTag = stTags[r_tg["path"]]
+                                if r_tg["sha"] != statTag["sha"]:
+                                    if "tree" in statTag:
+                                        self._updateTag(r_tg["path"], r_tg["sha"], session=session)
+                                    else: ## don't trigger fetch
+                                        statTag["sha"] = r_tg["sha"]
+                        toRemove = []
+                        for tagName, statTag in stTags.items():
+                            if not any(r_tg["path"] == tagName for r_tg in r_tagsTree["tree"]):
+                                logger.debug("Tag {0} was removed from {1}".format(tagName, self.repository))
+                                tagDir = os.path.join(self.cachedir, tagName)
+                                if os.path.isdir(tagDir):
+                                    import shutil
+                                    logger.debug("Should remove cache directory {0}".format(tagDir))
+                                    #shutil.rmtree(tagDir)
+                                toRemove.append(tagName)
+                        for tagName in toRemove:
+                            del stTags[tagName]
+                        statTF["sha"] = r_TF["sha"]
+                    self._status["sha"] = masterSHA
         else:
             logger.debug("{0} tree up to date at {1}".format(self.repository, self._status["sha"]))
 

@@ -122,7 +122,7 @@ class AnalysisModule(object):
                 with open(ifl) as iflf:
                     inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
         return inputs
-    def getATree(self):
+    def getATree(self, fileName=None, sampleName=None):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
             from .root import gbl
@@ -136,13 +136,16 @@ class AnalysisModule(object):
             anaCfgName = self.args.input[0]
             envConfig = readEnvConfig(self.args.envConfig)
             analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-            smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-            logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
+            if fileName and sampleName:
+                sampleCfg = analysisCfg["samples"][sampleName]
+            else:
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+            logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            if not tup.Add(fName, 0):
-                raise IOError("Could not open file {}".format(fName))
-            return tup, smpNm, smpCfg
+            if not tup.Add(fileName, 0):
+                raise IOError("Could not open file {}".format(fileName))
+            return tup, sampleName, sampleCfg
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
     def customizeAnalysisCfg(self, analysisCfg):
@@ -199,12 +202,33 @@ class AnalysisModule(object):
                     if not os.path.exists(resultsdir):
                         raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
                     ## TODO check for all output files?
+                elif not tasks:
+                    logger.warning("No tasks defined, skipping to postprocess")
                 else:
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                     else:
                         os.makedirs(resultsdir)
-                    ##
+                    ## store one "skeleton" tree (for more efficient "onlypost" later on
+                    (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
+                    aFileName = aTaskIn[0]
+                    from .root import gbl
+                    aFile = gbl.TFile.Open(aFileName)
+                    if not aFile:
+                        logger.warning(f"Could not open file {aFileName}, no skeleton tree will be saved")
+                    else:
+                        treeName = analysisCfg.get("tree", "Events")
+                        aTree = aFile.Get(treeName)
+                        if not aTree:
+                            logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
+                        else:
+                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
+                            outf = gbl.TFile.Open(outfName, "RECREATE")
+                            skeletonTree = aTree.CloneTree(1) ## copy header and a single event
+                            outf.Write()
+                            outf.Close()
+                            logger.debug(f"Skeleton tree written to {outfName}")
+                    ## run all tasks
                     if not self.args.distributed: ## sequential mode
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             output = os.path.join(resultsdir, output)
@@ -503,7 +527,17 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            tup, smpName, smpCfg = self.getATree()
+            fileHint, sampleHint = None, None
+            try:
+                import os
+                prefix = "__skeleton__"
+                suffix = ".root"
+                skelFn = next(fn for fn in os.listdir(resultsdir) if fn.startswith(prefix) and fn.endswith(suffix))
+                fileHint = os.path.join(resultsdir, skelFn)
+                sampleHint = skelFn[len(prefix):-len(suffix)]
+            except StopIteration:
+                pass
+            tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
             tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
             self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
         runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)

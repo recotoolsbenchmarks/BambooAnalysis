@@ -619,6 +619,7 @@ class SkimmerModule(AnalysisModule):
         super(SkimmerModule, self).addArgs(parser)
         parser.add_argument("--keepOriginalBranches", action="store_true", help="Keep all original branches (in addition to those defined by the module)")
         parser.add_argument("--maxSelected", type=int, default=-1, help="Maximum number of accepted events (default: -1 for all)")
+        parser.add_argument("--outputTreeName", type=str, default="Events", help="Name of the output tree")
 
     def initialize(self):
         """ initialize """
@@ -659,7 +660,7 @@ class SkimmerModule(AnalysisModule):
         defBr = dict((k,v) for k,v in brToKeep.items() if v is not None)
         origBr = list(k for k,v in brToKeep.items() if v is None)
 
-        backend.writeSkim(finalSel, outputFile, treeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
+        backend.writeSkim(finalSel, outputFile, self.args.outputTreeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
 
         outF = gbl.TFile.Open(outputFile, "UPDATE")
         self.mergeCounters(outF, inputFiles, sample=sample)

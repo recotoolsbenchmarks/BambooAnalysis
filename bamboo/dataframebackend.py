@@ -333,7 +333,11 @@ class DataframeBackend(FactoryBackend):
     def defineAndGetVarNames(nd, variables, uName=None):
         varNames = []
         for i,var in enumerate(variables):
-            if nd._getColName(var):
+            if isinstance(var, top.GetColumn):
+                varNames.append(var.name)
+            elif isinstance(var, top.ForwardingOp) and isinstance(var.wrapped, top.GetColumn):
+                varNames.append(var.wrapped.name)
+            elif nd._getColName(var):
                 varNames.append(nd._getColName(var))
             else:
                 nm = f"v{i:d}_{uName}"
@@ -403,7 +407,10 @@ class DataframeBackend(FactoryBackend):
                 colNToKeep.push_back(cn)
 
         for dN, dExpr in definedBranches.items():
-            selND._define(dN, top.adaptArg(dExpr))
+            if dN not in allcolN:
+                selND._define(dN, top.adaptArg(dExpr))
+            elif dN not in defcolN:
+                logger.warning(f"Requested to add column {dN} with expression, but a column with the same name on the input tree exists. The latter will be copied instead")
             colNToKeep.push_back(dN)
 
         selDF = selND.df

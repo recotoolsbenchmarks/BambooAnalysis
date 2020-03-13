@@ -165,7 +165,7 @@ class DataframeBackend(FactoryBackend):
     def addSelection(self, sele):
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
-            raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
+            raise RuntimeError(f"A Selection with name '{sele.name}' already exists")
         cutStr = None
         nomParentNd = self.selDFs[sele.parent.name] if sele.parent else None
         if sele._cuts:
@@ -257,7 +257,7 @@ class DataframeBackend(FactoryBackend):
     def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
         if plot.name in self.plotResults:
-            raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
+            raise ValueError(f"A Plot with the name '{plot.name}' already exists")
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
@@ -450,11 +450,15 @@ class LazyDataframeBackend(FactoryBackend):
         return inst, rootSel
     def addSelection(self, selection):
         ## keep track and do nothing
+        if selection.name in self.selections:
+            raise RuntimeError(f"A Selection with name '{selection.name}' already exists")
         self.selections[selection.name] = selection
         self.definesPerSelection[selection.name] = []
         self.plotsPerSelection[selection.name] = []
     def addPlot(self, plot, autoSyst=True):
         ## keep track and do nothing
+        if any((ap.name == plot.name) for (ap, aSyst) in selPlots for selPlots in self.plotsPerSelection.values()):
+            raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
     def _buildSelGraph(self, selName, plotList):
         sele = self.selections[selName]

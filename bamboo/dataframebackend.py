@@ -418,3 +418,13 @@ class DataframeBackend(FactoryBackend):
             selDF = selDF.Range(maxSelected)
 
         selDF.Snapshot(treeName, outputFile, colNToKeep)
+        from .root import gbl
+        outF = gbl.TFile.Open(outputFile, "READ")
+        nPass = outF.Get(treeName).GetEntries()
+        outF.Close()
+        if nPass == 0:
+            logger.warning(f"No events selected, removing tree '{treeName}' to avoid problems with merging")
+            outF = gbl.TFile.Open(outputFile, "UPDATE")
+            ky = next(ky for ky in outF.GetListOfKeys() if ky.GetName() == treeName)
+            ky.Delete()
+            outF.Close()

@@ -431,7 +431,7 @@ class DataframeBackend(FactoryBackend):
             ky.Delete()
             outF.Close()
 
-class LazyDataframeBackend(FactoryBackend):
+class LazyDataframeBackend(DataframeBackend):
     """
     An experiment: a FactoryBackend implementation that instantiates nodes late
 
@@ -457,7 +457,7 @@ class LazyDataframeBackend(FactoryBackend):
         self.plotsPerSelection[selection.name] = []
     def addPlot(self, plot, autoSyst=True):
         ## keep track and do nothing
-        if any((ap.name == plot.name) for (ap, aSyst) in selPlots for selPlots in self.plotsPerSelection.values()):
+        if any((ap.name == plot.name) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
             raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
     def _buildSelGraph(self, selName, plotList):

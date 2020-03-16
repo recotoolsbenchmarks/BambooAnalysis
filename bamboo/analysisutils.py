@@ -71,7 +71,7 @@ def _dasLFNtoPFN(lfn, dasConfig):
     else:
         return localPFN
 
-def sample_resolveFiles(smpCfg, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
+def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
     smp = copy.deepcopy(smpCfg)
     ## read cache, if it's there
     listfile, cachelist = None, []
@@ -151,7 +151,7 @@ def parseAnalysisConfig(anaCfgName, resolveFiles=True, redodbqueries=False, over
         analysisCfg = yaml.load(anaCfgF, YMLIncludeLoader)
     if resolveFiles:
         analysisCfg["samples"] = dict((smpName,
-            sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir))
+            sample_resolveFiles(smpName, smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir))
             for smpName, smpCfg in analysisCfg["samples"].items())
     return analysisCfg
 
@@ -181,7 +181,7 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
         for smpNm,smpCfg in samples.items():
             if smpNm not in failed_names and condition(smpCfg):
                 try:
-                    smpCfg = sample_resolveFiles(smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir)
+                    smpCfg = sample_resolveFiles(smpNm, smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir)
                     return smpNm,smpCfg,smpCfg["files"][0]
                 except Exception as ex:
                     failed_names.add(smpNm)
@@ -235,21 +235,21 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
         "luminosity" : dict((era, config["eras"][era]["luminosity"]) for era in eras)
         })
     plotit_files = dict()
-    for smpN, smpCfg in config["samples"].items():
+    for smpName, smpCfg in config["samples"].items():
         if smpCfg.get("era") in eras:
-            resultsName = "{0}.root".format(smpN)
+            resultsName = "{0}.root".format(smpName)
             smpOpts = dict(smpCfg)
             isMC = ( smpCfg.get("group") != "data" )
             if "type" not in smpOpts:
                 smpOpts["type"] = ("mc" if isMC else "data")
             if isMC:
                 if "cross-section" not in smpCfg:
-                    logger.warning("Sample {0} is of type MC, but no cross-section specified".format(smpN))
+                    logger.warning("Sample {0} is of type MC, but no cross-section specified".format(smpName))
                 smpOpts["cross-section"] = smpCfg.get("cross-section", 1.)
                 from .root import gbl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 if "generated-events" not in smpCfg:
-                    logger.error(f"No key 'generated-events' found for MC sample {smpNm}, normalization will be wrong")
+                    logger.error(f"No key 'generated-events' found for MC sample {smpName}, normalization will be wrong")
                 else:
                     try:
                         smpOpts["generated-events"] = float(smpCfg["generated-events"])
@@ -258,7 +258,7 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                             counters = readCounters(resultsFile)
                             smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
                         except Exception as ex:
-                            logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpN, os.path.join(resultsdir, resultsName), ex))
+                            logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpName, os.path.join(resultsdir, resultsName), ex))
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotDefaults_yml = plotitCfg.pop("plotdefaults", {})
@@ -389,7 +389,7 @@ def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None,
         if enable:
             for opWithSyst in variProxy.brMapMap[variProxy.withSystName].values():
                 opWithSyst.variations = enable ## fine, just (re)creataed by _initFromCalc
-            logger.info("Enabled systematic variations for {0} collection: {1}".format(jetsName, " ".join(enable)))
+            logger.info("Enabled systematic variations for {0} collection: {1}".format(jetType, " ".join(enable)))
 
 def configureType1MET(variProxy, jec=None, smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None, isMC=False, backend=None, uName=""):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections
@@ -509,7 +509,7 @@ def splitVariation(variProxy, variation, regions, nomName="nom"):
     >>> splitVariation(tree._Jet, "jer", {"forward" : lambda j : j.eta > 0., "backward" : lambda j : j.eta < 0.})
     """
     if not ( hasattr(variProxy, "brMapMap") and f"{variation}up" in variProxy.brMapMap and f"{variation}down" in variProxy.brMapMap):
-        raise RuntimeError(f"Could not find up and down variation for {variation} (available: {list(brMapMap.keys())!s})")
+        raise RuntimeError(f"Could not find up and down variation for {variation} (available: {list(variProxy.brMapMap.keys())!s})")
     from itertools import chain
     from functools import partial
     from . import treefunctions as op

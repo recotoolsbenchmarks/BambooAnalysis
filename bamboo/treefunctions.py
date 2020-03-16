@@ -454,7 +454,7 @@ def rng_any(rng, pred=lambda elm : elm):
     >>> hasCentralMu = op.rng_any(t.Muon. lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
     return  _tp.makeConst(-1, _to.SizeType) != _to.Next.fromRngFun(rng, pred)._idx
-def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
+def rng_find(rng, pred=lambda elm : _tp.makeConst("true", _tp.boolType)):
     """ Find the first item in a range that passes a selection
 
     :param rng: input range

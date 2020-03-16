@@ -7,7 +7,7 @@ __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "Derive
 import logging
 logger = logging.getLogger(__name__)
 
-from itertools import chain
+from itertools import chain, izip
 from . import treeoperations as top
 
 class FactoryBackend(object):

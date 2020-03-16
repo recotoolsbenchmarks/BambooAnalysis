@@ -7,7 +7,7 @@ __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "Derive
 import logging
 logger = logging.getLogger(__name__)
 
-from itertools import chain, izip
+from itertools import chain
 from . import treeoperations as top
 
 class FactoryBackend(object):
@@ -274,8 +274,8 @@ class Selection(object):
         return "Selection({0!r}, {1!r}, {2!r})".format(self.name, self.cut, self.weight)
     def __eq__(self, other):
         ## FIXME do we even still need this?
-        return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in izip(self.cuts, other.cuts) )
-             and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in izip(self.weights, other.weights) ) )
+        return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in zip(self.cuts, other.cuts) )
+             and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in zip(self.weights, other.weights) ) )
 
     def refine(self, name, cut=None, weight=None, autoSyst=True):
         """ Create a new selection by adding cuts and/or weight factors

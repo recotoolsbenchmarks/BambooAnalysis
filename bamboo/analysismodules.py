@@ -463,7 +463,7 @@ class HistogramsModule(AnalysisModule):
         start = timer()
         numHistos = 0
         for p in self.plotList:
-            for h in backend.getPlotResults(p):
+            for h in backend.getResults(p):
                 numHistos += 1
                 h.Write()
         end = timer()

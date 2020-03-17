@@ -18,16 +18,24 @@ class FactoryBackend(object):
         pass
     def addPlot(self, plot):
         pass
-    def addDerivedPlot(self, plot):
+    def addDerived(self, product):
         pass
-    def getPlotResults(self, plot):
+    def getResults(self, plot):
         pass
     @staticmethod
     def create(tree):
         """ Factory method, should return a pair of the backend and root selection """
         return (None, None)
 
-class EquidistantBinning(object):
+class Product:
+    """ Interface for output products (plots, counters etc.) """
+    __slots__ = ("name",)
+    def __init__(self, name):
+        self.name = name
+    def produceResults(self, bareResults, fbe):
+        return bareResults
+
+class EquidistantBinning:
     """ Equidistant binning """
     __slots__ = ("__weakref__", "N", "mn", "mx")
     def __init__(self, N, mn, mx):
@@ -46,7 +54,7 @@ class EquidistantBinning(object):
     def maximum(self):
         return self.mx
 
-class VariableBinning(object):
+class VariableBinning:
     """ Variable-sized binning """
     __slots__ = ("__weakref__", "binEdges")
     def __init__(self, binEdges):
@@ -67,7 +75,7 @@ class VariableBinning(object):
 from .treeproxies import adaptArg
 from . import treefunctions as op
 
-class Plot(object):
+class Plot(Product):
     """ A :py:class:`~bamboo.plots.Plot` object contains all information needed
     to produce a histogram: the variable(s) to plot, binnings and options
     (axis titles, optionally some style information), and a reference to
@@ -89,7 +97,7 @@ class Plot(object):
         """
         if len(variables) != len(binnings):
             raise ValueError("Unequal number of variables ({0:d}) and binnings ({1:d})".format(len(variables), len(binnings)))
-        self.name = name
+        super(Plot, self).__init__(name)
         self.variables = variables
         self.selection = selection
         self.binnings = binnings
@@ -196,7 +204,7 @@ class Plot(object):
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None), kwargs.pop("zBinLabels", None))
         return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
 
-class Selection(object):
+class Selection:
     """ A :py:class:`~bamboo.plots.Selection` object groups a set of selection criteria
     (cuts) and weight factors that belong to a specific stage of the selection and analysis.
     Selections should be constructed by calling the :py:meth:`~bamboo.plots.Selection.refine`
@@ -314,7 +322,7 @@ class Selection(object):
             from .treeproxies import makeConst
             return adaptArg(makeConst(1., "float"), typeHint="float")
 
-class DerivedPlot:
+class DerivedPlot(Product):
     """
     Base class for a plot with results based on other plots' results
 
@@ -333,7 +341,7 @@ class DerivedPlot:
     the full statistics should be calculated from the postprocessing step).
     """
     def __init__(self, name, dependencies, **kwargs):
-        self.name = name
+        super(DerivedPlot, self).__init__(name)
         self.dependencies = dependencies
         self.binnings = kwargs.get("binnings", dependencies[0].binnings)
         self.axisTitles = kwargs.get("axisTitles",
@@ -344,11 +352,11 @@ class DerivedPlot:
                     for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
         self.plotopts = kwargs.get("plotopts", dict())
         # register with backend
-        dependencies[0].selection._fbe.addDerivedPlot(self)
+        dependencies[0].selection._fbe.addDerived(self)
     @property
     def variables(self):
         return [ None for x in self.binnings ]
-    def produceResults(self, fbe):
+    def produceResults(self, bareResults, fbe):
         """
         Main interface method, called by the backend
 
@@ -366,7 +374,7 @@ class DerivedPlot:
         for dep in self.dependencies:
             resNom = None
             resPerVar = {}
-            for res in fbe.getPlotResults(dep):
+            for res in fbe.getResults(dep):
                 if "__" not in res.GetName():
                     assert resNom is None
                     resNom = res
@@ -380,7 +388,7 @@ class SummedPlot(DerivedPlot):
     """ A :py:class:`~bamboo.plots.DerivedPlot` implementation that sums histograms """
     def __init__(self, name, termPlots, **kwargs):
         super(SummedPlot, self).__init__(name, termPlots, **kwargs)
-    def produceResults(self, fbe):
+    def produceResults(self, bareResults, fbe):
         res_dep = self.collectDependencyResults(fbe)
         # list all variations (some may not be there for all)
         allVars = set()

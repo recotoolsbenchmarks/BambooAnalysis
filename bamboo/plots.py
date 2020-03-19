@@ -406,3 +406,95 @@ class SummedPlot(DerivedPlot):
                 hVar.Add(ihv.get(vn, ihn).GetPtr())
             results.append(hVar)
         return results
+
+class CutFlowReport(Product):
+    class Entry:
+        def __init__(self, name, nominal=None, systVars=None, parent=None, children=None):
+            self.name = name
+            self.nominal = nominal
+            self.systVars = systVars
+            self.parent = parent
+            self.children = list(children) if children is not None else []
+        def setParent(self, parent):
+            self.parent = parent
+            if self not in parent.children:
+                parent.children.append(self)
+        def Print(self, verbose=False):
+            logger.info(f"Selection {self.name}: N={self.nominal.GetEntries()}, SumW={self.nominal.GetBinContent(1)}")
+            for c in self.children:
+                c.Print(verbose=verbose)
+    def __init__(self, name, selections, recursive=True, autoSyst=False, cfres=None):
+        super(CutFlowReport, self).__init__(name)
+        self.recursive = recursive
+        self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
+        self.cfres = cfres
+        if selections and cfres is None:
+            self.selections[0]._fbe.addCutFlowReport(self, autoSyst=autoSyst)
+    def produceResults(self, bareResults, fbe):
+        self.cfres = fbe.results[self.name]
+        entries = list()
+        for stat in self.cfres:
+            iEn = stat
+            while iEn is not None and iEn not in entries:
+                entries.append(iEn)
+                iEn = iEn.parent
+        return [ res.nominal for res in entries ] + list(chain.from_iterable(res.systVars.values() for res in entries))
+    def Print(self, verbose=False):
+        def travUp(entry):
+            yield entry
+            yield from travUp(entry.parent)
+        roots = set(next(en for en in travUp(res) if en.parent is None) for res in self.cfres)
+        for root in roots:
+            root.Print(verbose=verbose)
+
+    def readFromResults(self, resultsFile):
+        cfres = []
+        entries = dict() # by selection name
+        for sel in self.selections:
+            if sel.name not in entries:
+                entries[sel.name] = CutFlowReport.Entry(sel.name)
+                if self.recursive:
+                    isel = sel.parent
+                    entry_d = entries[sel.name]
+                    while isel is not None:
+                       if isel.name in entries:
+                           entry_p = entries[isel.name]
+                           entry_d.setParent(entry_p)
+                           break
+                       entry_p = CutFlowReport.Entry(isel.name)
+                       entries[isel.name] = entry_p
+                       entry_d.setParent(entry_p)
+                       entry_d = entry_p
+                       isel = isel.parent
+            cfres.append(entries[sel.name])
+        ## retrieve nominal
+        toRem = []
+        for selName, entry in entries.items():
+            kyNm = f"{self.name}_{selName}"
+            entry.nominal = resultsFile.Get(kyNm)
+            if not entry.nominal:
+                logger.warning(f"Could not find object {kyNm}")
+                toRem.append(selName)
+        ## remove if not found
+        for ky in toRem:
+            if entries[ky].parent:
+                for ch in entries[ky].children:
+                    ch.setParent(entries[ky].parent)
+                entries[ky].parent.children.remove(entries[ky])
+            del entries[ky]
+        ## and systematic variations
+        prefix = f"{self.name}_"
+        for ky in resultsFile.GetListOfKeys():
+            if ky.GetName().startswith(prefix):
+                selName = ky.GetName().split("__")[0][len(prefix):]
+                if selName in entries:
+                    entry = entries[selName]
+                    cnt = ky.GetName().count("__")
+                    if cnt == 1:
+                        varNm = ky.GetName().split("__")[1]
+                        if varNm in entry.systVars:
+                            logger.warning(f"{self.name}: counter for variation {varNm} already present for selection {selName}")
+                        entry.systVars[varNm] = ky.ReadObject()
+                    elif cnt > 1:
+                        logger.warning("Key {ky.GetName()!r} contains '__' more than once, this will break assumptions")
+        return CutFlowReport(self.name, self.selections, recursive=self.recursive, cfres=cfres)

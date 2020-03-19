@@ -220,6 +220,23 @@ def readEnvConfig(explName=None):
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
+def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+    eraMode, eras = eras
+    if not eras: ## from config if not specified
+        eras = list(config["eras"].keys())
+    ## retrieve results files
+    from .root import gbl
+    resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
+    for report in reportList:
+        for smp, resultsFile in resultsFiles.items():
+            smpCfg = config["samples"][smp]
+            logger.info(f"Cutflow report {report.name} for sample {smp}")
+            if "generated-events" in smpCfg:
+                counters = readCounters(resultsFile)
+                logger.info("Sum of event weights for processed files: {0:e}".format(counters[smpCfg["generated-events"]]))
+            smpReport = report.readFromResults(resultsFile)
+            smpReport.Print(verbose=verbose)
+
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
         "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],

@@ -18,7 +18,8 @@ import re
 import datetime
 from timeit import default_timer as timer
 import resource
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
+import urllib.parse
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt, printCutFlowReports
 
 def reproduceArgv(args, group):
     # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
@@ -539,8 +540,15 @@ class HistogramsModule(AnalysisModule):
                 pass
             tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
             tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+            if "certified_lumi_file" in smpCfg:
+                lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
+                noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
             self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
-        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        from bamboo.plots import Plot, DerivedPlot, CutFlowReport
+        plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
+        plotList_plotIt = [ ap for ap in self.plotList if isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ]
+        printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        runPlotIt(config, plotList_plotIt, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

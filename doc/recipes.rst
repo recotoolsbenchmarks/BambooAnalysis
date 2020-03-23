@@ -119,7 +119,11 @@ something like
 
    pileupCalc.py -i ~/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt --inputLumiJSON /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/PileUp/pileup_latest.txt --calcMode true --minBiasXsec 69200 --maxPileupBin 80 --numPileupBins 80 ./2016PUHist_nominal.root
 
-and a MC pileup profile. MC pileup profiles for official CMSSW productions are
+and a MC pileup profile.
+Data pileup distributions corresponding to the golden JSON files for Run 2 are
+provided by the luminosity POG, see
+`this hypernews annoncement<https://hypernews.cern.ch/HyperNews/CMS/get/physics-validation/3374/2.html>`_.
+The MC pileup profiles for used official CMSSW productions are
 currently hardcoded inside the ``makePUReWeightJSON.py``, and can be specified
 by their tag or name in that list; the available tags can be listed by
 specifying the ``--listmcprofiles`` option. The full command then becomes

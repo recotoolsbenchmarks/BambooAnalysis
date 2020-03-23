@@ -35,7 +35,7 @@ Currently, they include:
   specified with ``db: SAMADhi:<ID-or-name>`` (not yet integrated)
 - the slurm command-line tools, and CP3SlurmUtils_, which can be loaded with
   ``module load slurm/slurm_utils`` on the ingrid ui machines
-- the ``makePUReWeightJSON.py`` script can make a plot of the PU distributions
+- the ``makePUReWeightJSON`` script can make a plot of the PU distributions
   and weights if the ``--makePlot`` option is given, but it needs matplotlib_
   for that
 

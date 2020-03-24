@@ -244,7 +244,7 @@ uncertainties to 2016 MC, and the same for the MET:
                        jesUncertaintySources=["Total"],
                        mayWriteCache=isNotWorker,
                        isMC=self.isMC(sample), backend=be, uName=sample)
-                   configureType1MET(tree._MET, "AK4PFchs",
+                   configureType1MET(tree._MET,
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
@@ -256,7 +256,7 @@ uncertainties to 2016 MC, and the same for the MET:
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker,
                            isMC=self.isMC(sample), backend=be, uName=sample)
-                       configureType1MET(tree._MET, "AK4PFchs",
+                       configureType1MET(tree._MET,
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker,
                            isMC=self.isMC(sample), backend=be, uName=sample)

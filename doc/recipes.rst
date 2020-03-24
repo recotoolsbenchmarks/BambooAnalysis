@@ -109,7 +109,7 @@ Pileup reweighting to make the pileup distribution in simulation match the one
 in data is very similar to applying a scalefactor, except that the efficiency
 correction is for the whole event or per-object |---| so the same code can be
 used.
-The ``makePUReWeightJSON.py`` script included in bamboo can be used to make
+The ``makePUReWeightJSON`` script included in bamboo can be used to make
 a JSON file with weights out of a data pileup profile obtained by running
 ``pileupcalc.py``
 (inside CMSSW, see the `pileupcalc documentation`_ for details), e.g. with
@@ -119,15 +119,19 @@ something like
 
    pileupCalc.py -i ~/Cert_271036-284044_13TeV_23Sep2016ReReco_Collisions16_JSON.txt --inputLumiJSON /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions16/13TeV/PileUp/pileup_latest.txt --calcMode true --minBiasXsec 69200 --maxPileupBin 80 --numPileupBins 80 ./2016PUHist_nominal.root
 
-and a MC pileup profile. MC pileup profiles for official CMSSW productions are
-currently hardcoded inside the ``makePUReWeightJSON.py``, and can be specified
+and a MC pileup profile.
+Data pileup distributions corresponding to the golden JSON files for Run 2 are
+provided by the luminosity POG, see
+`this hypernews annoncement<https://hypernews.cern.ch/HyperNews/CMS/get/physics-validation/3374/2.html>`_.
+The MC pileup profiles for used official CMSSW productions are
+currently hardcoded inside the ``makePUReWeightJSON``, and can be specified
 by their tag or name in that list; the available tags can be listed by
 specifying the ``--listmcprofiles`` option. The full command then becomes
 something like
 
 .. code-block:: bash
 
-   makePUReWeightJSON.py --mcprofile "Moriond17_25ns" --nominal=2016PUHist.root --up=2016PUHist_up.root --down=2016PUHist_down.root --makePlot
+   makePUReWeightJSON --mcprofile "Moriond17_25ns" --nominal=2016PUHist.root --up=2016PUHist_up.root --down=2016PUHist_down.root --makePlot
 
 To include the weight when filling plots, it is sufficient to add the weight to
 a selection (usually one of the topmost in the analysis, e.g. in the

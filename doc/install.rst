@@ -13,7 +13,7 @@ has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
 
 .. code-block:: sh
 
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
 
@@ -117,7 +117,7 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    mkdir bamboodev
    cd bamboodev
    # make a virtualenv
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    # clone and install bamboo

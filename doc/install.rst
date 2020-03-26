@@ -141,6 +141,9 @@ Fresh install
 Environment setup
 #################
 
+Once bamboo_ and plotIt have been installed as above, only the following two
+commands are needed to set up the environment in a new shell:
+
 .. code-block:: sh
 
    source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
@@ -149,8 +152,8 @@ Environment setup
 Update bamboo
 #############
 
-Assuming the environment is set up as above, the same can be used to test a
-pull request or local modifications to the source code
+Assuming the environment is set up as above; this can also be used to test a
+pull request or local modifications to the bamboo_ source code
 
 .. code-block:: sh
 
@@ -162,8 +165,8 @@ pull request or local modifications to the source code
 Update plotIt
 #############
 
-Assuming the environment is set up as above, the same can be used to test a
-pull request or local modifications to the source code.
+Assuming the environment is set up as above; this can also be used to test a
+pull request or local modifications to the plotIt source code.
 If a plotIt build directory already exists it should have been created with the same
 environment, otherwise the safest solution is to remove it.
 
@@ -192,7 +195,7 @@ known working version.
    python -m venv bamboovenv_X
    source bamboovenv_X/bin/activate
    pip install ./bamboo
-   # install plotIt (see above)
+   # install plotIt (as in "Update plotIt" above)
    mkdir build-plotit
    cd build-plotit
    cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt

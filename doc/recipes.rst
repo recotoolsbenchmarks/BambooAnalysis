@@ -122,7 +122,7 @@ something like
 and a MC pileup profile.
 Data pileup distributions corresponding to the golden JSON files for Run 2 are
 provided by the luminosity POG, see
-`this hypernews annoncement<https://hypernews.cern.ch/HyperNews/CMS/get/physics-validation/3374/2.html>`_.
+`this hypernews annoncement <https://hypernews.cern.ch/HyperNews/CMS/get/physics-validation/3374/2.html>`_.
 The MC pileup profiles for used official CMSSW productions are
 currently hardcoded inside the ``makePUReWeightJSON``, and can be specified
 by their tag or name in that list; the available tags can be listed by

@@ -179,8 +179,8 @@ environment, otherwise the safest solution is to remove it.
    make -j2 install
    cd -
 
-Move to a new LCG release
-#########################
+Move to a new LCG release or install an independent version
+############################################################
 
 Different virtual environments can exist alongside each other, as long as for
 each the corresponding base LCG distribution is setup in a fresh shell.

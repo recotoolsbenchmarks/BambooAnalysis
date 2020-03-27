@@ -224,6 +224,18 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
+    ## helper: print one bamboo.plots.CutFlowReport.Entry
+    def printEntry(entry, printFun=logger.info, recursive=True):
+        effMsg = ""
+        if entry.parent:
+            sumPass = entry.nominal.GetBinContent(1)
+            sumTotal = entry.parent.nominal.GetBinContent(1)
+            if sumTotal != 0.:
+                effMsg = f", Eff={sumPass/sumTotal:.2%}"
+        printFun(f"Selection {entry.name}: N={entry.nominal.GetEntries()}, SumW={entry.nominal.GetBinContent(1)}{effMsg}")
+        if recursive:
+            for c in entry.children:
+                printEntry(c, printFun=printFun, recursive=recursive)
     ## retrieve results files
     from .root import gbl
     resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
@@ -235,7 +247,8 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
                 counters = readCounters(resultsFile)
                 logger.info("Sum of event weights for processed files: {0:e}".format(counters[smpCfg["generated-events"]]))
             smpReport = report.readFromResults(resultsFile)
-            smpReport.Print(verbose=verbose)
+            for root in smpReport.rootEntries():
+                printEntry(root)
 
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),

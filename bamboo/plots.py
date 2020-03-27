@@ -419,10 +419,6 @@ class CutFlowReport(Product):
             self.parent = parent
             if self not in parent.children:
                 parent.children.append(self)
-        def Print(self, verbose=False):
-            logger.info(f"Selection {self.name}: N={self.nominal.GetEntries()}, SumW={self.nominal.GetBinContent(1)}")
-            for c in self.children:
-                c.Print(verbose=verbose)
     def __init__(self, name, selections, recursive=True, autoSyst=False, cfres=None):
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
@@ -439,13 +435,12 @@ class CutFlowReport(Product):
                 entries.append(iEn)
                 iEn = iEn.parent
         return [ res.nominal for res in entries ] + list(chain.from_iterable(res.systVars.values() for res in entries))
-    def Print(self, verbose=False):
+    def rootEntries(self):
+        ## helper: traverse reports tree up
         def travUp(entry):
             yield entry
             yield from travUp(entry.parent)
-        roots = set(next(en for en in travUp(res) if en.parent is None) for res in self.cfres)
-        for root in roots:
-            root.Print(verbose=verbose)
+        return set(next(en for en in travUp(res) if en.parent is None) for res in self.cfres)
 
     def readFromResults(self, resultsFile):
         cfres = []

@@ -33,7 +33,15 @@ class Product:
     def __init__(self, name):
         self.name = name
     def produceResults(self, bareResults, fbe):
-        return bareResults
+        """
+        Main interface method, called by the backend
+
+        :param bareResults: iterable of histograms for this plot produced by the backend
+        :param fbe: reference to the backend
+
+        :returns: an iterable with ROOT objects to save to the output file
+        """
+        pass
 
 class EquidistantBinning:
     """ Equidistant binning """
@@ -119,6 +127,19 @@ class Plot(Product):
                    , axisBinLabels=(axisBinLabels if axisBinLabels is not None else self.axisBinLabels)
                    , plotopts=(plotopts if plotopts is not None else self.plotopts)
                    )
+
+    def produceResults(self, bareResults, fbe):
+        """
+        Trivial implementation of :py:meth:`~bamboo.plots.Product.produceResults`, return ``bareResults``
+
+        Subclasses can e.g. calculate additional systematic variation histograms from the existing ones
+
+        :param bareResults: list of nominal and systematic variation histograms for this :py:class:`~bamboo.plots.Plot`
+        :param fbe: reference to the backend
+
+        :returns: ``bareResults``
+        """
+        return bareResults
 
     @property
     def cut(self):
@@ -326,19 +347,21 @@ class DerivedPlot(Product):
     """
     Base class for a plot with results based on other plots' results
 
-    The two main characteristics are an interface method
-    :py:meth:`~bamboo.plots.DerivedPlot.produceResults`,
-    which is called by the backend to retrieve the derived results,
-    and a :py:attr:`~bamboo.plots.DerivedPlot.dependencies` attribute that lists
+    The :py:attr:`~bamboo.plots.DerivedPlot.dependencies` attribute that lists
     the :py:class:`~bamboo.plots.Plot`-like objects this one depends on (which
     may be used e.g. to order operations).
     The other necessary properties (binnings, titles, labels, etc.) are taken
     from the keyword arguments to the constructor, or the first dependency.
+    The :py:meth:`~bamboo.plots.DerivedPlot.produceResults` method,
+    which is called by the backend to retrieve the derived results,
+    should be overridden with the desired calculation.
 
-    Typical use cases are summed histograms, alternative or additional methods
-    to calculate or combine some systematic uncertainties etc. (the results are
-    combined for different subjobs with hadd, so derived quantities that require
-    the full statistics should be calculated from the postprocessing step).
+    Typical use cases are summed histograms, background subtraction, etc.
+    (the results are combined for different subjobs with hadd, so derived 
+    quantities that require the full statistics should be calculated from
+    the postprocessing step; alternative or additional systematic variations
+    calculated from the existing ones can be added by subclassing
+    :py:class:`~bamboo.plots.Plot`).
     """
     def __init__(self, name, dependencies, **kwargs):
         super(DerivedPlot, self).__init__(name)
@@ -360,7 +383,8 @@ class DerivedPlot(Product):
         """
         Main interface method, called by the backend
 
-        :param fbe: reference to the backend (which can be used to retrieve the results of the dependency plots)
+        :param bareResults: iterable of histograms for this plot produced by the backend (none)
+        :param fbe: reference to the backend, can be used to retrieve the histograms for the dependencies, e.g. with :py:meth:`~bamboo.plots.DerivedPlot.collectDependencyResults`
 
         :returns: an iterable with ROOT objects to save to the output file
         """

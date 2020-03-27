@@ -244,8 +244,11 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
             smpCfg = config["samples"][smp]
             logger.info(f"Cutflow report {report.name} for sample {smp}")
             if "generated-events" in smpCfg:
-                counters = readCounters(resultsFile)
-                logger.info("Sum of event weights for processed files: {0:e}".format(counters[smpCfg["generated-events"]]))
+                if isinstance(smpCfg["generated-events"], str):
+                    generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
+                else:
+                    generated_events = smpCfg["generated-events"]
+                logger.info(f"Sum of event weights for processed files: {generated_events:e}")
             smpReport = report.readFromResults(resultsFile)
             for root in smpReport.rootEntries():
                 printEntry(root)
@@ -280,15 +283,11 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 if "generated-events" not in smpCfg:
                     logger.error(f"No key 'generated-events' found for MC sample {smpName}, normalization will be wrong")
+                elif isinstance(smpCfg["generated-events"], str):
+                    counters = readCounters(resultsFile)
+                    smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
                 else:
-                    try:
-                        smpOpts["generated-events"] = float(smpCfg["generated-events"])
-                    except ValueError: ## not float
-                        try:
-                            counters = readCounters(resultsFile)
-                            smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
-                        except Exception as ex:
-                            logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpName, os.path.join(resultsdir, resultsName), ex))
+                    smpOpts["generated-events"] = smpCfg["generated-events"]
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotDefaults_yml = plotitCfg.pop("plotdefaults", {})

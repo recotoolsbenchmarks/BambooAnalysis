@@ -1164,7 +1164,7 @@ class SystAltOp(OpWithSyst):
     """ Change the wrapped operation (from a map) """
     def __init__(self, wrapped, name, varMap, valid=None):
         super(SystAltOp, self).__init__(wrapped, name)
-        self.variations = valid if valid else tuple(varMap.keys())
+        self.variations = valid if valid is not None else tuple(varMap.keys())
         self.varMap = varMap
     def _clone(self, memo, select):
         clWr = self.wrapped.clone(memo=memo, select=select)

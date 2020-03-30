@@ -223,7 +223,7 @@ def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=No
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltOp(
             getCol(vAtts[nomName]), vari.systName,
-            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
+            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars and var != nomName),
             valid=tuple(var for var in allVars if var in vAtts),
             ))
         for attNm,vAtts in var_atts.items())
@@ -532,7 +532,9 @@ def decorateNanoAOD(aTree, description=None):
                     varsProxy = CalcLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt, withSystName=withSyst)
                 else:
                     varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
-                    logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))))
+                    allVars = list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))
+                    if allVars:
+                        logger.debug(f"{grpNm} variations read from branches: {allVars}")
                 setTreeAtt(f"_{grpNm}", varsProxy)
                 setTreeAtt(grpNm, varsProxy[withSyst])
 
@@ -583,7 +585,9 @@ def decorateNanoAOD(aTree, description=None):
                     varsProxy = CalcCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType, withSystName=withSyst)
                 else:
                     varsProxy = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-                    logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))))
+                    allVars = list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))
+                    if allVars:
+                        logger.debug(f"{grpNm} variations read from branches: {allVars}")
                 setTreeAtt(f"_{grpNm}", varsProxy)
                 setTreeAtt(grpNm, varsProxy[withSyst])
 

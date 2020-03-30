@@ -218,7 +218,7 @@ def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=No
             brMapMap[var][attNm] = getCol(vop)
     ## nominal: with systematic variations (all are valid, but not all need to modify)
     nomName = vari.origName if vari.isCalc else vari.nomName(name)
-    exclVars = vari.exclVars(name)
+    exclVars = list(normVarName(var) for var in vari.exclVars(name))
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltOp(

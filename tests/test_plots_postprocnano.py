@@ -69,6 +69,8 @@ def testMC16(decoNanoMC16):
         logger.debug("Plot {0} -> {1}".format(pN, ", ".join(h.GetName() for h in histos)))
     assert all(h for p,histos in histos_per_plot.items() for h in histos)
 
+from bamboo.root import gbl
+@pytest.mark.skipif(int(gbl.gROOT.GetVersion().split("/")[0].split(".")[1]) < 18, reason="Test not supported for ROOT older than 6.18")
 def testData16(decoNanoData16):
     tup, noSel, be = decoNanoData16
     plots = definePlots(tup, noSel)

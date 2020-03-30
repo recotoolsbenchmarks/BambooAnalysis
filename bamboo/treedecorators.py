@@ -239,7 +239,7 @@ class NanoSystematicVarSpec:
         """ Base class constructor
 
         :param systName: name of the systematic source, for automatic systematics (if applicable)
-        :param nomName: nominal variation name (for non-calculated variations; can be customised through :py:meth:`~.nomName`)
+        :param nomName: nominal variation name (for non-calculated variations; can be customised in subclasses by overriding the :py:meth:`~.nomName` method)
         :param origName: original variation name (for calculated variations)
         :param exclVars: variations that are found but should not be used in automatic systematics (can be customised through :py:meth:`~.nomName`)
         :param isCalc: boolean indicating whether variations are calculated or read from alternative branches
@@ -281,6 +281,27 @@ class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
 nanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
 
 class ReadJetMETVar(NanoSystematicVarSpec):
+    """
+    Read jet and MET kinematic variations from different branches for automatic systematic uncertainties
+
+    :param jetsName: jet collection prefix (e.g. ``"Jet"``)
+    :param metName: MET prefix (e.g. ``"MET"``)
+    :param systName: systematic group name (backend optimisation detail, ``"jet"`` now)
+    :param jetsNomName: name of the nominal jet variation (``"nom"`` by default)
+    :param jetsOrigName: name of the original jet variation (``"raw"`` by default)
+    :param metNomName: name of the nominal jet variation (``"nom"`` by default)
+    :param metOrigName: name of the original jet variation (``"raw"`` by default)
+    :param jetsExclVars: jet variations that are present but should be ignored (if not specified, only ``jetsOrigName`` is taken, so if specified this should usually be added explicitly)
+    :param metExclVars: MET variations that are present but should be ignored (if not specified, only ``metOrigName`` is taken, so if specified this should usually be added explicitly)
+    :param bTaggers: list of b-tagging algorithms, for scale factors stored in a branch
+    :param bTagWPs: list of b-tagging working points, for scale factors stored in a branch (``shape`` should be included here, if wanted)
+
+    .. note:: The implementation of automatic systematic variations treats
+       "xyzup" and "xyzdown" independently (since this is the most flexible).
+       If a source of systematic uncertainty should be excluded, both the "up"
+       and "down" variation should then be added to the list of variations to
+       exclude (``jetsExclVars`` or ``metExclVars``).
+    """
     def __init__(self, jetsName, metName, systName="jet", jetsNomName="nom", jetsOrigName="raw", metNomName="jer", metOrigName="raw", jetsExclVars=None, metExclVars=None, bTaggers=None, bTagWPs=None):
         super(ReadJetMETVar, self).__init__(
                 systName, nomName=jetsNomName, origName=jetsOrigName, isCalc=False,

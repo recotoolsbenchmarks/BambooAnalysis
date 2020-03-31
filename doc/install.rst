@@ -13,7 +13,7 @@ has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
 
 .. code-block:: sh
 
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
 
@@ -108,16 +108,23 @@ will put the ``plotIt`` executable directly in the ``bin`` directory of the
 virtualenv (if not using a virtualenv, its path can be passed to ``bambooRun``
 with the ``--plotIt`` command-line option).
 
+
+For the impatient: recipes for installing and updating
+''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
 Putting the above commands together, the following should give you a virtual
 environment with bamboo_, and a clone of bamboo_ and plotIt in case you need to
-modify them (they can be updated with ``git pull`` and ``pip install --upgrade``):
+modify them, all under ``bamboodev``:
+
+Fresh install
+#############
 
 .. code-block:: sh
 
    mkdir bamboodev
    cd bamboodev
    # make a virtualenv
-   source /cvmfs/sft.cern.ch/lcg/views/LCG_95apython3/x86_64-centos7-gcc8-opt/setup.sh
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
    python -m venv bamboovenv
    source bamboovenv/bin/activate
    # clone and install bamboo
@@ -125,6 +132,70 @@ modify them (they can be updated with ``git pull`` and ``pip install --upgrade``
    pip install ./bamboo
    # clone and install plotIt
    git clone -o upstream https://github.com/cp3-llbb/plotIt.git
+   mkdir build-plotit
+   cd build-plotit
+   cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt
+   make -j2 install
+   cd -
+
+Environment setup
+#################
+
+Once bamboo_ and plotIt have been installed as above, only the following two
+commands are needed to set up the environment in a new shell:
+
+.. code-block:: sh
+
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+   source bamboodev/bamboovenv/bin/activate
+
+Update bamboo
+#############
+
+Assuming the environment is set up as above; this can also be used to test a
+pull request or local modifications to the bamboo_ source code
+
+.. code-block:: sh
+
+   cd bamboodev/bamboo
+   git checkout master
+   git pull upstream master
+   pip install --upgrade .
+
+Update plotIt
+#############
+
+Assuming the environment is set up as above; this can also be used to test a
+pull request or local modifications to the plotIt source code.
+If a plotIt build directory already exists it should have been created with the same
+environment, otherwise the safest solution is to remove it.
+
+.. code-block:: sh
+
+   cd bamboodev
+   mkdir build-plotIt
+   cd build-plotit
+   cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt
+   make -j2 install
+   cd -
+
+Move to a new LCG release or install an independent version
+############################################################
+
+Different virtual environments can exist alongside each other, as long as for
+each the corresponding base LCG distribution is setup in a fresh shell.
+This allows to have e.g. one stable version used for analysis, and another one
+to test experimental changes, or check a new LCG release, without touching a
+known working version.
+
+.. code-block:: sh
+
+   cd bamboodev
+   source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+   python -m venv bamboovenv_X
+   source bamboovenv_X/bin/activate
+   pip install ./bamboo
+   # install plotIt (as in "Update plotIt" above)
    mkdir build-plotit
    cd build-plotit
    cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt

@@ -442,8 +442,7 @@ class HistogramsModule(AnalysisModule):
         end = timer()
         maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
         logger.info(f"{len(self.plotList):d} plots defined in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
-        from .dataframebackend import LazyDataframeBackend
-        if isinstance(backend, LazyDataframeBackend):
+        if hasattr(backend, "buildGraph"):
             logger.info("Starting to build RDataFrame graph")
             start = timer()
             backend.buildGraph(self.plotList)

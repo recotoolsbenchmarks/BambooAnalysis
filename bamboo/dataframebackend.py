@@ -524,3 +524,6 @@ class LazyDataframeBackend(DataframeBackend):
                     self._buildSelGraph(plot.selection.name, allPlots)
     def define(self, op, selection):
         self.definesPerSelection[selection.name].append(op)
+    def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
+        self._buildSelGraph(sele.name, [])
+        super(LazyDataframeBackend, self).writeSkim(sele, outputFile, treeName, definedBranches=definedBranches, origBranchesToKeep=origBranchesToKeep, maxSelected=maxSelected)

@@ -63,7 +63,7 @@ def testMC16(decoNanoMC16):
     tup, noSel, be = decoNanoMC16
     noSel = noSel.refine("mcWeight", weight=[ tup.genWeight, tup.puWeight ])
     plots = definePlots(tup, noSel, isMC=True)
-    histos_per_plot = { p.name : list(be.getPlotResults(p)) for p in plots }
+    histos_per_plot = { p.name : list(be.getResults(p)) for p in plots }
     logger.debug("Plots for MC16")
     for pN, histos in histos_per_plot.items():
         logger.debug("Plot {0} -> {1}".format(pN, ", ".join(h.GetName() for h in histos)))

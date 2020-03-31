@@ -5,6 +5,9 @@ from . import treeproxies as _tp
 from .root import loadBambooExtensions
 loadBambooExtensions()
 
+import logging
+_logger = logging.getLogger(__name__)
+
 ## simple type support
 def c_bool(arg):
     """ Construct a boolean constant """
@@ -12,12 +15,12 @@ def c_bool(arg):
         return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "true"))
     else:
         return _tp.makeProxy(_tp.boolType, _to.Const(_tp.boolType, "false"))
-def c_int(num):
+def c_int(num, typeName="Int_t"):
     """ Construct an integer number constant """
-    return _tp.makeConst(num, "Int_t")
-def c_float(num):
+    return _tp.makeConst(num, typeName)
+def c_float(num, typeName="Float_t"):
     """ Construct a floating-point number constant """
-    return _tp.makeConst(num, "Float_t")
+    return _tp.makeConst(num, typeName)
 
 ## boolean logic
 def NOT(sth):
@@ -35,14 +38,19 @@ def OR(*args):
         return _tp.makeProxy(_tp.boolType, _to.adaptArg(args[0], _tp.boolType))
     else:
         return _to.MathOp("or", *[ _to.adaptArg(arg, _tp.boolType) for arg in args ], outType=_tp.boolType).result
-def switch(test, trueBranch, falseBranch):
+def switch(test, trueBranch, falseBranch, checkTypes=True):
     """ Pick one or another value, based on a third one (ternary operator in C++)
 
     :Example:
 
     >>> op.switch(runOnMC, mySF, 1.) ## incomplete pseudocode
     """
-    assert trueBranch._typeName == falseBranch._typeName
+    if checkTypes:
+        aType = trueBranch._typeName
+        bType = falseBranch._typeName
+        if aType != bType:
+            if not any(aType in typeGroup and bType in typeGroup for typeGroup in (_tp._boolTypes, _tp._integerTypes, _tp._floatTypes)):
+                _logger.warning(f"Possibly incompatible types: {aType} and {bType}")
     return _to.MathOp("switch", test, trueBranch, falseBranch, outType=trueBranch._typeName).result
 def multiSwitch(*args):
     """ Construct arbitrary-length switch (if-elif-elif-...-else sequence)
@@ -314,7 +322,14 @@ def deltaR(a1, a2):
 
     >>> elelDR = op.deltaR(t.Electron[0].p4, t.Electron[1].p4)
     """
-    return extMethod("ROOT::Math::VectorUtil::DeltaR", returnType="Float_t")(a1, a2)
+    a1 = _to.adaptArg(a1)
+    a2 = _to.adaptArg(a2)
+    if all(isinstance(arg, _to.Construct) and arg.typeName.startswith("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhi") for arg in (a1, a2)):
+        return sqrt(extMethod("rdfhelpers::deltaR2", returnType="double")(
+            a2.args[1].result-a1.args[1].result,
+            a2.args[2].result-a1.args[2].result))
+    else:
+        return extMethod("ROOT::Math::VectorUtil::DeltaR", returnType="Float_t")(a1, a2)
 
 ## range operations
 def rng_len(sth):
@@ -439,7 +454,7 @@ def rng_any(rng, pred=lambda elm : elm):
     >>> hasCentralMu = op.rng_any(t.Muon. lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
     return  _tp.makeConst(-1, _to.SizeType) != _to.Next.fromRngFun(rng, pred)._idx
-def rng_find(rng, pred=lambda elm : _tp.makeConst("true", boolType)):
+def rng_find(rng, pred=lambda elm : _tp.makeConst("true", _tp.boolType)):
     """ Find the first item in a range that passes a selection
 
     :param rng: input range

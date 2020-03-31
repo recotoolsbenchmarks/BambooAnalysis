@@ -142,7 +142,7 @@ def main():
             _, downRatio = getRatio(downBins, downCont, mcPUBins, mcPUVals)
 
         out = {
-              "dimensin" : 1
+              "dimension" : 1
             , "variables" : ["NumTrueInteractions"]
             , "binning" : {"x": list(ratioBins)}
             , "error_type" : "absolute"

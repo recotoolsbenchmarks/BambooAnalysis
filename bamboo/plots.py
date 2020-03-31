@@ -18,16 +18,32 @@ class FactoryBackend(object):
         pass
     def addPlot(self, plot):
         pass
-    def addDerivedPlot(self, plot):
+    def addDerived(self, product):
         pass
-    def getPlotResults(self, plot):
+    def getResults(self, plot):
         pass
     @staticmethod
     def create(tree):
         """ Factory method, should return a pair of the backend and root selection """
         return (None, None)
 
-class EquidistantBinning(object):
+class Product:
+    """ Interface for output products (plots, counters etc.) """
+    __slots__ = ("name",)
+    def __init__(self, name):
+        self.name = name
+    def produceResults(self, bareResults, fbe):
+        """
+        Main interface method, called by the backend
+
+        :param bareResults: iterable of histograms for this plot produced by the backend
+        :param fbe: reference to the backend
+
+        :returns: an iterable with ROOT objects to save to the output file
+        """
+        pass
+
+class EquidistantBinning:
     """ Equidistant binning """
     __slots__ = ("__weakref__", "N", "mn", "mx")
     def __init__(self, N, mn, mx):
@@ -46,7 +62,7 @@ class EquidistantBinning(object):
     def maximum(self):
         return self.mx
 
-class VariableBinning(object):
+class VariableBinning:
     """ Variable-sized binning """
     __slots__ = ("__weakref__", "binEdges")
     def __init__(self, binEdges):
@@ -67,7 +83,7 @@ class VariableBinning(object):
 from .treeproxies import adaptArg
 from . import treefunctions as op
 
-class Plot(object):
+class Plot(Product):
     """ A :py:class:`~bamboo.plots.Plot` object contains all information needed
     to produce a histogram: the variable(s) to plot, binnings and options
     (axis titles, optionally some style information), and a reference to
@@ -89,7 +105,7 @@ class Plot(object):
         """
         if len(variables) != len(binnings):
             raise ValueError("Unequal number of variables ({0:d}) and binnings ({1:d})".format(len(variables), len(binnings)))
-        self.name = name
+        super(Plot, self).__init__(name)
         self.variables = variables
         self.selection = selection
         self.binnings = binnings
@@ -111,6 +127,19 @@ class Plot(object):
                    , axisBinLabels=(axisBinLabels if axisBinLabels is not None else self.axisBinLabels)
                    , plotopts=(plotopts if plotopts is not None else self.plotopts)
                    )
+
+    def produceResults(self, bareResults, fbe):
+        """
+        Trivial implementation of :py:meth:`~bamboo.plots.Product.produceResults`, return ``bareResults``
+
+        Subclasses can e.g. calculate additional systematic variation histograms from the existing ones
+
+        :param bareResults: list of nominal and systematic variation histograms for this :py:class:`~bamboo.plots.Plot`
+        :param fbe: reference to the backend
+
+        :returns: ``bareResults``
+        """
+        return bareResults
 
     @property
     def cut(self):
@@ -196,7 +225,7 @@ class Plot(object):
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None), kwargs.pop("zBinLabels", None))
         return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
 
-class Selection(object):
+class Selection:
     """ A :py:class:`~bamboo.plots.Selection` object groups a set of selection criteria
     (cuts) and weight factors that belong to a specific stage of the selection and analysis.
     Selections should be constructed by calling the :py:meth:`~bamboo.plots.Selection.refine`
@@ -274,8 +303,8 @@ class Selection(object):
         return "Selection({0!r}, {1!r}, {2!r})".format(self.name, self.cut, self.weight)
     def __eq__(self, other):
         ## FIXME do we even still need this?
-        return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in izip(self.cuts, other.cuts) )
-             and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in izip(self.weights, other.weights) ) )
+        return ( ( len(self.cuts) == len(other.cuts) ) and all( sc == oc for sc,oc in zip(self.cuts, other.cuts) )
+             and ( len(self.weights) == len(other.weights) ) and all( sw == ow for sw,ow in zip(self.weights, other.weights) ) )
 
     def refine(self, name, cut=None, weight=None, autoSyst=True):
         """ Create a new selection by adding cuts and/or weight factors
@@ -314,26 +343,28 @@ class Selection(object):
             from .treeproxies import makeConst
             return adaptArg(makeConst(1., "float"), typeHint="float")
 
-class DerivedPlot:
+class DerivedPlot(Product):
     """
     Base class for a plot with results based on other plots' results
 
-    The two main characteristics are an interface method
-    :py:meth:`~bamboo.plots.DerivedPlot.produceResults`,
-    which is called by the backend to retrieve the derived results,
-    and a :py:attr:`~bamboo.plots.DerivedPlot.dependencies` attribute that lists
+    The :py:attr:`~bamboo.plots.DerivedPlot.dependencies` attribute that lists
     the :py:class:`~bamboo.plots.Plot`-like objects this one depends on (which
     may be used e.g. to order operations).
     The other necessary properties (binnings, titles, labels, etc.) are taken
     from the keyword arguments to the constructor, or the first dependency.
+    The :py:meth:`~bamboo.plots.DerivedPlot.produceResults` method,
+    which is called by the backend to retrieve the derived results,
+    should be overridden with the desired calculation.
 
-    Typical use cases are summed histograms, alternative or additional methods
-    to calculate or combine some systematic uncertainties etc. (the results are
-    combined for different subjobs with hadd, so derived quantities that require
-    the full statistics should be calculated from the postprocessing step).
+    Typical use cases are summed histograms, background subtraction, etc.
+    (the results are combined for different subjobs with hadd, so derived 
+    quantities that require the full statistics should be calculated from
+    the postprocessing step; alternative or additional systematic variations
+    calculated from the existing ones can be added by subclassing
+    :py:class:`~bamboo.plots.Plot`).
     """
     def __init__(self, name, dependencies, **kwargs):
-        self.name = name
+        super(DerivedPlot, self).__init__(name)
         self.dependencies = dependencies
         self.binnings = kwargs.get("binnings", dependencies[0].binnings)
         self.axisTitles = kwargs.get("axisTitles",
@@ -344,15 +375,16 @@ class DerivedPlot:
                     for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
         self.plotopts = kwargs.get("plotopts", dict())
         # register with backend
-        dependencies[0].selection._fbe.addDerivedPlot(self)
+        dependencies[0].selection._fbe.addDerived(self)
     @property
     def variables(self):
         return [ None for x in self.binnings ]
-    def produceResults(self, fbe):
+    def produceResults(self, bareResults, fbe):
         """
         Main interface method, called by the backend
 
-        :param fbe: reference to the backend (which can be used to retrieve the results of the dependency plots)
+        :param bareResults: iterable of histograms for this plot produced by the backend (none)
+        :param fbe: reference to the backend, can be used to retrieve the histograms for the dependencies, e.g. with :py:meth:`~bamboo.plots.DerivedPlot.collectDependencyResults`
 
         :returns: an iterable with ROOT objects to save to the output file
         """
@@ -366,7 +398,7 @@ class DerivedPlot:
         for dep in self.dependencies:
             resNom = None
             resPerVar = {}
-            for res in fbe.getPlotResults(dep):
+            for res in fbe.getResults(dep):
                 if "__" not in res.GetName():
                     assert resNom is None
                     resNom = res
@@ -380,7 +412,7 @@ class SummedPlot(DerivedPlot):
     """ A :py:class:`~bamboo.plots.DerivedPlot` implementation that sums histograms """
     def __init__(self, name, termPlots, **kwargs):
         super(SummedPlot, self).__init__(name, termPlots, **kwargs)
-    def produceResults(self, fbe):
+    def produceResults(self, bareResults, fbe):
         res_dep = self.collectDependencyResults(fbe)
         # list all variations (some may not be there for all)
         allVars = set()
@@ -398,3 +430,90 @@ class SummedPlot(DerivedPlot):
                 hVar.Add(ihv.get(vn, ihn).GetPtr())
             results.append(hVar)
         return results
+
+class CutFlowReport(Product):
+    class Entry:
+        def __init__(self, name, nominal=None, systVars=None, parent=None, children=None):
+            self.name = name
+            self.nominal = nominal
+            self.systVars = systVars
+            self.parent = parent
+            self.children = list(children) if children is not None else []
+        def setParent(self, parent):
+            self.parent = parent
+            if self not in parent.children:
+                parent.children.append(self)
+    def __init__(self, name, selections, recursive=True, autoSyst=False, cfres=None):
+        super(CutFlowReport, self).__init__(name)
+        self.recursive = recursive
+        self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
+        self.cfres = cfres
+        if selections and cfres is None:
+            self.selections[0]._fbe.addCutFlowReport(self, autoSyst=autoSyst)
+    def produceResults(self, bareResults, fbe):
+        self.cfres = fbe.results[self.name]
+        entries = list()
+        for stat in self.cfres:
+            iEn = stat
+            while iEn is not None and iEn not in entries:
+                entries.append(iEn)
+                iEn = iEn.parent
+        return [ res.nominal for res in entries ] + list(chain.from_iterable(res.systVars.values() for res in entries))
+    def rootEntries(self):
+        ## helper: traverse reports tree up
+        def travUp(entry):
+            yield entry
+            yield from travUp(entry.parent)
+        return set(next(en for en in travUp(res) if en.parent is None) for res in self.cfres)
+
+    def readFromResults(self, resultsFile):
+        cfres = []
+        entries = dict() # by selection name
+        for sel in self.selections:
+            if sel.name not in entries:
+                entries[sel.name] = CutFlowReport.Entry(sel.name)
+                if self.recursive:
+                    isel = sel.parent
+                    entry_d = entries[sel.name]
+                    while isel is not None:
+                       if isel.name in entries:
+                           entry_p = entries[isel.name]
+                           entry_d.setParent(entry_p)
+                           break
+                       entry_p = CutFlowReport.Entry(isel.name)
+                       entries[isel.name] = entry_p
+                       entry_d.setParent(entry_p)
+                       entry_d = entry_p
+                       isel = isel.parent
+            cfres.append(entries[sel.name])
+        ## retrieve nominal
+        toRem = []
+        for selName, entry in entries.items():
+            kyNm = f"{self.name}_{selName}"
+            entry.nominal = resultsFile.Get(kyNm)
+            if not entry.nominal:
+                logger.warning(f"Could not find object {kyNm}")
+                toRem.append(selName)
+        ## remove if not found
+        for ky in toRem:
+            if entries[ky].parent:
+                for ch in entries[ky].children:
+                    ch.setParent(entries[ky].parent)
+                entries[ky].parent.children.remove(entries[ky])
+            del entries[ky]
+        ## and systematic variations
+        prefix = f"{self.name}_"
+        for ky in resultsFile.GetListOfKeys():
+            if ky.GetName().startswith(prefix):
+                selName = ky.GetName().split("__")[0][len(prefix):]
+                if selName in entries:
+                    entry = entries[selName]
+                    cnt = ky.GetName().count("__")
+                    if cnt == 1:
+                        varNm = ky.GetName().split("__")[1]
+                        if varNm in entry.systVars:
+                            logger.warning(f"{self.name}: counter for variation {varNm} already present for selection {selName}")
+                        entry.systVars[varNm] = ky.ReadObject()
+                    elif cnt > 1:
+                        logger.warning("Key {ky.GetName()!r} contains '__' more than once, this will break assumptions")
+        return CutFlowReport(self.name, self.selections, recursive=self.recursive, cfres=cfres)

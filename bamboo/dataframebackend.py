@@ -61,7 +61,7 @@ class SelWithDefines(top.CppStrRedir):
         cutStr = cutExpr.get_cppStr(defCache=self)
         self._addFilterStr(cutStr)
 
-    def _addFilterStr(self, filterStr): ## add filter with string already made
+    def _addFilterStr(self, filterStr):
         logger.debug("Filtering with {0}", filterStr)
         self.df = self.df.Filter(filterStr)
         _RDFNodeStats["Filter"] += 1
@@ -115,12 +115,11 @@ _giFun = 0
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
         from .root import gbl
-        self.rootDF = gbl.RDataFrame(tree)
+        self.rootDF = gbl.RDataFrame(tree).Define("_zero_for_stats", "0")
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
-        self.plotResults = dict() ## plot name -> list of result pointers
+        self.results = dict()     ## product name -> list of result pointers
         self.allSysts = dict()    ## all systematic uncertainties and variations impacting any plot
-        self.derivedPlots = []
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -254,7 +253,7 @@ class DataframeBackend(FactoryBackend):
 
     def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
-        if plot.name in self.plotResults:
+        if plot.name in self.results:
             raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
 
         nomNd = self.selDFs[plot.selection.name]
@@ -305,10 +304,7 @@ class DataframeBackend(FactoryBackend):
                         if not wN: ## no weight
                             raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
 
-        self.plotResults[plot.name] = plotRes
-
-    def addDerivedPlot(self, plot):
-        self.derivedPlots.append(plot)
+        self.results[plot.name] = plotRes
 
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
@@ -333,7 +329,11 @@ class DataframeBackend(FactoryBackend):
     def defineAndGetVarNames(nd, variables, uName=None):
         varNames = []
         for i,var in enumerate(variables):
-            if nd._getColName(var):
+            if isinstance(var, top.GetColumn):
+                varNames.append(var.name)
+            elif isinstance(var, top.ForwardingOp) and isinstance(var.wrapped, top.GetColumn):
+                varNames.append(var.wrapped.name)
+            elif nd._getColName(var):
                 varNames.append(nd._getColName(var))
             else:
                 nm = f"v{i:d}_{uName}"
@@ -379,10 +379,8 @@ class DataframeBackend(FactoryBackend):
         _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)
 
-    def getPlotResults(self, plot):
-        if plot in self.derivedPlots and plot.name not in self.plotResults:
-            self.plotResults[plot.name] = plot.produceResults(self)
-        return self.plotResults[plot.name]
+    def getResults(self, plot):
+        return plot.produceResults(self.results.get(plot.name), self)
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
         selND = self.selDFs[sele.name]
@@ -403,7 +401,10 @@ class DataframeBackend(FactoryBackend):
                 colNToKeep.push_back(cn)
 
         for dN, dExpr in definedBranches.items():
-            selND._define(dN, top.adaptArg(dExpr))
+            if dN not in allcolN:
+                selND._define(dN, top.adaptArg(dExpr))
+            elif dN not in defcolN:
+                logger.warning(f"Requested to add column {dN} with expression, but a column with the same name on the input tree exists. The latter will be copied instead")
             colNToKeep.push_back(dN)
 
         selDF = selND.df
@@ -411,3 +412,57 @@ class DataframeBackend(FactoryBackend):
             selDF = selDF.Range(maxSelected)
 
         selDF.Snapshot(treeName, outputFile, colNToKeep)
+        from .root import gbl
+        outF = gbl.TFile.Open(outputFile, "READ")
+        nPass = outF.Get(treeName).GetEntries()
+        outF.Close()
+        if nPass == 0:
+            logger.warning(f"No events selected, removing tree '{treeName}' to avoid problems with merging")
+            outF = gbl.TFile.Open(outputFile, "UPDATE")
+            ky = next(ky for ky in outF.GetListOfKeys() if ky.GetName() == treeName)
+            ky.Delete()
+            outF.Close()
+
+    def addCutFlowReport(self, report, autoSyst=True):
+        logger.debug("Adding cutflow report {0} for selection(s) {1}".format(report.name, ", ".join(sele.name for sele in report.selections)))
+        cmArgs = {"autoSyst" : autoSyst, "makeEntry" : report.__class__.Entry, "prefix" : report.name}
+        memo = dict()
+        results = []
+        for sele in report.selections:
+            if sele.name in memo:
+                cfr = memo[sele.name]
+            else:
+                cfr = self._makeCutFlowReport(sele, **cmArgs)
+                memo[sele.name] = cfr
+            results.append(cfr)
+            if report.recursive:
+                isel = sele.parent
+                while isel is not None:
+                    if isel.name in memo:
+                        cfr_n = memo[isel.name]
+                        cfr.setParent(cfr_n)
+                        break ## all above should be there too, then
+                    cfr_n = self._makeCutFlowReport(isel, **cmArgs)
+                    memo[isel.name] = cfr_n
+                    cfr.setParent(cfr_n)
+                    cfr = cfr_n
+                    isel = isel.parent
+        logger.debug("Defined cutflow {0} reports for selections {1}".format(report.name, ", ".join(memo.keys())))
+        self.results[report.name] = results
+
+    def _makeCutFlowReport(self, selection, autoSyst=True, makeEntry=None, prefix=None):
+        from .root import gbl
+        selND = self.selDFs[selection.name]
+        nomWName = selND.wName["nominal"]
+        nomName = f"{prefix}_{selection.name}"
+        mod = gbl.RDF.TH1DModel(nomName, f"CutFlowReport {prefix} nominal counter for {selection.name}", 1, 0., 1.)
+        cfrNom = DataframeBackend.makeHistoND(selND, mod, ["_zero_for_stats"], weightName=nomWName, plotName=nomName)
+        cfrSys = {}
+        if autoSyst:
+            for varNm in selection.systematics:
+                if varNm in selND.var or selND.wName[varNm] != nomWName:
+                    name = f"{prefix}_{selection.name}__{varNm}"
+                    mod = gbl.RDF.TH1DModel(name, f"CutFlowReport {prefix} {varNm} counter for {selection.name}", 1, 0., 1.)
+                    cfrSys[varNm] = DataframeBackend.makeHistoND(selND.var.get(varNm, selND), mod,
+                            ["_zero_for_stats"], weightName=selND.wName[varNm], plotName=title)
+        return makeEntry(selection.name, cfrNom, cfrSys)

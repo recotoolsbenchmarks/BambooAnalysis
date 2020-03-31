@@ -18,7 +18,8 @@ import re
 import datetime
 from timeit import default_timer as timer
 import resource
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt
+import urllib.parse
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt, printCutFlowReports
 
 def reproduceArgv(args, group):
     # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
@@ -122,7 +123,7 @@ class AnalysisModule(object):
                 with open(ifl) as iflf:
                     inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
         return inputs
-    def getATree(self):
+    def getATree(self, fileName=None, sampleName=None):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
             from .root import gbl
@@ -136,15 +137,21 @@ class AnalysisModule(object):
             anaCfgName = self.args.input[0]
             envConfig = readEnvConfig(self.args.envConfig)
             analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
-            smpNm,smpCfg,fName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-            logger.debug("getATree: using a file from sample {0} ({1})".format(smpNm, fName))
+            if fileName and sampleName:
+                sampleCfg = analysisCfg["samples"][sampleName]
+            else:
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+            logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
-            if not tup.Add(fName, 0):
-                raise IOError("Could not open file {}".format(fName))
-            return tup, smpNm, smpCfg
+            if not tup.Add(fileName, 0):
+                raise IOError("Could not open file {}".format(fileName))
+            return tup, sampleName, sampleCfg
         else:
             raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
+    def customizeAnalysisCfg(self, analysisCfg):
+        """ Hook to modify the analysis configuration before jobs are created (only called in driver or non-distributed mode) """
+        pass
     def run(self):
         """ Main method
 
@@ -187,6 +194,7 @@ class AnalysisModule(object):
                 workdir = self.args.output
                 envConfig = readEnvConfig(self.args.envConfig)
                 analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=(not self.args.onlypost), redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                self.customizeAnalysisCfg(analysisCfg)
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
@@ -195,12 +203,33 @@ class AnalysisModule(object):
                     if not os.path.exists(resultsdir):
                         raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
                     ## TODO check for all output files?
+                elif not tasks:
+                    logger.warning("No tasks defined, skipping to postprocess")
                 else:
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                     else:
                         os.makedirs(resultsdir)
-                    ##
+                    ## store one "skeleton" tree (for more efficient "onlypost" later on
+                    (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
+                    aFileName = aTaskIn[0]
+                    from .root import gbl
+                    aFile = gbl.TFile.Open(aFileName)
+                    if not aFile:
+                        logger.warning(f"Could not open file {aFileName}, no skeleton tree will be saved")
+                    else:
+                        treeName = analysisCfg.get("tree", "Events")
+                        aTree = aFile.Get(treeName)
+                        if not aTree:
+                            logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
+                        else:
+                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
+                            outf = gbl.TFile.Open(outfName, "RECREATE")
+                            skeletonTree = aTree.CloneTree(1) ## copy header and a single event
+                            outf.Write()
+                            outf.Close()
+                            logger.debug(f"Skeleton tree written to {outfName}")
+                    ## run all tasks
                     if not self.args.distributed: ## sequential mode
                         for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
                             output = os.path.join(resultsdir, output)
@@ -231,8 +260,9 @@ class AnalysisModule(object):
                             else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
                                 chunks = splitInChunks(inputs, chunkLength=max(1, min(-split, len(inputs))))
                             cmds = []
+                            os.makedirs(os.path.join(workdir, "infiles"), exist_ok=True)
                             for i,chunk in enumerate(chunks):
-                                cfn = os.path.join(workdir, "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
+                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
                                 writeFileList(chunk, cfn)
                                 cmds.append(" ".join([str(a) for a in commArgs] + [
                                     "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
@@ -434,7 +464,7 @@ class HistogramsModule(AnalysisModule):
         start = timer()
         numHistos = 0
         for p in self.plotList:
-            for h in backend.getPlotResults(p):
+            for h in backend.getResults(p):
                 numHistos += 1
                 h.Write()
         end = timer()
@@ -498,10 +528,27 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            tup, smpName, smpCfg = self.getATree()
+            fileHint, sampleHint = None, None
+            try:
+                import os
+                prefix = "__skeleton__"
+                suffix = ".root"
+                skelFn = next(fn for fn in os.listdir(resultsdir) if fn.startswith(prefix) and fn.endswith(suffix))
+                fileHint = os.path.join(resultsdir, skelFn)
+                sampleHint = skelFn[len(prefix):-len(suffix)]
+            except StopIteration:
+                pass
+            tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
             tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+            if "certified_lumi_file" in smpCfg:
+                lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
+                noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
             self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
-        runPlotIt(config, self.plotList, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        from bamboo.plots import Plot, DerivedPlot, CutFlowReport
+        plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
+        plotList_plotIt = [ ap for ap in self.plotList if isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ]
+        printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        runPlotIt(config, plotList_plotIt, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
@@ -579,6 +626,7 @@ class SkimmerModule(AnalysisModule):
         super(SkimmerModule, self).addArgs(parser)
         parser.add_argument("--keepOriginalBranches", action="store_true", help="Keep all original branches (in addition to those defined by the module)")
         parser.add_argument("--maxSelected", type=int, default=-1, help="Maximum number of accepted events (default: -1 for all)")
+        parser.add_argument("--outputTreeName", type=str, default="Events", help="Name of the output tree")
 
     def initialize(self):
         """ initialize """
@@ -619,7 +667,7 @@ class SkimmerModule(AnalysisModule):
         defBr = dict((k,v) for k,v in brToKeep.items() if v is not None)
         origBr = list(k for k,v in brToKeep.items() if v is None)
 
-        backend.writeSkim(finalSel, outputFile, treeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
+        backend.writeSkim(finalSel, outputFile, self.args.outputTreeName, definedBranches=defBr, origBranchesToKeep=(None if self.args.keepOriginalBranches else origBr), maxSelected=self.args.maxSelected)
 
         outF = gbl.TFile.Open(outputFile, "UPDATE")
         self.mergeCounters(outF, inputFiles, sample=sample)

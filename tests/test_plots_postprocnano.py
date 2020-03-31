@@ -74,7 +74,7 @@ from bamboo.root import gbl
 def testData16(decoNanoData16):
     tup, noSel, be = decoNanoData16
     plots = definePlots(tup, noSel)
-    histos_per_plot = { p.name : list(be.getPlotResults(p)) for p in plots }
+    histos_per_plot = { p.name : list(be.getResults(p)) for p in plots }
     logger.debug("Plots for data16")
     for pN, histos in histos_per_plot.items():
         logger.debug("Plot {0} -> {1}".format(pN, ", ".join(h.GetName() for h in histos)))

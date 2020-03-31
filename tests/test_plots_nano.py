@@ -52,4 +52,4 @@ def test(decoNano):
     alljetpairs = op.combine(cleanedJets, N=2, samePred=lambda j1,j2 : j1.pt > j2.pt)
     minJetDR = op.rng_min(alljetpairs, lambda pair: op.deltaR(pair[0].p4, pair[1].p4))
     plots.append(Plot.make1D("minJetDR", minJetDR, noSel, EqBin(40, 0.4, 2.)))
-    assert all(h for p in plots for h in be.getPlotResults(p))
+    assert all(h for p in plots for h in be.getResults(p))

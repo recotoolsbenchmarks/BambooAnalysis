@@ -1104,7 +1104,7 @@ class Combine(TupleOp):
             return "{0}({1})".format(funName, ", ".join(paramCall))
 
 ## FIXME to be implemented
-class PsuedoRandom(TupleOp):
+class PseudoRandom(TupleOp):
     """ Pseudorandom number (integer or float) within range """
     def __init__(self, xMin, xMax, seed, isIntegral=False):
         super(PseudoRandom, self).__init__()

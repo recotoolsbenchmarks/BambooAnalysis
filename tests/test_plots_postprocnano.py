@@ -41,4 +41,4 @@ def test(decoNano):
     hasTwoJets = noSel.refine("hasTwoJets", cut=(op.rng_len(cleanedJets) > 1), weight=addsyst5p)
     plots.append(Plot.make1D("2J_cleanedProdBRegCorr", op.rng_product(cleanedJetsByDeepFlav[:2], lambda j : j.bRegCorr), hasTwoJets, EquidistantBinning(50, 0.5, 1.5)))
 
-    assert all(h for p in plots for h in be.getPlotResults(p))
+    assert all(h for p in plots for h in be.getResults(p))

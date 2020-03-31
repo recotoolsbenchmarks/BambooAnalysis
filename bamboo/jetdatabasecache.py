@@ -86,13 +86,16 @@ class JetDatabaseCache(object):
         headers = {}
         if "branches_etag" in self._status and "sha" in self._status:
             headers["If-None-Match"] = self._status["branches_etag"]
-        r_branches = session.get("{0}/git/refs/heads".format(self._baseUrl), headers=headers)
-        if r_branches.status_code == requests.codes.not_modified:
-            return self._status["sha"]
-        elif r_branches.status_code == requests.codes.ok:
-            r_master = next(itm for itm in r_branches.json() if itm["ref"] == "refs/heads/master")
-            self._status["branches_etag"] = r_branches.headers["ETag"]
-            return r_master["object"]["sha"]
+        try:
+            r_branches = session.get("{0}/git/refs/heads".format(self._baseUrl), headers=headers)
+            if r_branches.status_code == requests.codes.not_modified:
+                return self._status["sha"]
+            elif r_branches.status_code == requests.codes.ok:
+                r_master = next(itm for itm in r_branches.json() if itm["ref"] == "refs/heads/master")
+                self._status["branches_etag"] = r_branches.headers["ETag"]
+                return r_master["object"]["sha"]
+        except requests.exceptions.ConnectionError as ex:
+            logger.exception(f"Problem connecting to {self._baseUrl} (traceback below)")
 
     def _init(self, session=None):
         if os.path.exists(self.statusFile):

@@ -220,6 +220,39 @@ def readEnvConfig(explName=None):
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
+def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+    eraMode, eras = eras
+    if not eras: ## from config if not specified
+        eras = list(config["eras"].keys())
+    ## helper: print one bamboo.plots.CutFlowReport.Entry
+    def printEntry(entry, printFun=logger.info, recursive=True):
+        effMsg = ""
+        if entry.parent:
+            sumPass = entry.nominal.GetBinContent(1)
+            sumTotal = entry.parent.nominal.GetBinContent(1)
+            if sumTotal != 0.:
+                effMsg = f", Eff={sumPass/sumTotal:.2%}"
+        printFun(f"Selection {entry.name}: N={entry.nominal.GetEntries()}, SumW={entry.nominal.GetBinContent(1)}{effMsg}")
+        if recursive:
+            for c in entry.children:
+                printEntry(c, printFun=printFun, recursive=recursive)
+    ## retrieve results files
+    from .root import gbl
+    resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
+    for report in reportList:
+        for smp, resultsFile in resultsFiles.items():
+            smpCfg = config["samples"][smp]
+            logger.info(f"Cutflow report {report.name} for sample {smp}")
+            if "generated-events" in smpCfg:
+                if isinstance(smpCfg["generated-events"], str):
+                    generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
+                else:
+                    generated_events = smpCfg["generated-events"]
+                logger.info(f"Sum of event weights for processed files: {generated_events:e}")
+            smpReport = report.readFromResults(resultsFile)
+            for root in smpReport.rootEntries():
+                printEntry(root)
+
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
         "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
@@ -250,15 +283,11 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                 resultsFile = gbl.TFile.Open(os.path.join(resultsdir, resultsName))
                 if "generated-events" not in smpCfg:
                     logger.error(f"No key 'generated-events' found for MC sample {smpName}, normalization will be wrong")
+                elif isinstance(smpCfg["generated-events"], str):
+                    counters = readCounters(resultsFile)
+                    smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
                 else:
-                    try:
-                        smpOpts["generated-events"] = float(smpCfg["generated-events"])
-                    except ValueError: ## not float
-                        try:
-                            counters = readCounters(resultsFile)
-                            smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
-                        except Exception as ex:
-                            logger.error("Problem reading counters for sample {0} (file {1}), normalization may be wrong (exception: {2!r})".format(smpName, os.path.join(resultsdir, resultsName), ex))
+                    smpOpts["generated-events"] = smpCfg["generated-events"]
             plotit_files[resultsName] = smpOpts
     plotitCfg["files"] = plotit_files
     plotDefaults_yml = plotitCfg.pop("plotdefaults", {})

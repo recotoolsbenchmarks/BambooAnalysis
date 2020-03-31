@@ -480,6 +480,7 @@ class LazyDataframeBackend(DataframeBackend):
         self.selections = dict()
         self.definesPerSelection = dict()
         self.plotsPerSelection = dict()
+        self.cutFlowReports = []
         self._definedSel = set()
     @staticmethod
     def create(decoTree, outFileName=None):
@@ -498,6 +499,8 @@ class LazyDataframeBackend(DataframeBackend):
         if any((ap.name == plot.name) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
             raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
+    def addCutFlowReport(self, report, autoSyst=True):
+        self.cutFlowReports.append((report, autoSyst))
     def _buildSelGraph(self, selName, plotList):
         sele = self.selections[selName]
         if sele.parent and sele.parent.name not in self._definedSel:
@@ -522,6 +525,8 @@ class LazyDataframeBackend(DataframeBackend):
             if isinstance(plot, Plot):
                 if plot.selection.name not in self._definedSel:
                     self._buildSelGraph(plot.selection.name, allPlots)
+        for report, autoSyst in self.cutFlowReports:
+            super(LazyDataframeBackend, self).addCutFlowReport(report, autoSyst=autoSyst)
     def define(self, op, selection):
         self.definesPerSelection[selection.name].append(op)
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):

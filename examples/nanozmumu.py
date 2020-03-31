@@ -86,7 +86,7 @@ class NanoZMuMuBase(NanoAODModule):
 class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
-        from bamboo.plots import Plot, SummedPlot, EquidistantBinning
+        from bamboo.plots import Plot, SummedPlot, CutFlowReport, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
 
@@ -122,6 +122,8 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         met = t.MET if era != "2017" else t.METFixEE2017
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
+
+        plots.append(CutFlowReport("mumujj", twoMuTwoJetSel))
 
         return plots
 

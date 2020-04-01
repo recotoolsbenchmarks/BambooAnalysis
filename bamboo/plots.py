@@ -155,8 +155,8 @@ class Plot(Product):
     def __repr__(self):
         return "Plot({0!r}, {1!r}, {2!r}, {3!r}, title={4!r}, axisTitles={5!r})".format(self.name, self.variables, self.selection, self.binnings, self.title, self.axisTitles)
 
-    @staticmethod
-    def make1D(name, variable, selection, binning, **kwargs):
+    @classmethod
+    def make1D(plotCls, name, variable, selection, binning, **kwargs):
         """ Construct a 1-dimensional histogram plot
 
         :param name: unique plot name
@@ -179,9 +179,9 @@ class Plot(Product):
         title = kwargs.pop("title", "")
         kwargs["axisTitles"] = (kwargs.pop("xTitle", title),)
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None),)
-        return Plot(name, (adaptArg(variable),), selection, (binning,), **kwargs)
-    @staticmethod
-    def make2D(name, variables, selection, binnings, **kwargs):
+        return plotCls(name, (adaptArg(variable),), selection, (binning,), **kwargs)
+    @classmethod
+    def make2D(plotCls, name, variables, selection, binnings, **kwargs):
         """ Construct a 2-dimensional histogram plot
 
         :param name: unique plot name
@@ -200,9 +200,9 @@ class Plot(Product):
         """
         kwargs["axisTitles"] = (kwargs.pop("xTitle", ""), kwargs.pop("yTitle", ""))
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None))
-        return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
-    @staticmethod
-    def make3D(name, variables, selection, binnings, **kwargs):
+        return plotCls(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
+    @classmethod
+    def make3D(plotCls, name, variables, selection, binnings, **kwargs):
         """ Construct a 3-dimensional histogram
 
         :param name: unique plot name
@@ -223,7 +223,7 @@ class Plot(Product):
         """
         kwargs["axisTitles"] = (kwargs.pop("xTitle", ""), kwargs.pop("yTitle", ""), kwargs.pop("zTitle", ""))
         kwargs["axisBinLabels"] = (kwargs.pop("xBinLabels", None), kwargs.pop("yBinLabels", None), kwargs.pop("zBinLabels", None))
-        return Plot(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
+        return plotCls(name, tuple(adaptArg(v) for v in variables), selection, binnings, **kwargs)
 
 class Selection:
     """ A :py:class:`~bamboo.plots.Selection` object groups a set of selection criteria
@@ -413,6 +413,7 @@ class SummedPlot(DerivedPlot):
     def __init__(self, name, termPlots, **kwargs):
         super(SummedPlot, self).__init__(name, termPlots, **kwargs)
     def produceResults(self, bareResults, fbe):
+        from .root import gbl
         res_dep = self.collectDependencyResults(fbe)
         # list all variations (some may not be there for all)
         allVars = set()
@@ -421,13 +422,18 @@ class SummedPlot(DerivedPlot):
         # sum nominal
         hNom = res_dep[0][0].Clone(self.name)
         for ihn,_ in res_dep[1:]:
-            hNom.Add(ihn.GetPtr())
+            if not isinstance(ihn, gbl.TH1):
+                ihn = ihn.GetPtr()
+            hNom.Add(ihn)
         results = [ hNom ]
         # sum variations (using nominal if not present for some)
         for vn in allVars:
             hVar = res_dep[0][1].get(vn, res_dep[0][0]).Clone("__".join((self.name, vn)))
             for ihn,ihv in res_dep[1:]:
-                hVar.Add(ihv.get(vn, ihn).GetPtr())
+                hvi = ihv.get(vn, ihn)
+                if not isinstance(hvi, gbl.TH1):
+                    hvi = hvi.GetPtr()
+                hVar.Add(hvi)
             results.append(hVar)
         return results
 

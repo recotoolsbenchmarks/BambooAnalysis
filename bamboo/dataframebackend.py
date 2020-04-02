@@ -8,7 +8,7 @@ from itertools import chain
 from functools import partial
 import numpy as np
 
-from .plots import FactoryBackend, Selection
+from .plots import FactoryBackend, Selection, Plot, DerivedPlot
 from . import treefunctions as op
 from . import treeoperations as top
 
@@ -132,6 +132,8 @@ class DataframeBackend(FactoryBackend):
 
     def shouldDefine(self, op, defCache=None):
         return any(isinstance(op, expType) for expType in (top.Select, top.Sort, top.Map, top.Next, top.Reduce, top.Combine)) and op.canDefine
+    def define(self, op, selection):
+        self.selDFs[selection.name].define(op)
 
     def symbol(self, decl, resultType=None, args=None, nameHint=None):
         if resultType and args: ## then it needs to be wrapped in a function
@@ -162,7 +164,7 @@ class DataframeBackend(FactoryBackend):
     def addSelection(self, sele):
         """ Define ROOT::RDataFrame objects needed for this selection """
         if sele.name in self.selDFs:
-            raise ValueError("A Selection with the name '{0}' already exists".format(sele.name))
+            raise RuntimeError(f"A Selection with name '{sele.name}' already exists")
         cutStr = None
         nomParentNd = self.selDFs[sele.parent.name] if sele.parent else None
         if sele._cuts:
@@ -254,7 +256,7 @@ class DataframeBackend(FactoryBackend):
     def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
         if plot.name in self.results:
-            raise ValueError("A Plot with the name '{0}' already exists".format(plot.name))
+            raise ValueError(f"A Plot with the name '{plot.name}' already exists")
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
@@ -466,3 +468,67 @@ class DataframeBackend(FactoryBackend):
                     cfrSys[varNm] = DataframeBackend.makeHistoND(selND.var.get(varNm, selND), mod,
                             ["_zero_for_stats"], weightName=selND.wName[varNm], plotName=title)
         return makeEntry(selection.name, cfrNom, cfrSys)
+
+class LazyDataframeBackend(DataframeBackend):
+    """
+    An experiment: a FactoryBackend implementation that instantiates nodes late
+
+    For testing, there is an extra method to instantiate what's needed for a bunch of plots
+    """
+    def __init__(self, tree, outFileName=None):
+        super(LazyDataframeBackend, self).__init__(tree, outFileName=outFileName)
+        self.selections = dict()
+        self.definesPerSelection = dict()
+        self.plotsPerSelection = dict()
+        self.cutFlowReports = []
+        self._definedSel = set()
+    @staticmethod
+    def create(decoTree, outFileName=None):
+        inst = LazyDataframeBackend(decoTree._tree, outFileName=outFileName)
+        rootSel = Selection(inst, "none")
+        return inst, rootSel
+    def addSelection(self, selection):
+        ## keep track and do nothing
+        if selection.name in self.selections:
+            raise RuntimeError(f"A Selection with name '{selection.name}' already exists")
+        self.selections[selection.name] = selection
+        self.definesPerSelection[selection.name] = []
+        self.plotsPerSelection[selection.name] = []
+    def addPlot(self, plot, autoSyst=True):
+        ## keep track and do nothing
+        if any((ap.name == plot.name) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
+            raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
+        self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
+    def addCutFlowReport(self, report, autoSyst=True):
+        self.cutFlowReports.append((report, autoSyst))
+    def _buildSelGraph(self, selName, plotList):
+        sele = self.selections[selName]
+        if sele.parent and sele.parent.name not in self._definedSel:
+            self._buildSelGraph(sele.parent.name, plotList)
+        super(LazyDataframeBackend, self).addSelection(sele)
+        for op in self.definesPerSelection[selName]:
+            super(LazyDataframeBackend, self).define(op, sele)
+        for plot, autoSyst in self.plotsPerSelection[selName]:
+            if plot in plotList:
+                super(LazyDataframeBackend, self).addPlot(plot, autoSyst=autoSyst)
+        self._definedSel.add(selName)
+    def buildGraph(self, plotList):
+        ## this is the extra method: do all the addSelection/addPlot/addDerivedPlot calls in a better order
+        ## collect all plots
+        def getDeps_r(plot):
+            if isinstance(plot, DerivedPlot):
+                for dp in plot.dependencies:
+                    yield dp
+                    yield from getDeps_r(dp)
+        allPlots = list(plotList) + list(chain.from_iterable(getDeps_r(p) for p in plotList))
+        for plot in allPlots:
+            if isinstance(plot, Plot):
+                if plot.selection.name not in self._definedSel:
+                    self._buildSelGraph(plot.selection.name, allPlots)
+        for report, autoSyst in self.cutFlowReports:
+            super(LazyDataframeBackend, self).addCutFlowReport(report, autoSyst=autoSyst)
+    def define(self, op, selection):
+        self.definesPerSelection[selection.name].append(op)
+    def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
+        self._buildSelGraph(sele.name, [])
+        super(LazyDataframeBackend, self).writeSkim(sele, outputFile, treeName, definedBranches=definedBranches, origBranchesToKeep=origBranchesToKeep, maxSelected=maxSelected)

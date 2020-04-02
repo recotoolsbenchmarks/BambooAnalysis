@@ -22,6 +22,8 @@ class FactoryBackend(object):
         pass
     def getResults(self, plot):
         pass
+    def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
+        pass
     @staticmethod
     def create(tree):
         """ Factory method, should return a pair of the backend and root selection """

@@ -585,7 +585,7 @@ def forceDefine(arg, selection):
     op = adaptArg(arg)
     if not op.canDefine:
         raise RuntimeError("Cannot define {0!r}".format(op))
-    return selection._fbe.selDFs[selection.name].define(op)
+    selection._fbe.define(op, selection)
 
 def makePileupWeight(puWeightsFile, numTrueInteractions, variation="Nominal", systName=None, nameHint=None):
     """ Construct a pileup weight for MC, based on the weights in a JSON file

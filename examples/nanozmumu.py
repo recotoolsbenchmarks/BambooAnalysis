@@ -18,7 +18,7 @@ class NanoZMuMuBase(NanoAODModule):
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         ## Decorate the tree
         from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc
-        tree,noSel,be,lumiArgs = super(NanoAODHistoModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
+        tree,noSel,be,lumiArgs = super(NanoZMuMuBase, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
                 description=NanoAODDescription.get("v5", year=(era if era else "2016"), isMC=isMC,
                     systVariations=[ nanoRochesterCalc, (nanoJetMETCalc_METFixEE2017 if era == "2017" else nanoJetMETCalc) ]), ## will do Jet and MET variations, and the Rochester correction
                 lazyBackend=(self.args.backend == "lazy"))

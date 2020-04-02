@@ -40,8 +40,10 @@ class NanoZMuMuBase(NanoAODModule):
         metName = "METFixEE2017" if era == "2017" else "MET"
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         ## Decorate the tree
+        from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc
         tree,noSel,be,lumiArgs = super(NanoZMuMuBase, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
-                calcToAdd=["nJet", metName, "nMuon"], ## will do Jet and MET variations, and the Rochester correction
+                description=NanoAODDescription.get("v5", year=(era if era else "2016"), isMC=isMC,
+                    systVariations=[ nanoRochesterCalc, (nanoJetMETCalc_METFixEE2017 if era == "2017" else nanoJetMETCalc) ]), ## will do Jet and MET variations, and the Rochester correction
                 lazyBackend=(self.args.backend == "lazy"))
         ## per-year/era options
         puWeightsFile = None

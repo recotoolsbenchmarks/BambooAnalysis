@@ -1,7 +1,8 @@
 """
-Main user-visible module of tree operations, separate from the operation definitions
-and proxy classes
-User-facing module
+Expressions are constructed by executing python code on decorated versions of
+decorated trees. The :py:mod:`bamboo.treedecorators` module contains helper
+methods to do so for commonly used formats, e.g. :py:func:`~.decorateNanoAOD`
+for CMS NanoAOD.
 """
 
 from collections import defaultdict
@@ -14,9 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def allLeafs(branch):
-    """
-    Recursively collect TTree leaves (TLeaf and TBranchElement)
-    """
+    # Recursively collect TTree leaves (TLeaf and TBranchElement)
     for br in branch.GetListOfBranches():
         from .root import gbl
         if isinstance(br, gbl.TBranchElement):
@@ -25,69 +24,14 @@ def allLeafs(branch):
             for lv in br.GetListOfLeaves():
                 yield lv
 
-class SetAsParentOfAtt(object):
-    ## callback to set the tree as _parent of the groups
-    def __init__(self, name):
-        self.name = name
-    def __call__(self, inst):
-        getattr(inst, self.name)._parent = inst
-class SetAsParent(object):
-    def __init__(self, obj):
-        self.obj = obj
-    def __call__(self, inst):
-        self.obj._parent = inst
-
 def normVarName(varName):
-    """ Normalize variation name: if ending in up or down, make sure this part has no capitals (for plotIt) """
+    # Normalize variation name: if ending in up or down, make sure this part has no capitals (for plotIt)
     if len(varName) >= 2 and varName[-2:].upper() == "UP":
         return "{0}up".format(varName[:-2])
     elif len(varName) >= 4 and varName[-4:].upper() == "DOWN":
         return "{0}down".format(varName[:-4])
     else:
         return varName
-
-def getMETVarName_calc(nm):
-    if nm in ("pt", "phi"):
-        return nm, "raw"
-
-def getJetEnergyVarName_calc(nm):
-    if nm in ("pt", "mass"):
-        return nm, "raw"
-def getMuonMomentumVarName_calc(nm):
-    if nm == "pt":
-        return nm, "raw"
-
-## TODO: make configurable
-def getJetMETVarName_postproc(nm):
-    if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
-        return (nm.split("_")[0], "_".join(nm.split("_")[1:]))
-    elif nm.startswith("btagSF"):
-        for tagger in ["csvv2", "deepcsv", "deepjet", "cmva"]:
-            for wp in ["L", "M", "T", "shape"]:
-                sfName = f"btagSF_{tagger}_{wp}"
-                if not nm.startswith(sfName):
-                    continue
-                if nm == sfName:
-                    return nm, "nom"
-                upOrDown = "up" if "up" in nm else "down"
-                if wp != "shape": # b-tag SF systematics
-                    return sfName, f"{sfName}{upOrDown}"
-                else:
-                    syst = nm.split(f"{sfName}_{upOrDown}_")[1]
-                    if "jes" not in syst: # b-tag shape systematics
-                        return sfName, f"{sfName}_{syst}{upOrDown}"
-                    else: # jes systematics
-                        if syst == "jes":
-                            syst = "jesTotal"
-                        else:
-                            return sfName, f"{syst}{upOrDown}"
-
-def getPUWeightVarName_postproc(nm):
-    if nm.startswith("puWeight"):
-        if nm == "puWeight":
-            return "puWeight", "nom"
-        else:
-            return "puWeight", nm
 
 ## Attribute classes (like property) to customize the proxy classes
 
@@ -141,6 +85,13 @@ def decorateTTW(aTree, description=None):
     ## NOTE: WORK IN PROGRESS
     if description is None:
         description = dict()
+
+    class SetAsParentOfAtt(object): ## FIXME can be removed in favour of below, probably
+        ## callback to set the tree as _parent of the groups
+        def __init__(self, name):
+            self.name = name
+        def __call__(self, inst):
+            getattr(inst, self.name)._parent = inst
 
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format("ttW")}
@@ -242,15 +193,14 @@ def decorateTTW(aTree, description=None):
 
     return treeProxy
 
-def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="nom", exclVars=None,
-        getCol=lambda op : op, attCls=None, altBases=None): ## internal, leaf/group/collection
-    ## getVarName should return the variable and variation name (nomName for the nominal one)
+def _makeAltClassAndMaps(name, dict_orig, vari, getCol=lambda op : op, attCls=None, altBases=None): ## internal, leaf/group/collection
+    ## vari.getVarName should return the variable and variation name (nomName for the nominal one)
     ## if this is a systematic variation branch - otherwise None
     dict_alt = dict(dict_orig)
     ## collect ops of kinematic variables that change (nominal as well as varied)
     var_atts = defaultdict(dict)
     for nm, nmAtt in dict_orig.items():
-        test = getVarName(nm)
+        test = vari.getVarName(nm, collgrpname=name)
         if test is not None:
             attNm, varNm = test
             var_atts[attNm][normVarName(varNm)] = nmAtt.op
@@ -267,17 +217,247 @@ def _makeAltClassAndMaps(name, dict_orig, getVarName, systName=None, nomName="no
                 brMapMap[var] = {}
             brMapMap[var][attNm] = getCol(vop)
     ## nominal: with systematic variations (all are valid, but not all need to modify)
+    nomName = vari.origName if vari.isCalc else vari.nomName(name)
+    exclVars = list(normVarName(var) for var in vari.exclVars(name))
     allVars = list(k for k in brMapMap.keys() if k not in exclVars and k != nomName)
     brMapMap["nomWithSyst"] = dict((attNm,
         SystAltOp(
-            getCol(vAtts[nomName]), systName,
-            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars),
+            getCol(vAtts[nomName]), vari.systName,
+            dict((var, getCol(vop)) for var,vop in vAtts.items() if var not in exclVars and var != nomName),
             valid=tuple(var for var in allVars if var in vAtts),
             ))
         for attNm,vAtts in var_atts.items())
     return cls_alt, brMapMap
 
-def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
+## Helper classes
+class NanoSystematicVarSpec:
+    """ Interface for classes that specify how to incorporate systematics or on-the-fly corrections in the decorated tree
+
+    See :py:class:`~.NanoAODDescription` and :py:func:`~.decorateNanoAOD`
+    """
+    def __init__(self, systName, nomName=None, origName=None, exclVars=None, isCalc=False):
+        """ Base class constructor
+
+        :param systName: name of the systematic source, for automatic systematics (if applicable)
+        :param nomName: nominal variation name (for non-calculated variations; can be customised in subclasses by overriding the :py:meth:`~.nomName` method)
+        :param origName: original variation name (for calculated variations)
+        :param exclVars: variations that are found but should not be used in automatic systematics (can be customised through :py:meth:`~.nomName`)
+        :param isCalc: boolean indicating whether variations are calculated or read from alternative branches
+        """
+        self.systName = systName
+        self._nomName = nomName
+        self.origName = origName
+        self._exclVars = exclVars if exclVars is not None else tuple()
+        self.isCalc = isCalc
+    def appliesTo(self, name):
+        """ Return true if this systematic variation requires action for this variable, group, or collection """
+        return False
+    def getVarName(self, branchName, collgrpname=None):
+        """ Get the variable name and variation corresponding to an (unprefixed, in case of groups or collections) branch name """
+        pass
+    def nomName(self, name):
+        """ Nominal systematic variation name for a group/collection """
+        return self._nomName
+    def exclVars(self, name):
+        """ Systematic variations to exclude for a group/collection """
+        return self._exclVars
+
+class ReadVariableVarWithSuffix(NanoSystematicVarSpec):
+    """ Read variations of a single branch from branches with the same name with a suffix """
+    def __init__(self, commonName, sep="_", systName=None, nomName=None, exclVars=None):
+        super(ReadVariableVarWithSuffix, self).__init__(
+                (systName if systName is not None else commonName),
+                nomName=nomName, exclVars=exclVars, isCalc=False)
+        self.prefix = commonName
+        self.sep = sep
+    def appliesTo(self, name):
+        """ True if name starts with the prefix """
+        return name.startswith(self.prefix)
+    def getVarName(self, branchName, collgrpname=None):
+        """ Split into prefix and variation (if present, else nominal) """
+        variNm = normVarName(branchName[len(self.prefix):].lstrip(self.sep))
+        return self.prefix, variNm if variNm else self.nomName
+
+nanoPUWeightVar = ReadVariableVarWithSuffix("puWeight")
+
+class ReadJetMETVar(NanoSystematicVarSpec):
+    """
+    Read jet and MET kinematic variations from different branches for automatic systematic uncertainties
+
+    :param jetsName: jet collection prefix (e.g. ``"Jet"``)
+    :param metName: MET prefix (e.g. ``"MET"``)
+    :param systName: systematic group name (backend optimisation detail, ``"jet"`` now)
+    :param jetsNomName: name of the nominal jet variation (``"nom"`` by default)
+    :param jetsOrigName: name of the original jet variation (``"raw"`` by default)
+    :param metNomName: name of the nominal jet variation (``"nom"`` by default)
+    :param metOrigName: name of the original jet variation (``"raw"`` by default)
+    :param jetsExclVars: jet variations that are present but should be ignored (if not specified, only ``jetsOrigName`` is taken, so if specified this should usually be added explicitly)
+    :param metExclVars: MET variations that are present but should be ignored (if not specified, only ``metOrigName`` is taken, so if specified this should usually be added explicitly)
+    :param bTaggers: list of b-tagging algorithms, for scale factors stored in a branch
+    :param bTagWPs: list of b-tagging working points, for scale factors stored in a branch (``shape`` should be included here, if wanted)
+
+    .. note:: The implementation of automatic systematic variations treats
+       "xyzup" and "xyzdown" independently (since this is the most flexible).
+       If a source of systematic uncertainty should be excluded, both the "up"
+       and "down" variation should then be added to the list of variations to
+       exclude (``jetsExclVars`` or ``metExclVars``).
+    """
+    def __init__(self, jetsName, metName, systName="jet", jetsNomName="nom", jetsOrigName="raw", metNomName="jer", metOrigName="raw", jetsExclVars=None, metExclVars=None, bTaggers=None, bTagWPs=None):
+        super(ReadJetMETVar, self).__init__(
+                systName, nomName=jetsNomName, origName=jetsOrigName, isCalc=False,
+                exclVars=(jetsExclVars if jetsExclVars is not None else (jetsOrigName,)))
+        self.jetsName = jetsName
+        self.metName = metName
+        self.metOrigname = metOrigName
+        self.bTaggers = bTaggers if bTaggers is not None else []
+        self.bTagWPs = bTagWPs if bTagWPs is not None else []
+        self.metNomName = metNomName
+        self.metExclVars = (metExclVars if metExclVars is not None else (metOrigName,))
+    def appliesTo(self, name):
+        return name in (self.jetsName, self.metName)
+    def nomName(self, name):
+        if name == self.metName:
+            return self.metNomName
+        else:
+            return self._nomName
+    def exclVars(self, name):
+        if name == self.metName:
+            return self.metExclVars
+        else:
+            return self._exclVars
+    def getVarName(self, nm, collgrpname=None):
+        if nm.split("_")[0] in ("pt", "eta", "phi", "mass") and len(nm.split("_")) >= 2:
+            return (nm.split("_")[0], "_".join(nm.split("_")[1:]))
+        elif nm.startswith("btagSF"):
+            for tagger in self.bTaggers:
+                for wp in self.bTagWPs:
+                    sfName = f"btagSF_{tagger}_{wp}"
+                    if not nm.startswith(sfName):
+                        continue
+                    if nm == sfName:
+                        return nm, "nom"
+                    upOrDown = "up" if "up" in nm else "down"
+                    if wp != "shape": # b-tag SF systematics
+                        return sfName, f"{sfName}{upOrDown}"
+                    else:
+                        syst = nm.split(f"{sfName}_{upOrDown}_")[1]
+                        if "jes" not in syst: # b-tag shape systematics
+                            return sfName, f"{sfName}_{syst}{upOrDown}"
+                        else: # jes systematics
+                            if syst == "jes":
+                                syst = "jesTotal"
+                            else:
+                                return sfName, f"{syst}{upOrDown}"
+
+nanoReadJetMETVar = ReadJetMETVar("Jet", "MET", bTaggers=["csvv2", "deepcsv", "deepjet", "cmva"], bTagWPs=["L", "M", "T", "shape"])
+nanoReadJetMETVar_METFixEE2017 = ReadJetMETVar("Jet", "METFixEE2017", bTaggers=["csvv2", "deepcsv", "deepjet", "cmva"], bTagWPs=["L", "M", "T", "shape"])
+
+class CalcCollection(NanoSystematicVarSpec):
+    """ Base class for :py:class:`~.NanoSystematicVarSpec` with a calculator """
+    def __init__(self, collName, calcAttrs, systName=None, nomName="nominal", origName="raw", exclVars=None):
+        super(CalcCollection, self).__init__(
+                (systName if systName is not None else collName.lower()),
+                exclVars=(exclVars if exclVars is not None else (origName,)),
+                nomName=nomName, origName=origName, isCalc=True)
+        self.collName = collName
+        self.calcAttrs = calcAttrs
+    def appliesTo(self, name):
+        """ True if name equals the collection name """
+        return name == self.collName
+    def getVarName(self, nm, collgrpname=None):
+        """ Valid if name is a calculated attribute """
+        if nm in self.calcAttrs:
+            return nm, self.origName
+
+class CalcJetMETVar(NanoSystematicVarSpec):
+    """ :py:class:`~.NanoSystematicVarSpec` for on-the-fly Jet and MET correction and systematic variation calculation """
+    def __init__(self, jetsName, jetAttrs, metName, metAttrs, systName="jet", nomName="nominal", origName="raw", exclVars=None):
+        super(CalcJetMETVar, self).__init__(
+                systName, nomName=nomName, origName=origName, isCalc=True,
+                exclVars=(exclVars if exclVars is not None else (origName,)))
+        self.jetsName = jetsName
+        self.metName = metName
+        self.jetAttrs = jetAttrs
+        self.metAttrs = metAttrs
+    def appliesTo(self, name):
+        return name in (self.jetsName, self.metName)
+    def getVarName(self, nm, collgrpname=None):
+        if collgrpname == self.jetsName and nm in self.jetAttrs:
+            return nm, self.origName
+        if collgrpname == self.metName and nm in self.metAttrs:
+            return nm, self.origName
+
+nanoRochesterCalc = CalcCollection("Muon", ("pt",))
+nanoJetMETCalc = CalcJetMETVar("Jet", ("pt", "mass"), "MET", ("pt", "phi"))
+nanoJetMETCalc_METFixEE2017 = CalcJetMETVar("Jet", ("pt", "mass"), "METFixEE2017", ("pt", "phi"))
+
+class NanoAODDescription:
+    """ Description of the expected NanoAOD structure, and configuration for systematics and corrections
+
+    Essentially, a collection of three containers:
+       - :py:attr:`~.collections` a list of collections (by the name of the length leaf)
+       - :py:attr:`~.groups` a list of non-collection groups (by prefix, e.g. ``HLT_``)
+       - :py:attr:`~.systVariations` a list of :py:class:`~.NanoSystematicVarSpec` instances, to configure reading systematics variations from branches, or calculating them on the fly
+
+    The recommended way to obtain a configuration is from the factory method :py:meth:`~.get`
+    """
+    ProductionVersions = dict()
+    def __init__(self, groups=None, collections=None, systVariations=None):
+        self.groups = list(groups) if groups is not None else []
+        self.collections = list(collections) if collections is not None else []
+        self.systVariations = list(systVariations) if systVariations is not None else []
+    def clone(self, addGroups=None, removeGroups=None, addCollections=None, removeCollections=None, systVariations=None):
+        groups = self.groups
+        if removeGroups:
+            groups = [ grp for grp in groups if grp not in removeGroups ]
+        if addGroups:
+            groups = groups + [ grp for grp in addGroups if grp not in groups ]
+        collections = self.collections
+        if removeCollections:
+            collections = [ grp for grp in collections if grp not in removeCollections ]
+        if addCollections:
+            collections = collections + [ grp for grp in addCollections if grp not in collections ]
+        return self.__class__(groups=groups, collections=collections, systVariations=systVariations)
+    @staticmethod
+    def get(tag, year="2016", isMC=False, addGroups=None, removeGroups=None, addCollections=None, removeCollections=None, systVariations=None):
+        """ Create a suitable NanoAODDescription instance based on a production version
+
+        A production version is defined by a tag, data-taking year, and a flag
+        to distinguish data from simulation.
+        Any number of groups or collections can be added or removed from this.
+        The ``systVariations`` option
+
+        :Example:
+
+        >>> decorateNanoAOD(tree, NanoAODDescription.get("v5", year="2016", isMC=True, systVariations=[nanoRochesterCalc, nanoJetMETCalc]))
+        >>> decorateNanoAOD(tree, NanoAODDescription.get("v5", year="2017", isMC=True, systVariations=[nanoPUWeightVar, nanoReadJetMETVar_METFixEE2017]))
+
+        :param tag: production version (e.g. "v5")
+        :param year: data-taking year
+        :param isMC: simulation or not
+        :param addGroups: (optional) list of groups of leaves to add (e.g. ``["L1_", "HLT_"]``, if not present)
+        :param removeGroups: (optional) list of groups of leaves to remove (e.g. ``["L1_"]``, if skimmed)
+        :param addCollections: (optional) list of containers to add (e.g. ``["nMyJets"]``)
+        :param removeCollections: (optional) list of containers to remove (e.g. ``["nPhoton", "nTau"]``)
+        :param systVariations: list of correction or systematic variation on-the-fly calculators or configurations to add (:py:class:`~.NanoSystematicVarSpec` instances)
+
+        See also :py:func:`~.decorateNanoAOD`
+        """
+        return NanoAODDescription.ProductionVersions[(tag, year, isMC)].clone(addGroups=addGroups, removeGroups=removeGroups, addCollections=addCollections, removeCollections=removeCollections, systVariations=systVariations)
+
+_ndpv = NanoAODDescription.ProductionVersions
+_ndpv[("v5", "2016", False)] = NanoAODDescription(
+        groups=["CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_"],
+        collections=["nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet"])
+_ndpv[("v5", "2016", True )] = _ndpv[("v5", "2016", False)].clone(
+        addGroups=["GenMET_", "Generator_", "LHE_", "HTXS_"],
+        addCollections=["nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8"])
+_ndpv[("v5", "2017", False)] = _ndpv[("v5", "2016", False)].clone(addGroups=["METFixEE2017_"])
+_ndpv[("v5", "2017", True )] = _ndpv[("v5", "2016", True )].clone(addGroups=["METFixEE2017_"])
+_ndpv[("v5", "2018", False)] = _ndpv[("v5", "2016", False)]
+_ndpv[("v5", "2018", True )] = _ndpv[("v5", "2016", True )]
+
+def decorateNanoAOD(aTree, description=None):
     """ Decorate a CMS NanoAOD Events tree
 
     Variation branches following the NanoAODTools conventions (e.g. Jet_pt_nom)
@@ -285,12 +465,10 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
     precendence, if requested).
 
     :param aTree: TTree to decorate
-    :param description: reserved for future version/flavour-dependence
-    :param isMC: simulation or not
-    :param addCalculators: list of length-branch names for whose collections proxies for a variations calculators should be added
+    :param description: description of the tree format, and configuration for reading or calculating systematic variations and corrections, a :py:class:`~.NanoAODDescription` instance (see also :py:meth:`.NanoAODDescription.get`)
     """
     if description is None:
-        description = dict()
+        raise ValueError('A description is needed to correctly decorate a NanoAOD (but it may be as simple as ``description=NanoAODDescription.get("v5")``)')
 
     class GetItemRefCollection:
         def __init__(self, name):
@@ -314,47 +492,43 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
 
     allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
     tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
-    ## NOTE first attempt: fill all, take some out later
     tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm) if not lv.GetLeafCount()
         else GetArrayColumn(lv.GetTypeName(), lvNm, GetColumn(allTreeLeafs[lv.GetLeafCount().GetName()].GetTypeName(), lv.GetLeafCount().GetName()))
         )) for lvNm,lv in allTreeLeafs.items()))
-    tree_postconstr = []
-    addSetParentToPostConstr = partial(lambda act,obj : act.append(SetAsParent(obj)), tree_postconstr)
+    tree_children = list()
+    def setTreeAtt(name, proxy, setParent=True):
+        tree_dict[name] = proxy
+        if setParent:
+            tree_children.append(proxy)
 
-    ## weights with variations
-    if "puWeightUp" in allTreeLeafs:
-        brMap = {}
+    ## variables with variations
+    for vari in description.systVariations:
         toRem = []
+        brMap = {}
+        attNm = None
         for nm,nmAtt in tree_dict.items():
-            test = getPUWeightVarName_postproc(nm)
-            if test is not None:
-                attNm,varNm = test
-                brMap[normVarName(varNm)] = nmAtt.op
+            if vari.appliesTo(nm): ## only for single-variable variations
+                attNm,varNm = vari.getVarName(nm)
+                brMap[varNm] = nmAtt.op
                 toRem.append(nm)
-        for nm in toRem:
-            del tree_dict[nm]
-        brMap["nomWithSyst"] = SystAltOp(brMap["nom"], "puWeight",
-            dict(brMap), valid=tuple(var for var in brMap.keys() if var != "nom")
-            )
-        varsProxy = AltLeafVariations(None, brMap, typeName=brMap["nom"].typeName)
-        addSetParentToPostConstr(varsProxy)
-        tree_dict["_puWeight"] = varsProxy
-        nomSystProxy = varsProxy["nomWithSyst"]
-        tree_dict["puWeight"] = nomSystProxy
+        if brMap and ( len(brMap) > 1 or vari.isCalc ):
+            for nm in toRem:
+                del tree_dict[nm]
+            logger.debug(f"Detected systematic variations for variable {attNm} (variations: {list(brMap.keys())!r}")
+            brMap["nomWithSyst"] = SystAltOp(brMap[vari.nomName], vari.systName,
+                dict(brMap), valid=tuple(var for var in brMap.keys() if var != vari.nomName)
+                )
+            varsProxy = AltLeafVariations(None, brMap, typeName=brMap[vari.nomName].typeName)
+            setTreeAtt(f"_{attNm}", varsProxy)
+            setTreeAtt(attNm, varsProxy["nomWithSyst"], False)
+
     ## non-collection branches to group
-    simpleGroupPrefixes = ("CaloMET_", "ChsMET_", "MET_", "PV_", "PuppiMET_", "RawMET_", "TkMET_", "Flag_", "HLT_", "L1_") ## TODO get this from description?
-    simpleGroupPrefixes_opt = ("METFixEE2017_",)
-    simpleGroupPrefixes_Gen = ("GenMET_", "Generator_", "LHE_", "HTXS_")
-    ## check which are there, and for which we need to read variations
     grp_found = []
-    grp_readVar = []
-    for prefix in (chain(simpleGroupPrefixes, simpleGroupPrefixes_opt, simpleGroupPrefixes_Gen) if isMC else chain(simpleGroupPrefixes, simpleGroupPrefixes_opt)):
-        if prefix not in simpleGroupPrefixes_opt and not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
+    for prefix in description.groups:
+        if not any(lvNm.startswith(prefix) for lvNm in allTreeLeafs):
             logger.warning("No branch name starting with {0} in the tree - skipping group".format(prefix))
         else:
             grp_found.append(prefix)
-            if prefix.startswith("MET") and "{0}_pt_nom".format(prefix.rstrip("_")) in allTreeLeafs:
-                grp_readVar.append(prefix)
     for prefix in grp_found:
         grpNm = prefix.rstrip("_")
         grp_dict = {
@@ -367,55 +541,32 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
         grpcls = type("{0}LeafGroupProxy".format(grpNm), (LeafGroupProxy,), grp_dict)
         for lvNm in grp_lvNms:
             del tree_dict[lvNm]
+        ## default group proxy, replaced below if needed
         grp_proxy = grpcls(grpNm, None)
-        addSetParentToPostConstr(grp_proxy)
-        if prefix.startswith("MET") and addCalculators and prefix.rstrip("_") in addCalculators:
-            grpcls_alt, brMapMap = _makeAltClassAndMaps(
-                    grpNm, grp_dict, getMETVarName_calc,
-                    systName="jet", nomName="raw", exclVars=("raw",),
-                    attCls=altProxy, altBases=(AltLeafGroupProxy,)
-                    )
-            grpNm = "_{0}".format(grpNm)
-            varsProxy  = CalcLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt, withSystName="nomWithSyst")
-            addSetParentToPostConstr(varsProxy)
-            tree_dict[grpNm] = varsProxy
-            nomSystProxy = varsProxy["nomWithSyst"]
-            addSetParentToPostConstr(nomSystProxy)
-            tree_dict[grpNm[1:]] = nomSystProxy
-        elif prefix in grp_readVar:
-            if prefix.startswith("MET"):
-                grpcls_alt, brMapMap = _makeAltClassAndMaps(
-                        grpNm, grp_dict, getJetMETVarName_postproc,
-                        systName="jet", nomName="nom", exclVars=("raw",),
-                        attCls=altProxy, altBases=(AltLeafGroupProxy,)
-                        )
-            grpNm = "_{0}".format(grpNm)
-            varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
-            addSetParentToPostConstr(varsProxy)
-            tree_dict[grpNm] = varsProxy
-            nomSystProxy = varsProxy["nomWithSyst"]
-            addSetParentToPostConstr(nomSystProxy)
-            tree_dict[grpNm[1:]] = nomSystProxy
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
-        else:
-            tree_dict[grpNm] = grp_proxy
+        setTreeAtt(grpNm, grp_proxy)
+        for vari in description.systVariations:
+            if vari.appliesTo(grpNm):
+                grpcls_alt, brMapMap = _makeAltClassAndMaps(grpNm, grp_dict, vari,
+                        attCls=altProxy, altBases=(AltLeafGroupProxy,))
+                withSyst = "nomWithSyst"
+                if vari.isCalc:
+                    varsProxy = CalcLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt, withSystName=withSyst)
+                else:
+                    varsProxy  = AltLeafGroupVariations(None, grp_proxy, brMapMap, grpcls_alt)
+                    allVars = list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))
+                    if allVars:
+                        logger.debug(f"{grpNm} variations read from branches: {allVars}")
+                setTreeAtt(f"_{grpNm}", varsProxy)
+                setTreeAtt(grpNm, varsProxy[withSyst])
+
 
     ## SOA, nanoAOD style (LeafCount, shared)
-    containerGroupCounts = ("nElectron", "nFatJet", "nIsoTrack", "nJet", "nMuon", "nOtherPV", "nPhoton", "nSV", "nSoftActivityJet", "nSubJet", "nTau", "nTrigObj", "nCorrT1METJet")
-    containerGroupCounts_Gen = ("nGenDressedLepton", "nGenJet", "nGenJetAK8", "nGenPart", "nGenVisTau", "nSubGenJetAK8")
-    ## check which are there, and for which we need to read variations
     cnt_found = []
-    cnt_readVar = []
-    for sizeNm in (chain(containerGroupCounts, containerGroupCounts_Gen) if isMC else containerGroupCounts):
+    for sizeNm in description.collections:
         if sizeNm not in allTreeLeafs:
             logger.warning("{0} is not a branch in the tree - skipping collection".format(sizeNm))
         else:
             cnt_found.append(sizeNm)
-            if not ( addCalculators and sizeNm in addCalculators ):
-                if sizeNm == "nJet" and "Jet_pt_nom" in allTreeLeafs:
-                    cnt_readVar.append(sizeNm)
-                if sizeNm == "nMuon" and "Muon_corrected_pt" in allTreeLeafs:
-                    cnt_readVar.append(sizeNm)
 
     for sizeNm in cnt_found:
         grpNm = sizeNm[1:]
@@ -434,67 +585,40 @@ def decorateNanoAOD(aTree, description=None, isMC=False, addCalculators=None):
                 coll,i = lvNm_short.split("Idx")
                 collPrefix = coll[0].capitalize()+coll[1:]
                 collGetter = (
-                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if collPrefix in cnt_readVar or ( addCalculators and collPrefix in addCalculators ) else
+                        GetItemRefCollection_toVar("_{0}".format(collPrefix)) if any(vari.appliesTo(collPrefix) for vari in description.systVariations) else
                         GetItemRefCollection(collPrefix))
-                addSetParentToPostConstr(collGetter)
+                tree_children.append(collGetter)
                 itm_dict["".join((coll,i))] = itemRefProxy(col, collGetter)
         ## create p4 branches (naive, but will be reused for variation case)
         if f"{prefix}pt" in itm_lvs and f"{prefix}phi" in itm_lvs:
             itm_dict["p4"] = addP4ToObj(prefix, itm_lvs)
         itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
+        ## default collection proxy, replaced below if needed
+        coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+        setTreeAtt(grpNm, coll_orig)
         ## insert variations using kinematic calculator, from branches, or not
-        if addCalculators and sizeNm in addCalculators:
-            coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
-            addSetParentToPostConstr(coll_orig)
-            if sizeNm == "nJet":
-                altItemType, brMapMap = _makeAltClassAndMaps(
-                        grpNm, itm_dict, getJetEnergyVarName_calc,
-                        systName="jet", nomName="raw", exclVars=("raw",),
-                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
-                        )
-            elif sizeNm == "nMuon":
-                altItemType, brMapMap = _makeAltClassAndMaps(
-                        grpNm, itm_dict, getMuonMomentumVarName_calc,
-                        systName="muon", nomName="raw", exclVars=("raw",),
-                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
-                        )
-            else:
-                raise RuntimeError("Adding a calculator for collection {0} is not supported (yet)".format(sizeNm))
-            grpNm = "_{0}".format(grpNm) ## add variations as '_Muon'/'_Jet', nominal as 'Muon', 'Jet'
-            varsProxy = CalcCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType, withSystName="nomWithSyst")
-            tree_dict[grpNm] = varsProxy
-            nomSystProxy = varsProxy["nomWithSyst"]
-            addSetParentToPostConstr(nomSystProxy)
-            tree_dict[grpNm[1:]] = nomSystProxy
-        elif sizeNm in cnt_readVar:
-            coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
-            addSetParentToPostConstr(coll_orig)
-            if sizeNm == "nJet":
-                altItemType, brMapMap = _makeAltClassAndMaps(
-                        grpNm, itm_dict, getJetMETVarName_postproc,
-                        systName="jet", nomName="nom", exclVars=("raw",),
-                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,)
-                        )
-
-            ## add _Jet which holds the variations (not syst-aware), and Jet which is the nominal, with systematics variations (defined just bove)
-            grpNm = "_{0}".format(grpNm)
-            tree_dict[grpNm] = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
-            nomSystProxy = tree_dict[grpNm]["nomWithSyst"]
-            addSetParentToPostConstr(nomSystProxy)
-            tree_dict[grpNm[1:]] = nomSystProxy
-            logger.debug("{0} variations read from branches: {1}".format(grpNm, list(set(chain.from_iterable(op.variations for op in nomSystProxy.brMap.values())))))
-        else:
-            tree_dict[grpNm] = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+        for vari in description.systVariations:
+            if vari.appliesTo(grpNm):
+                altItemType, brMapMap = _makeAltClassAndMaps(grpNm, itm_dict, vari,
+                        getCol=(lambda att : att.op), attCls=altItemProxy, altBases=(ContainerGroupItemProxy,))
+                withSyst = "nomWithSyst"
+                if vari.isCalc:
+                    varsProxy = CalcCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType, withSystName=withSyst)
+                else:
+                    varsProxy = AltCollectionVariations(None, coll_orig, brMapMap, altItemType=altItemType)
+                    allVars = list(set(chain.from_iterable(op.variations for op in varsProxy[withSyst].brMap.values())))
+                    if allVars:
+                        logger.debug(f"{grpNm} variations read from branches: {allVars}")
+                setTreeAtt(f"_{grpNm}", varsProxy)
+                setTreeAtt(grpNm, varsProxy[withSyst])
 
         for lvNm in itm_lvs:
             del tree_dict[lvNm]
         del tree_dict[sizeNm] ## go through op.rng_len
-        tree_postconstr.append(SetAsParentOfAtt(grpNm))
 
     TreeProxy = type("{0}Proxy".format(aTree.GetName()), (TreeBaseProxy,), tree_dict)
     treeProxy = TreeProxy(aTree)
-
-    for pc in tree_postconstr:
-        pc(treeProxy)
+    for pc in tree_children:
+        pc._parent = treeProxy
 
     return treeProxy

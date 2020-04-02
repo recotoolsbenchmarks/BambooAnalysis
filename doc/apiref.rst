@@ -19,6 +19,13 @@ Analysis modules
    :members:
    :special-members: __init__
 
+Tree decoratorator customisation
+--------------------------------
+
+.. automodule:: bamboo.treedecorators
+   :members:
+   :member-order: bysource
+
 Helper functions
 ----------------
 
@@ -32,12 +39,12 @@ Scale factors
    :members:
    :special-members: __init__
 
-
-.. |---| unicode:: U+2014
-   :trim:
-
 ROOT utilities
 ''''''''''''''
 
 .. automodule:: bamboo.root
    :members:
+
+
+.. |---| unicode:: U+2014
+   :trim:

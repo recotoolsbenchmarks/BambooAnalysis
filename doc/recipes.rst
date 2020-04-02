@@ -197,19 +197,29 @@ How to do this depends on the input trees: in production NanoAOD the modified
 momenta need to be calculated using the jet energy correction parameters; it is
 also possible to add them when post-processing with the
 `jetmetUncertainties module`_ of the NanoAODTools_ package.
-In the latter case the NanoAOD decoration method will detect the modified
-branches, and no additional configuration is needed.
+In the latter case the NanoAOD decoration method will pick up the modified
+branches if an appropriate
+:py:class:`~bamboo.treececorators.NanoSystematicVarSpec` entry (e.g.
+:py:data:`~bamboo.treedecorators.nanoReadJetMETVar` or
+:py:data:`~bamboo.treedecorators.nanoReadJetMETVar_METFixEE2017`) is added to
+the :py:attr:`~.systVariations` attribute of the
+:py:class:`~bamboo.treedecorators.NanoAODDescription` that is passed to the
+:py:meth:`~bamboo.analysismodules.NanoAODModule.prepareTree` (or
+:py:func:`~bamboo.treedecorators.decorateNanoAOD`) method.
 
 To calculate the variations on the fly, two things are needed: when decorating
 the tree, some redirections should be set up to pick up the variations from a
 calculator module, and then this module needs to be configured with the correct
 JEC and resolution parameters.
-The first step can be done by adding ``"nJet"`` (the name of the length branch
-of the stored jet collection) to the ``calcToAdd`` keyword argument of the
-:py:meth:`~bamboo.NanoAODModule.prepareTree` method (which will pass this to the
-:py:meth:`bamboo.treedecorators.decorateNanoAOD` method).
-Similarly, to have all these variations propagated to the missing transverse
-momentum, ``"MET"`` (or ``"METFixEE2017"``) should be added to the list.
+The first step can be done by adding
+:py:data:`~bamboo.treedecorators.nanoJetMETCalc` (or
+:py:data:`~bamboo.treedecorators.nanoJetMETCalc_METFixEE2017`) to the
+:py:attr:`~.systVariations` attribute of the
+:py:class:`~bamboo.treedecorators.NanoAODDescription` that is passed to the
+:py:meth:`~bamboo.analysismodules.NanoAODModule.prepareTree` method (which will
+pass this to the :py:func:`~bamboo.treedecorators.decorateNanoAOD` method);
+these will also make sure that all these variations are propagated to the
+missing transverse momentum.
 Next, a calculator must be added and configured.
 This can be done with the :py:meth:`bamboo.analysisutils.configureJets` and
 :py:meth:`bamboo.analysisutils.configureType1MET` methods, which provide a
@@ -225,7 +235,8 @@ uncertainties to 2016 MC, and the same for the MET:
 
    class MyAnalysisModule(NanoAODHistoModule):
        def prepareTree(self, tree, sample=None, sampleCfg=None):
-           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg, calcToAdd=["nJet"])
+           tree,noSel,be,lumiArgs = super(MyAnalysisModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg
+             , NanoAODDescription.get("v5", year="2016", isMC=self.isMC(sample), systVariations=[nanoJetMETCalc]))
            from bamboo.analysisutils import configureJets, configureType1MET
            isNotWorker = (self.args.distributed != "worker")
            era = sampleCfg["era"]
@@ -237,7 +248,7 @@ uncertainties to 2016 MC, and the same for the MET:
                        jesUncertaintySources=["Total"],
                        mayWriteCache=isNotWorker,
                        isMC=self.isMC(sample), backend=be, uName=sample)
-                   configureType1MET(tree._MET, "AK4PFchs",
+                   configureType1MET(tree._MET,
                        jec="Summer16_07Aug2017_V20_MC",
                        smear="Summer16_25nsV1_MC",
                        jesUncertaintySources=["Total"],
@@ -249,7 +260,7 @@ uncertainties to 2016 MC, and the same for the MET:
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker,
                            isMC=self.isMC(sample), backend=be, uName=sample)
-                       configureType1MET(tree._MET, "AK4PFchs",
+                       configureType1MET(tree._MET,
                            jec="Summer16_07Aug2017GH_V11_DATA",
                            mayWriteCache=isNotWorker,
                            isMC=self.isMC(sample), backend=be, uName=sample)
@@ -321,11 +332,13 @@ and simulation in the description of the Z boson peak.
 As for the jet correction and variations described in the previous section,
 this can either be done during postprocessing, with the
 `muonScaleResProducer module`_ of the NanoAODTools_ package, or on the fly.
-The former will be detected automatically when decorating the trees, the latter
-requires adding ``"nMuon"`` to the ``calcToAdd`` keyword argument passed to he
-:py:attr:`~bamboo.NanoAODModule.prepareTree` method, such that the decorations
-will pick up the momenta from a calculator module
-instead of directly from the input file.
+To adjust the decorators, a suitable
+:py:class:`~bamboo.treedecorators.NanoSystematicVarSpec` instance to read the
+corrected values, or :py:data:`~bamboo.treedecorators.nanoRochesterCalc` to use
+the calculated values, should be added to the :py:attr:`~.systVariations`
+attribute of the :py:class:`~bamboo.treedecorators.NanoAODDescription` that is
+passed to the :py:meth:`~bamboo.analysismodules.NanoAODModule.prepareTree` (or
+:py:func:`~bamboo.treedecorators.decorateNanoAOD`) method.
 
 The on the fly calculator should be added and configured with the
 :py:meth:`bamboo.analysisutils.configureRochesterCorrection` method,

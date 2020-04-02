@@ -354,7 +354,7 @@ Some of the ``rng_...`` methods are extremely powerful, e.g.
     *original* collection, also in case they are obtained from a subset
     (with :py:func:`~bamboo.treefunctions.select` or a slice), differently
     ordered version (with :py:func:`~bamboo.treefunctions.sort`), or systematic
-    variation (e.g. for :ref:`jets<recipejetsystematic>`) of the collection.
+    variation (e.g. for :ref:`jets<recipejetsystematics>`) of the collection.
     This can be especially useful to ensure that two objects are (not)
     identical, or when directly comparing systematic variations.
 

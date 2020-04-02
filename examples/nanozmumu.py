@@ -6,6 +6,29 @@ import os.path
 from bamboo.logging import getLogger
 logger = getLogger(__name__)
 
+import bamboo.plots
+class Plot(bamboo.plots.Plot):
+    def produceResults(self, bareResults, fbe):
+        if any("__qcdScale" in h.GetName() for h in bareResults):
+            hNom = next(h for h in bareResults if "__" not in h.GetName())
+            prefix = f"{hNom.GetName()}__qcdScale"
+            hVar_qcdScale = [ h for h in bareResults if h.GetName().startswith(prefix) ]
+            if not all(hv.GetNcells() == hNom.GetNcells() for hv in hVar_qcdScale):
+                logger.error("Variation histograms do not have the same binning as the nominal histogram")
+            elif len(hVar_qcdScale) < 2:
+                logger.error("At least two variations histograms must be provided")
+            else: ## make an envelope from maximum deviations
+                import numpy as np
+                vars_cont = np.array([ [ hv.GetBinContent(i) for i in range(hv.GetNcells()) ] for hv in hVar_qcdScale ])
+                hVar_up = hNom.Clone(f"{prefix}up")
+                hVar_down = hNom.Clone(f"{prefix}down")
+                from itertools import count
+                for i,vl,vh in zip(count(), np.amin(vars_cont, axis=0), np.amax(vars_cont, axis=0)):
+                    hVar_down.SetBinContent(i, vl)
+                    hVar_up.SetBinContent(i, vh)
+                return bareResults + [ hVar_up, hVar_down ]
+        return bareResults
+
 class NanoZMuMuBase(NanoAODModule):
     """ Base module for NanoAOD Z->MuMu example """
     def addArgs(self, parser):
@@ -65,6 +88,12 @@ class NanoZMuMuBase(NanoAODModule):
                     nameHint="bamboo_puWeight{0}".format("".join(c for c in sample if c.isalnum()))))
             else:
                 logger.warning("Running on MC without pileup reweighting")
+            from bamboo import treefunctions as op
+            mcWgts += [
+                op.systematic(op.c_float(1.), name="qcdScale", **{f"qcdScale{i:d}" : tree.LHEScaleWeight[i] for i in (0, 1, 3, 5, 7, 8)}),
+                op.systematic(op.c_float(1.), name="psISR", up=tree.PSWeight[2], down=tree.PSWeight[0]),
+                op.systematic(op.c_float(1.), name="psFSR", up=tree.PSWeight[3], down=tree.PSWeight[1]),
+                ]
             noSel = noSel.refine("mcWeight", weight=mcWgts)
         ## configure corrections and variations
         from bamboo.analysisutils import configureJets, configureType1MET, configureRochesterCorrection
@@ -86,7 +115,7 @@ class NanoZMuMuBase(NanoAODModule):
 class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
-        from bamboo.plots import Plot, SummedPlot, CutFlowReport, EquidistantBinning
+        from bamboo.plots import CutFlowReport, SummedPlot, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
 

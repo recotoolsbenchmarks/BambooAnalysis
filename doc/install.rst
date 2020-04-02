@@ -284,6 +284,19 @@ supplemented with the currently active `virtual environment`_ (a script to
 install it directly there is bundled with the bamboo_ source distribution, in
 ``ext/install_tensorflow-c.sh``).
 
+.. note:: Installing a newer version of a package in a virtualenv if it is
+   also available through the ``PYTHONPATH`` (e.g. in the LCG distribution)
+   generally does not work, since virtualenv uses ``PYTHONHOME``, which has
+   lower precedence.
+   For pure C(++) libraries it is possible to work around this, but for
+   e.g. libtorch_ (which has the C libraries inside the python packages
+   that is quite tricky.
+   Therefore it is recommended to either stick with the version provided by
+   the LCG distribution.
+   Fully isolated environments, e.g. with conda, may provide more flexibility
+   |---| contributions to support this are particularly welcome.
+
+
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
 .. _CP3SlurmUtils: https://cp3-git.irmp.ucl.ac.be/cp3-support/helpdesk/wikis/Slurm#the-cp3slurmutils-package

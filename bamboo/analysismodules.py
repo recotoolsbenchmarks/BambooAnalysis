@@ -442,6 +442,13 @@ class HistogramsModule(AnalysisModule):
         end = timer()
         maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
         logger.info(f"{len(self.plotList):d} plots defined in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
+        if hasattr(backend, "buildGraph"):
+            logger.info("Starting to build RDataFrame graph")
+            start = timer()
+            backend.buildGraph(self.plotList)
+            end = timer()
+            maxrssmb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024
+            logger.info(f"RDataFrame graph finished in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB")
         from .dataframebackend import _RDFNodeStats, _RDFHistoNDStats
         logger.info(f"Number of uses per node type: {_RDFNodeStats!s}")
         logger.info(f"HistoND calls per column type: {_RDFHistoNDStats!s}")
@@ -554,7 +561,7 @@ class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """
     def isMC(self, sampleName):
         return not any(sampleName.startswith(pd) for pd in ("BTagCSV", "BTagMu", "Charmonium", "DisplacedJet", "DoubleEG", "DoubleMuon", "DoubleMuonLowMass", "EGamma", "FSQJet1", "FSQJet2", "FSQJets", "HTMHT", "HeavyFlavour", "HighEGJet", "HighMultiplicity", "HighPtLowerPhotons", "IsolatedBunch", "JetHT", "MET", "MinimumBias", "MuOnia", "MuonEG", "NoBPTX", "SingleElectron", "SingleMuon", "SinglePhoton", "Tau", "ZeroBias"))
-    def prepareTree(self, tree, sample=None, sampleCfg=None, isMC=None, calcToAdd=[]):
+    def prepareTree(self, tree, sample=None, sampleCfg=None, isMC=None, calcToAdd=[], lazyBackend=False):
         """ Add NanoAOD decorations, and create an RDataFrame backend
 
         In addition to the arguments needed for the base class
@@ -567,9 +574,10 @@ class NanoAODModule(AnalysisModule):
         :param calcToAdd: list of names for the containers (length leaf, e.g. ``nJet``, ``nMuon``) or objects (e.g. ``MET``) for which calculators should be added
         """
         from bamboo.treedecorators import decorateNanoAOD
-        from bamboo.dataframebackend import DataframeBackend
+        from bamboo.dataframebackend import DataframeBackend, LazyDataframeBackend
+        backendCls = (LazyDataframeBackend if lazyBackend else DataframeBackend)
         t = decorateNanoAOD(tree, isMC=(isMC if isMC is not None else self.isMC(sample)), addCalculators=calcToAdd)
-        be, noSel = DataframeBackend.create(t)
+        be, noSel = backendCls.create(t)
         return t, noSel, be, (t.run, t.luminosityBlock)
     def mergeCounters(self, outF, infileNames, sample=None):
         """ Merge the ``Runs`` trees """

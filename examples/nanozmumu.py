@@ -1,21 +1,25 @@
 """
 Example analysis module: make a dimuon mass plot from a NanoAOD
 """
-from bamboo.analysismodules import NanoAODHistoModule, NanoAODSkimmerModule
+from bamboo.analysismodules import NanoAODModule, NanoAODHistoModule, NanoAODSkimmerModule
 import os.path
 from bamboo.logging import getLogger
 logger = getLogger(__name__)
 
-class NanoZMuMu(NanoAODHistoModule):
-    """ Example module: Z->MuMu histograms from NanoAOD """
+class NanoZMuMuBase(NanoAODModule):
+    """ Base module for NanoAOD Z->MuMu example """
+    def addArgs(self, parser):
+        super(NanoZMuMuBase, self).addArgs(parser)
+        parser.add_argument("--backend", type=str, default="dataframe", help="Backend to use, 'dataframe' (default) or 'lazy'")
     def prepareTree(self, tree, sample=None, sampleCfg=None):
         era = sampleCfg.get("era") if sampleCfg else None
         isMC = self.isMC(sample)
         metName = "METFixEE2017" if era == "2017" else "MET"
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         ## Decorate the tree
-        tree,noSel,be,lumiArgs = super(NanoAODHistoModule, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
-                calcToAdd=["nJet", metName, "nMuon"]) ## will do Jet and MET variations, and the Rochester correction
+        tree,noSel,be,lumiArgs = super(NanoZMuMuBase, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
+                calcToAdd=["nJet", metName, "nMuon"], ## will do Jet and MET variations, and the Rochester correction
+                lazyBackend=(self.args.backend == "lazy"))
         ## per-year/era options
         puWeightsFile = None
         jecTag, smearTag, jesUncertaintySources = None, None, None
@@ -79,8 +83,10 @@ class NanoZMuMu(NanoAODHistoModule):
 
         return tree,noSel,be,lumiArgs
 
+class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
+    """ Example module: Z->MuMu histograms from NanoAOD """
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
-        from bamboo.plots import Plot, SummedPlot, EquidistantBinning
+        from bamboo.plots import Plot, SummedPlot, CutFlowReport, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
 
@@ -117,11 +123,11 @@ class NanoZMuMu(NanoAODHistoModule):
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
 
+        plots.append(CutFlowReport("mumujj", twoMuTwoJetSel))
+
         return plots
 
-class SkimNanoZMuMu(NanoAODSkimmerModule):
-    def __init__(self, args):
-        super(SkimNanoZMuMu, self).__init__(args)
+class SkimNanoZMuMu(NanoZMuMuBase, NanoAODSkimmerModule):
     def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):
         from bamboo import treefunctions as op
         muons = op.select(tree.Muon, lambda mu : op.AND(mu.pt > 20., op.abs(mu.eta) < 2.4))

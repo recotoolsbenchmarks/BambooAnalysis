@@ -115,7 +115,7 @@ class NanoZMuMuBase(NanoAODModule):
 class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
     """ Example module: Z->MuMu histograms from NanoAOD """
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
-        from bamboo.plots import SummedPlot, EquidistantBinning
+        from bamboo.plots import CutFlowReport, SummedPlot, EquidistantBinning
         from bamboo import treefunctions as op
         from bamboo.analysisutils import forceDefine
 

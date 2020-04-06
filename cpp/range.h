@@ -158,4 +158,47 @@ private:
   IDX m_min;
   IDX m_max;
 };
+
+/*
+ * Ranges and iterators for GenParticle and HepMC trees
+ */
+namespace gen {
+
+template<typename PARENTIDXS,typename IDX>
+class ancestor_iterator
+  : public boost::iterator_facade<ancestor_iterator<PARENTIDXS,IDX>,
+      IDX, // value
+      boost::forward_traversal_tag,
+      IDX // ref
+    >
+{
+public:
+  ancestor_iterator(IDX idx, const PARENTIDXS& parentIdxs)
+    : m_idx(idx), m_parentIdxs(parentIdxs) {}
+
+  IDX dereference() const { return m_idx; }
+  bool equal( const ancestor_iterator& other ) const { return ( &m_parentIdxs == &other.m_parentIdxs ) && ( m_idx == other.m_idx ); }
+  void increment() { m_idx = m_parentIdxs[m_idx]; }
+private:
+  IDX m_idx;
+  const PARENTIDXS& m_parentIdxs;
+};
+template<typename PARENTIDXS,typename IDX>
+class ancestors
+{
+public:
+  using iterator = ancestor_iterator<PARENTIDXS,IDX>;
+  using const_iterator = ancestor_iterator<PARENTIDXS,IDX>;
+  using value_type = IDX;
+
+  ancestors(IDX self, const PARENTIDXS& parentIdxs)
+    : m_self(self), m_parentIdxs(parentIdxs) {}
+
+  iterator begin() const { return iterator(m_self, m_parentIdxs); }
+  iterator end  () const { return iterator(    -1, m_parentIdxs); }
+private:
+  IDX m_self;
+  const PARENTIDXS& m_parentIdxs;
+};
+};
 };

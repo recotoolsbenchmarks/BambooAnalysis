@@ -559,6 +559,13 @@ def decorateNanoAOD(aTree, description=None):
                 setTreeAtt(f"_{grpNm}", varsProxy)
                 setTreeAtt(grpNm, varsProxy[withSyst])
 
+    class NanoAODGenRanges:
+        @property
+        def _parentIdxBranch(self):
+            return self.genPartMother._idx.arg
+        @property
+        def ancestors(self):
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors", (self._idx, self._parentIdxBranch)), type(self))
 
     ## SOA, nanoAOD style (LeafCount, shared)
     cnt_found = []
@@ -592,7 +599,10 @@ def decorateNanoAOD(aTree, description=None):
         ## create p4 branches (naive, but will be reused for variation case)
         if f"{prefix}pt" in itm_lvs and f"{prefix}phi" in itm_lvs:
             itm_dict["p4"] = addP4ToObj(prefix, itm_lvs)
-        itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
+        itm_bases = [ContainerGroupItemProxy]
+        if sizeNm == "nGenPart":
+            itm_bases.append(NanoAODGenRanges)
+        itmcls = type("{0}GroupItemProxy".format(grpNm), tuple(itm_bases), itm_dict)
         ## default collection proxy, replaced below if needed
         coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
         setTreeAtt(grpNm, coll_orig)

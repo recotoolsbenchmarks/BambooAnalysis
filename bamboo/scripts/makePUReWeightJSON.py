@@ -96,92 +96,112 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Produce a BinnedValues-JSON file for pileup reweighting, using data pileup distributions obtained with `pileupCalc.py -i analysis-lumi-json.txt --inputLumiJSON pileup-json.txt --calcMode true --minBiasXsec MBXSECINNB --maxPileupBin NMAX --numPileupBins N outname.root` (see also https://twiki.cern.ch/twiki/bin/viewauth/CMS/PileupJSONFileforData#Pileup_JSON_Files_For_Run_II)")
     parser.add_argument("-o", "--output", default="puweights.json", type=str, help="Output file name")
-    parser.add_argument("--mcprofile", default="Moriond17_25ns", help="Pileup profile used to generate the MC sample (use --listmcprofiles to see the list of defined profiles)")
+    parser.add_argument("--mcprofile", help="Pileup profile used to generate the MC sample (use --listmcprofiles to see the list of defined profiles)")
     parser.add_argument("--listmcprofiles", action="store_true", help="list the available MC pileup profiles")
     parser.add_argument("--nominal", type=str, help="File with the data (true) pileup distribution histogram assuming the nominal minimum bias cross-section value")
     parser.add_argument("--up", type=str, help="File with the data (true) pileup distribution histogram assuming the nominal+1sigma minimum bias cross-section value")
     parser.add_argument("--down", type=str, help="File with the data (true) pileup distribution histogram assuming the nominal-1sigma minimum bias cross-section value")
     parser.add_argument("--rebin", type=int, help="Factor to rebin the data histograms by")
     parser.add_argument("--makePlot", action="store_true", help="Make a plot of the PU profiles and weights (requires matplotlib)")
+    parser.add_argument("mcfiles", nargs="*", help="MC ROOT files to extract a pileup profile from")
+    parser.add_argument("--mctreename", type=str, default="Events", help="Name of the tree to use in mcfiles")
+    parser.add_argument("--mcreweightvar", type=str, default="Pileup_nTrueInt", help="Name of the branch in the tree of the mcfiles to use for getting a histogram")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Print verbose output")
     args = parser.parse_args()
+    logging.basicConfig(level=(logging.DEBUG if args.verbose else logging.INFO))
     if args.listmcprofiles:
-        print("The known PU profiles are: {0}".format(", ".join(repr(k) for k in mcPUProfiles)))
-    else:
+        logger.info("The known PU profiles are: {0}".format(", ".join(repr(k) for k in mcPUProfiles)))
+        return
+    elif args.mcfiles:
+        if args.mcprofile:
+            logger.warning("MC PU profile and MC files are passed - extracting from the files")
+        logger.info("Extracting the MC profile from {0} in the {1} tree of: {2}".format(args.mcreweightvar, args.mctreename, ", ".join(args.mcfiles)))
+        from bamboo.root import gbl
+        tup = gbl.TChain(args.mctreename)
+        for mcfn in args.mcfiles:
+            tup.Add(mcfn)
+        hMCPU = gbl.TH1F("hMCPU", "MC PU profile", 100, 0., 100.)
+        tup.Draw(f"{args.mcreweightvar}>>hMCPU", "", "GOFF")
+        mcPUBins, mcPUVals = normAndExtract(hMCPU)
+    elif args.mcprofile:
         if args.mcprofile not in mcPUProfiles:
             raise ValueError("No MC PU profile with tag '{0}' is known".format(args.mcprofile))
-        if not args.nominal:
-            raise RuntimeError("No --nominal argument")
 
         mcPUBins, mcPUVals = mcPUProfiles[args.mcprofile]
         if len(mcPUBins) != len(mcPUVals)+1:
-            print(len(mcPUBins), len(mcPUVals))
+            logger.verbose(len(mcPUBins), len(mcPUVals))
+    else:
+        raise RuntimeError("Either one of --listmcprofiles or --mcprofile, or a list of MC files to extract a MC profile from, must be passed")
 
-        fNom, hNom = getHist(args.nominal)
+    if not args.nominal:
+        raise RuntimeError("No --nominal argument")
+
+    fNom, hNom = getHist(args.nominal)
+    if args.rebin:
+        hNom.Rebin(args.rebin)
+    nomBins, nomCont = normAndExtract(hNom)
+    ratioBins, nomRatio = getRatio(nomBins, nomCont, mcPUBins, mcPUVals)
+
+    upCont, upRatio, downCont, downRatio = None, None, None, None
+    if bool(args.up) != bool(args.down):
+        raise ValueError("If either one of --up and --down is specified, both should be")
+    if args.up and args.down:
+        fUp, hUp = getHist(args.up)
         if args.rebin:
-            hNom.Rebin(args.rebin)
-        nomBins, nomCont = normAndExtract(hNom)
-        ratioBins, nomRatio = getRatio(nomBins, nomCont, mcPUBins, mcPUVals)
+            hUp.Rebin(args.rebin)
+        upBins, upCont = normAndExtract(hUp)
+        #if not all(ub == nb for ub,nb in zip(upBins, nomBins)):
+        #    raise RuntimeError("Up-variation and nominal binning is different: {0} vs {1}".format(upBins, nomBins))
+        _, upRatio = getRatio(upBins, upCont, mcPUBins, mcPUVals)
+        fDown, hDown = getHist(args.down)
+        if args.rebin:
+            hDown.Rebin(args.rebin)
+        downBins, downCont = normAndExtract(hDown)
+        #if not all(db == nb for db,nb in zip(downBins, nomBins)):
+        #    raise RuntimeError("Up-variation and nominal binning is different: {0} vs {1}".format(upBins, nomBins))
+        _, downRatio = getRatio(downBins, downCont, mcPUBins, mcPUVals)
 
-        upCont, upRatio, downCont, downRatio = None, None, None, None
-        if bool(args.up) != bool(args.down):
-            raise ValueError("If either one of --up and --down is specified, both should be")
-        if args.up and args.down:
-            fUp, hUp = getHist(args.up)
-            if args.rebin:
-                hUp.Rebin(args.rebin)
-            upBins, upCont = normAndExtract(hUp)
-            #if not all(ub == nb for ub,nb in zip(upBins, nomBins)):
-            #    raise RuntimeError("Up-variation and nominal binning is different: {0} vs {1}".format(upBins, nomBins))
-            _, upRatio = getRatio(upBins, upCont, mcPUBins, mcPUVals)
-            fDown, hDown = getHist(args.down)
-            if args.rebin:
-                hDown.Rebin(args.rebin)
-            downBins, downCont = normAndExtract(hDown)
-            #if not all(db == nb for db,nb in zip(downBins, nomBins)):
-            #    raise RuntimeError("Up-variation and nominal binning is different: {0} vs {1}".format(upBins, nomBins))
-            _, downRatio = getRatio(downBins, downCont, mcPUBins, mcPUVals)
+    out = {
+          "dimension" : 1
+        , "variables" : ["NumTrueInteractions"]
+        , "binning" : {"x": list(ratioBins)}
+        , "error_type" : "absolute"
+        , "data" : [
+            { "bin" : [ratioBins[i], ratioBins[i+1]]
+            , "value" : nomRatio[i]
+            , "error_low"  : (nomRatio[i]-downRatio[i] if downRatio is not None else 0.)
+            , "error_high" : (upRatio[i]-nomRatio[i] if upRatio is not None else 0.)
+            } for i in range(nomRatio.shape[0])
+            ]
+        }
+    with open(args.output, "w") as outF:
+        json.dump(out, outF)
 
-        out = {
-              "dimension" : 1
-            , "variables" : ["NumTrueInteractions"]
-            , "binning" : {"x": list(ratioBins)}
-            , "error_type" : "absolute"
-            , "data" : [
-                { "bin" : [ratioBins[i], ratioBins[i+1]]
-                , "value" : nomRatio[i]
-                , "error_low"  : (nomRatio[i]-downRatio[i] if downRatio is not None else 0.)
-                , "error_high" : (upRatio[i]-nomRatio[i] if upRatio is not None else 0.)
-                } for i in range(nomRatio.shape[0])
-                ]
-            }
-        with open(args.output, "w") as outF:
-            json.dump(out, outF)
+    if args.makePlot:
+        try:
+            from matplotlib import pyplot as plt
+        except Exception as ex:
+            logger.error("matplotlib could not be imported, so no plot will be produced")
+            import sys; sys.exit(0)
 
-        if args.makePlot:
-            try:
-                from matplotlib import pyplot as plt
-            except Exception as ex:
-                logger.error("matplotlib could not be imported, so no plot will be produced")
-                import sys; sys.exit(0)
-
-            fig,(ax,rax) = plt.subplots(2,1,sharex=True)
-            rax.semilogy()
-            #rax = ax.twinx()
-            dBinCenters = .5*(mcPUBins[:-1]+mcPUBins[1:])
-            nBinCenters = .5*(nomBins[:-1]+nomBins[1:])
-            rBinCenters = .5*(ratioBins[:-1]+ratioBins[1:])
-            ax.hist(dBinCenters, bins=mcPUBins, weights=mcPUVals, histtype="step", label="MC")
-            ax.hist(nBinCenters, bins=nomBins, weights=nomCont, histtype="step", label="Nominal", color="k")
-            rax.hist(rBinCenters, bins=ratioBins, weights=nomRatio, histtype="step", color="k")
-            if upCont is not None:
-                ax.hist(nBinCenters, bins=nomBins, weights=upCont, histtype="step", label="Up", color="r")
-                ax.hist(nBinCenters, bins=nomBins, weights=downCont, histtype="step", label="Down", color="b")
-                rax.hist(rBinCenters, bins=ratioBins, weights=upRatio, histtype="step", color="r")
-                rax.hist(rBinCenters, bins=ratioBins, weights=downRatio, histtype="step", color="b")
-            rax.axhline(1.)
-            ax.legend()
-            rax.set_ylim(.1, 2.)
-            plt.show()
+        fig,(ax,rax) = plt.subplots(2,1,sharex=True)
+        rax.set_yscale("log", nonposy="clip")
+        #rax = ax.twinx()
+        dBinCenters = .5*(mcPUBins[:-1]+mcPUBins[1:])
+        nBinCenters = .5*(nomBins[:-1]+nomBins[1:])
+        rBinCenters = .5*(ratioBins[:-1]+ratioBins[1:])
+        ax.hist(dBinCenters, bins=mcPUBins, weights=mcPUVals, histtype="step", label="MC")
+        ax.hist(nBinCenters, bins=nomBins, weights=nomCont, histtype="step", label="Nominal", color="k")
+        rax.hist(rBinCenters, bins=ratioBins, weights=nomRatio, histtype="step", color="k")
+        if upCont is not None:
+            ax.hist(nBinCenters, bins=nomBins, weights=upCont, histtype="step", label="Up", color="r")
+            ax.hist(nBinCenters, bins=nomBins, weights=downCont, histtype="step", label="Down", color="b")
+            rax.hist(rBinCenters, bins=ratioBins, weights=upRatio, histtype="step", color="r")
+            rax.hist(rBinCenters, bins=ratioBins, weights=downRatio, histtype="step", color="b")
+        rax.axhline(1.)
+        ax.legend()
+        rax.set_ylim(.1, 2.)
+        plt.show()
 
 if __name__ == "__main__":
     main()

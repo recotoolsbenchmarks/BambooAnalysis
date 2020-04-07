@@ -565,7 +565,7 @@ def decorateNanoAOD(aTree, description=None):
             return self.genPartMother._idx.arg
         @property
         def ancestors(self):
-            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors", (self._idx, self._parentIdxBranch)), type(self))
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors", (self.genPartMother._idx, self._parentIdxBranch)), type(self))
 
     ## SOA, nanoAOD style (LeafCount, shared)
     cnt_found = []

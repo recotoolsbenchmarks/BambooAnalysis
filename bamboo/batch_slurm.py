@@ -20,7 +20,7 @@ except ImportError as ex:
 
 SlurmJobStatus = ["PENDING", "RUNNING", "COMPLETED", "FAILED", "COMPLETING", "CONFIGURING", "CANCELLED", "BOOT_FAIL", "NODE_FAIL", "PREEMPTED", "RESIZING", "SUSPENDED", "TIMEOUT", "unknown"]
 SlurmJobStatus_active = ["CONFIGURING", "COMPLETING", "PENDING", "RUNNING", "RESIZING", "SUSPENDED"]
-SlurmJobStatus_failed = ["FAILED", "TIMEOUT", "CANCELLED"]
+SlurmJobStatus_failed = ["FAILED", "TIMEOUT", "CANCELLED", "OUT_OF_MEMORY"]
 SlurmJobStatus_completed = "COMPLETED"
 
 class CommandListJob(CommandListJobBase):
@@ -152,7 +152,7 @@ class CommandListJob(CommandListJobBase):
             if subjobId in self._finishedTasks:
                 status = self._finishedTasks[subjobId]
             else:
-                sacctCmdArgs = ["sacct", "-X", "-n", "--format", "State", "-j", subjobId]
+                sacctCmdArgs = ["sacct", "-X", "-n", "--format", "State%20", "-j", subjobId]
                 ret = subprocess.check_output(sacctCmdArgs).decode().strip()
                 if "\n" in ret:
                     raise AssertionError("More than one line in sacct... there's something wrong")

@@ -85,7 +85,10 @@ def getRatio(numBins, numCont, denBins, denCont):
         if numBins[ni+1] > denBins[di+1]:
             di += 1
         assert ( denBins[di] <= numBins[ni] ) and ( numBins[ni+1] <= denBins[di+1] )
-        ratio[ni-inMn] = numCont[ni]/denCont[di]
+        if denCont[di] == 0.:
+            ratio[ni-inMn] = 1. ## not in denominator -> will not be used, so any value works
+        else:
+            ratio[ni-inMn] = numCont[ni]/denCont[di]
     bR = np.array(numBins[inMn:inMx+1])
     ## extend range of outside ratio bins until end of numerator ranges
     bR[0] = numBins[0]

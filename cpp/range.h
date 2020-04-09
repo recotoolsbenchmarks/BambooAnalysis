@@ -164,41 +164,116 @@ private:
  */
 namespace gen {
 
-template<typename PARENTIDXS,typename IDX>
+template<typename PARENTIDXS>
 class ancestor_iterator
-  : public boost::iterator_facade<ancestor_iterator<PARENTIDXS,IDX>,
-      IDX, // value
+  : public boost::iterator_facade<ancestor_iterator<PARENTIDXS>,
+      int, // value
       boost::forward_traversal_tag,
-      IDX // ref
+      int // ref
     >
 {
 public:
-  ancestor_iterator(IDX idx, const PARENTIDXS& parentIdxs)
+  ancestor_iterator(int idx, const PARENTIDXS& parentIdxs)
     : m_idx(idx), m_parentIdxs(parentIdxs) {}
 
-  IDX dereference() const { return m_idx; }
+  int dereference() const { return m_idx; }
   bool equal( const ancestor_iterator& other ) const { return ( &m_parentIdxs == &other.m_parentIdxs ) && ( m_idx == other.m_idx ); }
   void increment() { m_idx = m_parentIdxs[m_idx]; }
 private:
-  IDX m_idx;
+  int m_idx;
   const PARENTIDXS& m_parentIdxs;
 };
-template<typename PARENTIDXS,typename IDX>
+template<int invalid,typename PARENTIDXS>
 class ancestors
 {
 public:
-  using iterator = ancestor_iterator<PARENTIDXS,IDX>;
-  using const_iterator = ancestor_iterator<PARENTIDXS,IDX>;
-  using value_type = IDX;
+  using iterator = ancestor_iterator<PARENTIDXS>;
+  using const_iterator = ancestor_iterator<PARENTIDXS>;
+  using value_type = int;
 
-  ancestors(IDX self, const PARENTIDXS& parentIdxs)
+  ancestors(int self, const PARENTIDXS& parentIdxs)
     : m_self(self), m_parentIdxs(parentIdxs) {}
 
-  iterator begin() const { return iterator(m_self, m_parentIdxs); }
-  iterator end  () const { return iterator(    -1, m_parentIdxs); }
+  iterator begin() const { return iterator(m_self , m_parentIdxs); }
+  iterator end  () const { return iterator(invalid, m_parentIdxs); }
 private:
-  IDX m_self;
+  int m_self;
   const PARENTIDXS& m_parentIdxs;
 };
+
+template<int invalid,int end_offset,typename CHILDIDXS>
+class descendant_iterator
+  : public boost::iterator_facade<descendant_iterator<invalid,end_offset,CHILDIDXS>,
+      int, // value
+      boost::forward_traversal_tag,
+      int // ref
+    >
+{
+public:
+  descendant_iterator(int self, const CHILDIDXS& childIdxs_begin, const CHILDIDXS& childIdxs_end)
+    : m_idx(invalid), m_end(invalid), m_childIdxs_begin(childIdxs_begin), m_childIdxs_end(childIdxs_end) {
+    if ( self != invalid ) {
+      m_idx = m_childIdxs_begin[self];
+      m_end = getEndChild(self);
+    }
+  }
+
+  int dereference() const { return m_idx; }
+  bool equal( const descendant_iterator& other ) const { return ( &m_childIdxs_begin == &other.m_childIdxs_begin ) && ( &m_childIdxs_end == &other.m_childIdxs_end ) && ( m_idx == other.m_idx ); }
+  void increment() {
+    // find descendants
+    const auto c_begin = m_childIdxs_begin[m_idx];
+    const auto c_end   = getEndChild(m_idx);
+    if ( c_begin != c_end ) {
+      if ( (m_idx+1) != m_end )
+        m_stack_remain.emplace_back(m_idx+1, m_end);
+      m_idx = c_begin;
+      m_end = c_end;
+    } else { // move to next sibling
+      ++m_idx;
+      if ( m_idx == m_end ) { // last -> move up
+        if ( ! m_stack_remain.empty() ) {
+          const auto nxt = m_stack_remain.back();
+          m_idx = nxt.first;
+          m_end = nxt.second;
+          m_stack_remain.pop_back();
+        } else { // end
+          m_idx = invalid;
+          m_end = invalid;
+        }
+      }
+    }
+  }
+private:
+  int m_idx, m_end; // current and end index (one past the last sibling)
+  std::vector<std::pair<int,int>> m_stack_remain; // stack with remaining begin-end sibling ranges
+  const CHILDIDXS& m_childIdxs_begin;
+  const CHILDIDXS& m_childIdxs_end;
+
+  int getEndChild(int parent) const {
+    const auto end = m_childIdxs_end[parent];
+    return end + ( ( end_offset && ( end != invalid ) ) ? end_offset : 0 );
+  }
+};
+template<int invalid,int end_offset,typename CHILDIDXS>
+class descendants_impl
+{
+public:
+  using iterator = descendant_iterator<invalid,end_offset,CHILDIDXS>;
+  using const_iterator = descendant_iterator<invalid,end_offset,CHILDIDXS>;
+  using value_type = int;
+
+  descendants_impl(int self, const CHILDIDXS& childIdxs_begin, const CHILDIDXS& childIdxs_end)
+    : m_self(self), m_childIdxs_begin(childIdxs_begin), m_childIdxs_end(childIdxs_end) {}
+
+  iterator begin() const { return iterator(m_self , m_childIdxs_begin, m_childIdxs_end); }
+  iterator end  () const { return iterator(invalid, m_childIdxs_begin, m_childIdxs_end); }
+private:
+  int m_self;
+  const CHILDIDXS& m_childIdxs_begin;
+  const CHILDIDXS& m_childIdxs_end  ;
+};
+template<int invalid,typename CHILDIDXS> using descendants_firstlast = descendants_impl<invalid,1,CHILDIDXS>;
+template<int invalid,typename CHILDIDXS> using descendants = descendants_impl<invalid,0,CHILDIDXS>;
 };
 };

@@ -561,11 +561,11 @@ def decorateNanoAOD(aTree, description=None):
 
     class NanoAODGenRanges:
         @property
-        def _parentIdxBranch(self):
-            return self.genPartMother._idx.arg
+        def parent(self):
+            return self.genPartMother
         @property
         def ancestors(self):
-            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors", (self.genPartMother._idx, self._parentIdxBranch)), type(self))
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors<-1>", (op.static_cast("int", self.genPartMother._idx), self.genPartMother._idx.arg)), type(self))
 
     ## SOA, nanoAOD style (LeafCount, shared)
     cnt_found = []

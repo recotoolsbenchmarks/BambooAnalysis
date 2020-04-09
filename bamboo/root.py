@@ -11,6 +11,7 @@ _rootVersion = subprocess.check_output(["root-config", "--version"]).decode().st
 _rootVersion_split = tuple((int(iv) for tk in _rootVersion.split("/") for iv in tk.split(".")))
 if _rootVersion_split[0] == 6 and _rootVersion_split[1] == 18:
     import ROOT as gbl
+    gbl.PyConfig.IgnoreCommandLineOptions = True
 else:
     from cppyy import gbl
 

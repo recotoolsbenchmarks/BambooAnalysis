@@ -559,6 +559,13 @@ def decorateNanoAOD(aTree, description=None):
                 setTreeAtt(f"_{grpNm}", varsProxy)
                 setTreeAtt(grpNm, varsProxy[withSyst])
 
+    class NanoAODGenRanges:
+        @property
+        def parent(self):
+            return self.genPartMother
+        @property
+        def ancestors(self):
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors<-1,ROOT::VecOps::RVec<Int_t>>", (op.static_cast("int", self.genPartMother._idx), self.genPartMother._idx.arg)), type(self))
 
     ## SOA, nanoAOD style (LeafCount, shared)
     cnt_found = []
@@ -592,7 +599,10 @@ def decorateNanoAOD(aTree, description=None):
         ## create p4 branches (naive, but will be reused for variation case)
         if f"{prefix}pt" in itm_lvs and f"{prefix}phi" in itm_lvs:
             itm_dict["p4"] = addP4ToObj(prefix, itm_lvs)
-        itmcls = type("{0}GroupItemProxy".format(grpNm), (ContainerGroupItemProxy,), itm_dict)
+        itm_bases = [ContainerGroupItemProxy]
+        if sizeNm == "nGenPart":
+            itm_bases.append(NanoAODGenRanges)
+        itmcls = type("{0}GroupItemProxy".format(grpNm), tuple(itm_bases), itm_dict)
         ## default collection proxy, replaced below if needed
         coll_orig = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
         setTreeAtt(grpNm, coll_orig)
@@ -618,6 +628,69 @@ def decorateNanoAOD(aTree, description=None):
 
     TreeProxy = type("{0}Proxy".format(aTree.GetName()), (TreeBaseProxy,), tree_dict)
     treeProxy = TreeProxy(aTree)
+    for pc in tree_children:
+        pc._parent = treeProxy
+
+    return treeProxy
+
+def decorateCMSPhase2SimTree(aTree, isMC=True):
+    """ Decorate a flat tree as used for CMS Phase2 physics studies """
+
+    class Phase2GenRanges:
+        @property
+        def parent(self):
+            return self._parent[self.m1]
+        @property
+        def ancestors(self):
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::ancestors<-99>", (op.static_cast("int", self.parent._idx), self.parent._idx.arg)), type(self))
+        @property
+        def children(self):
+            return self._parent[self.d1:op.switch(self.d2 > 0, self.d2+1, self.d1)]
+        @property
+        def descendants(self):
+            return SelectionProxy(self._parent, Construct("rdfhelpers::gen::descendants_firstlast<-99,ROOT::VecOps::RVec<Int_t>>", (op.static_cast("int", self._idx), self.d1._parent.arg, self.d2._parent.arg)), type(self))
+
+    known_one = ("event",)
+    allTreeLeafs = dict((lv.GetName(), lv) for lv in allLeafs(aTree))
+    tree_dict = {"__doc__" : "{0} tree proxy class".format(aTree.GetName())}
+    ## fill all, take some out later
+    tree_dict.update(dict((lvNm, proxy(GetColumn(lv.GetTypeName(), lvNm))) for lvNm,lv in allTreeLeafs.items()))
+    tree_children = []
+    cnt_lvs = set(lv.GetLeafCount().GetName() for lv in allTreeLeafs.values() if lv.GetLeafCount())
+    for sizeNm in cnt_lvs:
+        grpNm = sizeNm.split("_")[0]
+        prefix = "{0}_".format(grpNm)
+        itm_dict = {
+            "__doc__" : "{0} proxy class".format(grpNm)
+            }
+        itm_lvs = set(lvNm for lvNm,lv in allTreeLeafs.items() if lvNm.startswith(prefix) and lvNm != sizeNm and lv.GetLeafCount().GetName() == sizeNm)
+        sizeOp = GetColumn(allTreeLeafs[sizeNm].GetTypeName(), sizeNm)
+        if allTreeLeafs[sizeNm].GetTypeName() != SizeType:
+            sizeOp = adaptArg(op.static_cast(SizeType, sizeOp))
+        for lvNm in itm_lvs:
+            lvNm_short = lvNm[len(prefix):]
+            col = GetArrayColumn(allTreeLeafs[lvNm].GetTypeName(), lvNm, sizeOp).result
+            itm_dict[lvNm_short] = itemProxy(col)
+        ## create p4 branches
+        p4AttNames = ("pt", "eta", "phi", "mass")
+        if all(("".join((prefix, att)) in itm_lvs) for att in p4AttNames):
+            itm_dict["p4"] = funProxy(lambda inst : Construct("ROOT::Math::LorentzVector<ROOT::Math::PtEtaPhiM4D<float> >", (inst.pt, inst.eta, inst.phi, inst.mass)).result)
+            ## mother/daughter references
+        itm_bases = [ContainerGroupItemProxy]
+        if grpNm == "genpart":
+            itm_bases.append(Phase2GenRanges)
+        itmcls = type("{0}GroupItemProxy".format(grpNm.capitalize()), tuple(itm_bases), itm_dict)
+        coll = ContainerGroupProxy(prefix, None, sizeOp, itmcls)
+        tree_dict[grpNm] = coll
+        tree_children.append(coll)
+
+        for lvNm in itm_lvs:
+            del tree_dict[lvNm]
+        del tree_dict[sizeNm] ## go through op.rng_len
+
+    TreeProxy = type("{0}Proxy".format(aTree.GetName().capitalize()), (TreeBaseProxy,), tree_dict)
+    treeProxy = TreeProxy(aTree)
+
     for pc in tree_children:
         pc._parent = treeProxy
 

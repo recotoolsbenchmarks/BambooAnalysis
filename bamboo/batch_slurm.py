@@ -152,11 +152,11 @@ class CommandListJob(CommandListJobBase):
             if subjobId in self._finishedTasks:
                 status = self._finishedTasks[subjobId]
             else:
-                sacctCmdArgs = ["sacct", "-X", "-n", "--format", "State%20", "-j", subjobId]
-                ret = subprocess.check_output(sacctCmdArgs).decode().strip()
-                if "\n" in ret:
-                    raise AssertionError("More than one line in sacct... there's something wrong")
-                else:
+                try:
+                    sacctCmdArgs = ["sacct", "-X", "-n", "--format", "State%20", "-j", subjobId]
+                    ret = subprocess.check_output(sacctCmdArgs).decode().strip()
+                    if "\n" in ret:
+                        raise AssertionError("More than one line in sacct... there's something wrong")
                     if len(ret) != 0:
                         if "CANCELLED+" in ret:
                             # Can happen if scancel command did not have time to propagate
@@ -165,13 +165,13 @@ class CommandListJob(CommandListJobBase):
                             status = ret
                     else:
                         squeueCmdArgs = ["squeue", "-h", "-O", "state", "-j", subjobId]
-                        ret = subprocess.check_output(squeueCmdArgs).decode().strip()
-                        if len(ret) != 0:
-                            status = ret
-                        else: # fall back to previous status (probably PENDING or RUNNING)
-                            status = self._statuses[i]
-                if status not in SlurmJobStatus_active:
-                    self._finishedTasks[subjobId] = status
+                        status = subprocess.check_output(squeueCmdArgs).decode().strip()
+                    if status not in SlurmJobStatus_active:
+                        self._finishedTasks[subjobId] = status
+                except subprocess.CalledProcessError as ex:
+                    logger.warning(f"Could not update status of job {subjobId}: {ex!s}")
+                    # fall back to previous status (probably PENDING or RUNNING) and try again later
+                    status = self._statuses[i]
             self._statuses[i] = status
 
     def commandStatus(self, command):

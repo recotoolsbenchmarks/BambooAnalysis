@@ -225,3 +225,7 @@ private:
 using SmpScaleFactor         = SampledScaleFactor<ILeptonScaleFactor,const Parameters&>;
 using SmpLLScaleFactor       = SampledScaleFactor<IDiLeptonScaleFactor,const Parameters&,const Parameters&>;
 using SmpBTaggingScaleFactor = SampledScaleFactor<IJetScaleFactor,const Parameters&,IJetScaleFactor::Flavour>;
+
+double scalefactorWeightForFailingObject(double sf, double eff) {
+  return (1.-sf*eff)/(1.-eff);
+}

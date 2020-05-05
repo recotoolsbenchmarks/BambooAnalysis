@@ -559,22 +559,12 @@ class HistogramsModule(AnalysisModule):
             from bamboo.analysisutils import printCutFlowReports
             printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
         if plotList_plotIt:
+            from bamboo.analysisutils import writePlotIt, runPlotIt
             eraMode, eras = self.args.eras
             if eras is None:
                 eras = list(config["eras"].keys())
-            from bamboo.analysisutils import plotIt_config, plotIt_plots, plotIt_files, writePlotItConfig, runPlotIt
-            ## base: copy from plotIt block, add root and translate eras/lumi
-            plotitCfg = plotIt_config(config, root=os.path.relpath(resultsdir, workdir), eras=eras)
-            ## samples -> files: read sum of weights from results
-            filesCfg = plotIt_files(config["samples"], resultsdir=resultsdir, eras=eras, readCounters=self.readCounters, vetoAttributes=self.__class__.CustomSampleAttributes)
-            ## plots: add default style options
-            plotDefaults = plotitCfg.get("plotdefaults", {})
-            plotDefaults.update(self.plotDefaults)
-            plotsCfg = plotIt_plots(plotList_plotIt, plotDefaults=plotDefaults)
-            ## write
             cfgName = os.path.join(workdir, "plots.yml")
-            writePlotItConfig(cfgName, plotitCfg, filesCfg, plotsCfg)
-            ## run
+            writePlotIt(config, plotList_plotIt, cfgName, eras=(eraMode, eras), workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
             runPlotIt(cfgName, workdir=workdir, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):

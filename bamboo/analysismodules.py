@@ -19,7 +19,7 @@ import datetime
 from timeit import default_timer as timer
 import resource
 import urllib.parse
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt, printCutFlowReports
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig
 
 def reproduceArgv(args, group):
     # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
@@ -69,6 +69,7 @@ class AnalysisModule(object):
     :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`
     and :py:meth:`~bamboo.analysismodules.AnalysisModule.postProcess`)
     """
+    CustomSampleAttributes = ["db", "split", "files", "run_range", "certified_lumi_file"]
     def __init__(self, args):
         """ Constructor
 
@@ -553,9 +554,28 @@ class HistogramsModule(AnalysisModule):
             self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
-        plotList_plotIt = [ ap for ap in self.plotList if isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ]
-        printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
-        runPlotIt(config, plotList_plotIt, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
+        if plotList_cutflowreport:
+            from bamboo.analysisutils import printCutFlowReports
+            printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        if plotList_plotIt:
+            eraMode, eras = self.args.eras
+            if eras is None:
+                eras = list(config["eras"].keys())
+            from bamboo.analysisutils import plotIt_config, plotIt_plots, plotIt_files, writePlotItConfig, runPlotIt
+            ## base: copy from plotIt block, add root and translate eras/lumi
+            plotitCfg = plotIt_config(config, root=os.path.relpath(resultsdir, workdir), eras=eras)
+            ## samples -> files: read sum of weights from results
+            filesCfg = plotIt_files(config["samples"], resultsdir=resultsdir, eras=eras, readCounters=self.readCounters, vetoAttributes=self.__class__.CustomSampleAttributes)
+            ## plots: add default style options
+            plotDefaults = plotitCfg.get("plotdefaults", {})
+            plotDefaults.update(self.plotDefaults)
+            plotsCfg = plotIt_plots(plotList_plotIt, plotDefaults=plotDefaults)
+            ## write
+            cfgName = os.path.join(workdir, "plots.yml")
+            writePlotItConfig(cfgName, plotitCfg, filesCfg, plotsCfg)
+            ## run
+            runPlotIt(cfgName, workdir=workdir, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

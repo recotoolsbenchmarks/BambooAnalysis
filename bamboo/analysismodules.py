@@ -108,6 +108,7 @@ class AnalysisModule(object):
         self.addArgs(specific)
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
+        self._envConfig = None
         self.initialize()
     def addArgs(self, parser):
         """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
@@ -123,6 +124,16 @@ class AnalysisModule(object):
                 with open(ifl) as iflf:
                     inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
         return inputs
+    @property
+    def envConfig(self):
+        if self._envConfig is None:
+            self._envConfig = readEnvConfig(self.args.envConfig)
+        return self._envConfig
+    def getSampleFilesResolver(self, cfgDir="."):
+        from functools import partial
+        from .analysisutils import sample_resolveFiles
+        return partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
+
     def getATree(self, fileName=None, sampleName=None):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
@@ -135,12 +146,12 @@ class AnalysisModule(object):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            envConfig = readEnvConfig(self.args.envConfig)
-            analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            analysisCfg = parseAnalysisConfig(anaCfgName)
             if fileName and sampleName:
                 sampleCfg = analysisCfg["samples"][sampleName]
             else:
-                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=filesResolver)
             logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
@@ -178,7 +189,7 @@ class AnalysisModule(object):
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample))
                 if self.args.anaConfig:
-                    analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
+                    analysisCfg = parseAnalysisConfig(self.args.anaConfig)
                     sampleCfg = analysisCfg["samples"][self.args.sample]
                 else:
                     sampleCfg = None
@@ -192,10 +203,10 @@ class AnalysisModule(object):
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
-                envConfig = readEnvConfig(self.args.envConfig)
-                analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=(not self.args.onlypost), redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                analysisCfg = parseAnalysisConfig(anaCfgName)
                 self.customizeAnalysisCfg(analysisCfg)
-                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
+                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
                 taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
                 taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
@@ -270,7 +281,7 @@ class AnalysisModule(object):
                                     ))
                             tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
                         ## submit to backend
-                        backend = envConfig["batch"]["backend"]
+                        backend = self.envConfig["batch"]["backend"]
                         if backend == "slurm":
                             from . import batch_slurm as batchBackend
                             backendOpts = {
@@ -291,13 +302,13 @@ class AnalysisModule(object):
                                     }
                         else:
                             raise RuntimeError("Unknown backend: {0}".format(backend))
-                        clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
+                        clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=self.envConfig.get(backend), configOpts=backendOpts)
                         for j in clusJobs:
                             j.submit()
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
                                 "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
-                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(self.envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
 
                         if any(not tsk.failedCommands for tsk in tasks):
@@ -341,7 +352,7 @@ class AnalysisModule(object):
         :param sampleCfg: that sample's entry in the configuration file
         """
         pass
-    def getTasks(self, analysisCfg, **extraOpts):
+    def getTasks(self, analysisCfg, resolveFiles=None, **extraOpts):
         """ Get tasks from analysis configs (and args), called in for driver or sequential mode
 
         Should return a list of ``(inputs, output), kwargs, config``
@@ -357,11 +368,13 @@ class AnalysisModule(object):
             if "run_range" in sConfig:
                 opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             opts["sample"] = sName
-            sInputFiles = sConfig.get("files", [])
-            if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
-                logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
-                sInputFiles = sInputFiles[:self.args.maxFiles]
             if "era" not in sConfig or sConfig["era"] in sel_eras:
+                sInputFiles = []
+                if resolveFiles:
+                    sInputFiles = resolveFiles(sName, sConfig)
+                if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
+                    logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
+                    sInputFiles = sInputFiles[:self.args.maxFiles]
                 tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
         return tasks
 

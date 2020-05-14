@@ -68,7 +68,7 @@ class SampleTask:
         self.name = name
         self._inputFiles = inputFiles
         self.outputFile = outputFile
-        self.kwargs = kwargs ## TODO should conversion to cmd-line args also be done here? opts instead of opts?
+        self.kwargs = kwargs
         self.config = config
         self._resolver = resolver
     @property
@@ -717,7 +717,7 @@ class SkimmerModule(AnalysisModule):
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):
-        """ Inte ## TODO fully genericractively inspect a decorated input tree
+        """ Interactively inspect a decorated input tree
 
         Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
         ``noSel`` (root selection), ``backend``, and ``runAndLS`` (e.g. ``(runExpr, lumiBlockExpr)``)

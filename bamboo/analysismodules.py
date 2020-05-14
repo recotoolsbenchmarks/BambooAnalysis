@@ -250,9 +250,19 @@ class AnalysisModule:
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
-                    if not os.path.exists(resultsdir):
-                        raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
-                    ## TODO check for all output files?
+                    if os.path.exists(resultsdir):
+                        aProblem = False
+                        for tsk in tasks:
+                            fullOutName = os.path.join(resultsdir, tsk.outputFile)
+                            if not os.path.exists(fullOutName):
+                                logger.error(f"Output file for {tsk.name} not found ({fullOutName})")
+                                aProblem = True
+                        if aProblem:
+                            logger.error(f"Not all output files were found, cannot perform post-processing")
+                            return
+                    else:
+                        logger.error(f"Results directory {resultsdir} does not exist, cannot perform post-processing")
+                        return
                 elif self.args.distributed == "finalize":
                     tasks_notfinalized = [ tsk for tsk in tasks if not os.path.exists(os.path.join(resultsdir, tsk.outputFile)) ]
                     if not tasks_notfinalized:

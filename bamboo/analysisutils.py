@@ -35,10 +35,9 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
                 jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")))
     return sel.refine(name, cut=lumiSel.accept(*runAndLS))
 
-def downloadCertifiedLumiFiles(taskArgs, workdir="."):
+def downloadCertifiedLumiFiles(tasks, workdir="."):
     """ download certified lumi files (if needed) and replace in args """
-    taskArgs = copy.deepcopy(taskArgs)
-    certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs if "certifiedLumiFile" in kwargs)
+    certifLumiFiles = set(tsk.kwargs["certifiedLumiFile"] for tsk in tasks if "certifiedLumiFile" in tsk.kwargs)
     ## download if needed
     clf_downloaded = dict()
     for clfu in certifLumiFiles:
@@ -51,13 +50,13 @@ def downloadCertifiedLumiFiles(taskArgs, workdir="."):
                 subprocess.check_call(["wget", "--directory-prefix={0}".format(workdir), clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             clf_downloaded[clfu] = os.path.abspath(fname)
     ## update args
-    for args,kwargs in taskArgs:
-        if "certifiedLumiFile" in kwargs:
-            clf = kwargs["certifiedLumiFile"]
+    for tsk in tasks:
+        if "certifiedLumiFile" in tsk.kwargs:
+            clf = tsk.kwargs["certifiedLumiFile"]
             if clf in clf_downloaded:
-                kwargs["certifiedLumiFile"] = clf_downloaded[clf]
+                tsk.kwargs["certifiedLumiFile"] = clf_downloaded[clf]
 
-    return taskArgs, set(clf_downloaded.keys())
+    return set(clf_downloaded.keys())
 
 def _dasLFNtoPFN(lfn, dasConfig):
     localPFN = os.path.join(dasConfig["storageroot"], lfn.lstrip("/"))

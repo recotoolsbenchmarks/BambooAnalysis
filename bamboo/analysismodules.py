@@ -11,6 +11,7 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
+from functools import partial
 import logging
 logger = logging.getLogger(__name__)
 import os.path
@@ -60,7 +61,38 @@ def parseEras(eraStr):
         else:
             return ("all", list(eraStr.split(",")))
 
-class AnalysisModule(object):
+class SampleTask:
+    """ Information about work to be done for single sample (input and output file, parameters etc.) """
+    def __init__(self, name, inputFiles=None, outputFile=None, kwargs=None, config=None, resolver=None):
+        self.name = name
+        self._inputFiles = inputFiles
+        self.outputFile = outputFile
+        self.kwargs = kwargs ## TODO should conversion to cmd-line args also be done here? opts instead of opts?
+        self.config = config
+        self._resolver = resolver
+    @property
+    def inputFiles(self):
+        if self._inputFiles is None:
+            self._inputFiles = self._resolver(self.name, self.config)
+        return self._inputFiles
+
+def getBatchDefaults(backend):
+    if backend == "slurm":
+        return {
+            "sbatch_time"     : "0-01:00",
+            "sbatch_mem"      : "2048",
+            "stageoutFiles"   : ["*.root"],
+            "sbatch_workdir"  : os.getcwd(),
+            "sbatch_additionalOptions" : [ "--export=ALL" ],
+            }
+    elif backend == "htcondor":
+        return {"cmd" : [
+            "universe     = vanilla",
+            "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
+            "getenv       = True"
+            ]}
+
+class AnalysisModule:
     """ Base analysis module
     
     Adds common infrastructure for parsing analysis config files
@@ -130,10 +162,18 @@ class AnalysisModule(object):
             self._envConfig = readEnvConfig(self.args.envConfig)
         return self._envConfig
     def getSampleFilesResolver(self, cfgDir="."):
-        from functools import partial
         from .analysisutils import sample_resolveFiles
-        return partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
-
+        resolver = partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
+        if self.args.maxFiles <= 0:
+            return resolver
+        else:
+            def maxFilesResolver(smpName, smpConfig, maxFiles=-1, resolve=None):
+                inputFiles = resolve(smpName, smpConfig)
+                if maxFiles > 0 and maxFiles < len(inputFiles):
+                    logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(maxFiles, len(inputFiles), smpName))
+                    inputFiles = inputFiles[:maxFiles]
+                return inputFiles
+            return partial(maxFilesResolver, maxFiles=self.args.maxFiles, resolve=resolver)
     def getATree(self, fileName=None, sampleName=None):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
@@ -207,8 +247,6 @@ class AnalysisModule(object):
                 self.customizeAnalysisCfg(analysisCfg)
                 filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
-                taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
-                taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
                     if not os.path.exists(resultsdir):
@@ -216,14 +254,15 @@ class AnalysisModule(object):
                     ## TODO check for all output files?
                 elif not tasks:
                     logger.warning("No tasks defined, skipping to postprocess")
-                else:
+                else: ## need to run tasks
+                    downloadCertifiedLumiFiles(tasks, workdir=workdir)
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                     else:
                         os.makedirs(resultsdir)
                     ## store one "skeleton" tree (for more efficient "onlypost" later on
-                    (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
-                    aFileName = aTaskIn[0]
+                    aTask = tasks[0]
+                    aFileName = aTask.inputFiles[0]
                     from .root import gbl
                     aFile = gbl.TFile.Open(aFileName)
                     if not aFile:
@@ -234,7 +273,7 @@ class AnalysisModule(object):
                         if not aTree:
                             logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
                         else:
-                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
+                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTask.kwargs["sample"]))
                             outf = gbl.TFile.Open(outfName, "RECREATE")
                             skeletonTree = aTree.CloneTree(1) ## copy header and a single event
                             outf.Write()
@@ -242,79 +281,60 @@ class AnalysisModule(object):
                             logger.debug(f"Skeleton tree written to {outfName}")
                     ## run all tasks
                     if not self.args.distributed: ## sequential mode
-                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
-                            output = os.path.join(resultsdir, output)
-                            logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
-                            if "runRange" in kwargs:
-                                kwargs["runRange"] = parseRunRange(kwargs["runRange"])
+                        for task in tasks:
+                            output = os.path.join(resultsdir, task.outputFile)
+                            logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(task.inputFiles, output, ", ".join("{0}={1}".format(k,v) for k,v in task.kwargs.items()), mod=self.args.module))
+                            if "runRange" in task.kwargs:
+                                task.kwargs["runRange"] = parseRunRange(task.kwargs["runRange"])
                             if self.args.threads:
                                 from .root import gbl
                                 logger.info(f"Enabling implicit MT for {self.args.threads} threads")
                                 gbl.ROOT.EnableImplicitMT(self.args.threads)
-                            self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
-                    else:
+                            self.processTrees(task.inputFiles, output, sampleCfg=task.config, **task.kwargs)
+                    elif self.args.distributed == "driver":
                         ## construct the list of tasks
-                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime
+                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime, getBackend
                         commArgs = [
                               "bambooRun"
                             , "--module={0}".format(modAbsPath(self.args.module))
                             , "--distributed=worker"
                             , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
                         ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-t {self.args.threads}"] if self.args.threads else [])
-                        tasks = []
-                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
+                        beTasks = []
+                        for tsk in tasks:
                             split = 1
-                            if tConfig and "split" in tConfig:
-                                split = tConfig["split"]
+                            if tsk.config and "split" in tsk.config:
+                                split = tsk.config["split"]
                             if split >= 0: ## at least 1 (no splitting), at most the numer of arguments (one job per input)
-                                chunks = splitInChunks(inputs, nChunks=max(1, min(split, len(inputs))))
+                                chunks = splitInChunks(tsk.inputFiles, nChunks=max(1, min(split, len(tsk.inputFiles))))
                             else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
-                                chunks = splitInChunks(inputs, chunkLength=max(1, min(-split, len(inputs))))
+                                chunks = splitInChunks(tsk.inputFiles, chunkLength=max(1, min(-split, len(tsk.inputFiles))))
                             cmds = []
                             os.makedirs(os.path.join(workdir, "infiles"), exist_ok=True)
                             for i,chunk in enumerate(chunks):
-                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
+                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(tsk.kwargs["sample"], i))
                                 writeFileList(chunk, cfn)
                                 cmds.append(" ".join([str(a) for a in commArgs] + [
-                                    "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
-                                    ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
+                                    "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(tsk.outputFile)]+
+                                    ["--{0}={1}".format(key, value) for key, value in tsk.kwargs.items()]
                                     ))
-                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
+                            beTasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
                         ## submit to backend
                         backend = self.envConfig["batch"]["backend"]
-                        if backend == "slurm":
-                            from . import batch_slurm as batchBackend
-                            backendOpts = {
-                                    "sbatch_time"     : "0-01:00",
-                                    "sbatch_mem"      : "2048",
-                                    "stageoutFiles"   : ["*.root"],
-                                    "sbatch_workdir"  : os.getcwd(),
-                                    "sbatch_additionalOptions" : [ "--export=ALL" ],
-                                    }
-                        elif backend == "htcondor":
-                            from . import batch_htcondor as batchBackend
-                            backendOpts = {
-                                    "cmd" : [
-                                        "universe     = vanilla",
-                                        "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
-                                        "getenv       = True"
-                                        ]
-                                    }
-                        else:
-                            raise RuntimeError("Unknown backend: {0}".format(backend))
-                        clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=self.envConfig.get(backend), configOpts=backendOpts)
+                        batchBackend = getBackend(backend)
+                        clusJobs = batchBackend.jobsFromTasks(beTasks, workdir=os.path.join(workdir, "batch"), batchConfig=self.envConfig.get(backend), configOpts=getBatchDefaults(backend))
                         for j in clusJobs:
                             j.submit()
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
                                 "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
                                 "and produce the final results by rerunning the --onlypost option afterwards.")
-                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(self.envConfig["batch"].get("update", 120)))
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, beTasks, interval=int(self.envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
 
-                        if any(not tsk.failedCommands for tsk in tasks):
+                        if any(not tsk.failedCommands for tsk in beTasks):
                             ## Print time report (possibly more later)
                             logger.info("Average runtime for successful tasks (to further tune job splitting):")
-                            for tsk in tasks:
+                            for tsk in beTasks:
                                 if not tsk.failedCommands:
                                     totTime = sum((next(clus for clus in clusJobs if cmd in clus.commandList).getRuntime(cmd) for cmd in tsk.commandList), datetime.timedelta())
                                     nTasks = len(tsk.commandList)
@@ -324,14 +344,14 @@ class AnalysisModule(object):
                         if not collectResult["success"]:
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
                             haddCmds = []
-                            for tsk,((inputs, outputFile), kwargs) in zip(tasks, taskArgs):
-                                if tsk.failedCommands:
-                                    haddCmds.append("hadd -f {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
+                            for beTsk, tsk in zip(beTasks, tasks):
+                                if beTsk.failedCommands:
+                                    haddCmds.append("hadd -f {0} {1}".format(os.path.join(resultsdir, tsk.outputFile), os.path.join(workdir, "batch", "output", "*", tsk.outputFile)))
                             logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
                             logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
                             return
                 try:
-                    self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
+                    self.postProcess(tasks, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
                     logger.exception(ex)
                     logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")
@@ -355,7 +375,7 @@ class AnalysisModule(object):
     def getTasks(self, analysisCfg, resolveFiles=None, **extraOpts):
         """ Get tasks from analysis configs (and args), called in for driver or sequential mode
 
-        Should return a list of ``(inputs, output), kwargs, config``
+        :returns: a list of :py:class:`~bamboo.analysismodules.SampleTask` instances
         """
         tasks = []
         sel_eras = analysisCfg["eras"].keys()
@@ -369,13 +389,7 @@ class AnalysisModule(object):
                 opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             opts["sample"] = sName
             if "era" not in sConfig or sConfig["era"] in sel_eras:
-                sInputFiles = []
-                if resolveFiles:
-                    sInputFiles = resolveFiles(sName, sConfig)
-                if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
-                    logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
-                    sInputFiles = sInputFiles[:self.args.maxFiles]
-                tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
+                tasks.append(SampleTask(sName, outputFile=f"{sName}.root", kwargs=opts, config=sConfig, resolver=resolveFiles))
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):

@@ -331,3 +331,12 @@ def writeFileList(fileList, outName):
             logger.warning("Overwriting {0} with a new list of {1:d} files".format(outName, len(fileList)))
     with open(outName, "w") as nfile:
         nfile.write("\n".join(fileList))
+
+def getBackend(name):
+    if name == "slurm":
+        from . import batch_slurm as batchBackend
+    elif name == "htcondor":
+        from . import batch_htcondor as batchBackend
+    else:
+        raise RuntimeError(f"Unknown backend: {name}")
+    return batchBackend

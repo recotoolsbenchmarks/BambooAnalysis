@@ -11,6 +11,7 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
+from itertools import chain
 from functools import partial
 import logging
 logger = logging.getLogger(__name__)
@@ -382,12 +383,10 @@ class AnalysisModule:
 
                         if not collectResult["success"]:
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
-                            haddCmds = []
-                            for beTsk, tsk in zip(beTasks, tasks):
-                                if beTsk.failedCommands:
-                                    haddCmds.append("hadd -f {0} {1}".format(os.path.join(resultsdir, tsk.outputFile), os.path.join(workdir, "batch", "output", "*", tsk.outputFile)))
-                            logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
-                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
+                            haddCmds = list(chain.from_iterable(tsk.finalizeAction.getActions() for tsk in beTasks if tsk.failedCommands and tsk.finalizeAction))
+                            logger.error("Finalization commands to be run are:\n{0}".format("\n".join(" ".join(cmd) for cmd in haddCmds)))
+                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. "
+                                    "After performing recovery actions (see above) you may run me again with the --distributed=finalize (to merge) or --onlypost (if merged manually) option instead.")
                             return
                 try:
                     self.postProcess(tasks, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)

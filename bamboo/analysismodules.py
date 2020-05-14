@@ -117,13 +117,13 @@ class AnalysisModule:
             "to process the samples, for instance on a batch system (depending on the settings in the --envConfig file)."))
         parser.add_argument("-m", "--module", type=str, default="bamboo.analysismodules:AnalysisModule", help="Module to run (format: modulenameOrPath[:classname])")
         parser.add_argument("-v", "--verbose", action="store_true", help="Run in verbose mode")
-        parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver"])
+        parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver", "finalize"])
         parser.add_argument("input", nargs="*", help="Input: analysis description yml file (driver mode) or files to process (worker mode)")
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
         parser.add_argument("-t", "--threads", type=int, help="Enable implicit multithreading, specify number of threads to launch")
-        driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
+        driver = parser.add_argument_group("non-worker mode only (--distributed=driver, finalize, or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
@@ -182,9 +182,9 @@ class AnalysisModule:
             if not tup.Add(self.inputs[0], 0):
                 raise IOError("Could not open file {}".format(self.inputs[0]))
             return tup, "", {}
-        elif ( not self.args.distributed ) or self.args.distributed == "driver":
+        elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
             if len(self.args.input) != 1:
-                raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
+                raise RuntimeError("Main process (driver, finalize, or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
             analysisCfg = parseAnalysisConfig(anaCfgName)
             if fileName and sampleName:
@@ -199,7 +199,7 @@ class AnalysisModule:
                 raise IOError("Could not open file {}".format(fileName))
             return tup, sampleName, sampleCfg
         else:
-            raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
+            raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
     def customizeAnalysisCfg(self, analysisCfg):
         """ Hook to modify the analysis configuration before jobs are created (only called in driver or non-distributed mode) """
         pass
@@ -238,7 +238,7 @@ class AnalysisModule:
                     logger.info(f"Enabling implicit MT for {self.args.threads} threads")
                     gbl.ROOT.EnableImplicitMT(self.args.threads)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
-            elif ( not self.args.distributed ) or self.args.distributed == "driver":
+            elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
@@ -252,6 +252,44 @@ class AnalysisModule:
                     if not os.path.exists(resultsdir):
                         raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
                     ## TODO check for all output files?
+                elif self.args.distributed == "finalize":
+                    tasks_notfinalized = [ tsk for tsk in tasks if not os.path.exists(os.path.join(resultsdir, tsk.outputFile)) ]
+                    if not tasks_notfinalized:
+                        logger.info(f"All output files were found, so no finalization was redone. If you merged the outputs of partially-done MC samples please remove them from {resultsdir} and rerun to pick up the rest.")
+                    else:
+                        def cmdMatch(ln, smpNm):
+                            return f" --sample={smpNm} " in ln or ln.endswith(f" --sample={smpNm}")
+                        from .batch import getBackend
+                        batchBackend = getBackend(self.envConfig["batch"]["backend"])
+                        outputs = batchBackend.findOutputsForCommands(os.path.join(workdir, "batch"),
+                                { tsk.name: partial(cmdMatch, smpNm=tsk.name) for tsk in tasks_notfinalized })
+                        aProblem = False
+                        for tsk in tasks_notfinalized:
+                            nExpected, tskOut = outputs[tsk.name]
+                            if nExpected != len(tskOut):
+                                logger.error(f"Not all jobs for {tsk.name} produced an output ({len(tskOut):d}/{nExpected:d} found), cannot finalize")
+                                aProblem = True
+                            elif tskOut:
+                                if not all(os.path.basename(outFile) == tsk.outputFile for outFile in tskOut):
+                                    logger.error("Not all of {0} have the expected name {1}, cannot finalize".format(", ".join(tskOut), tsk.outputFile))
+                                    aProblem = True
+                                else:
+                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, tsk.outputFile)]+tskOut
+                                    import subprocess
+                                    try:
+                                        logger.debug("Merging outputs for sample {0} with {1}".format(tsk.name, " ".join(haddCmd)))
+                                        subprocess.check_call(haddCmd, stdout=subprocess.DEVNULL)
+                                    except subprocess.CalledProcessError:
+                                        loger.error("Failed to run {0}".format(" ".join(haddCmd)))
+                                        aProblem = True
+                            else:
+                                logger.error(f"No output files for sample {tsk.name}")
+                                aProblem = True
+                        if aProblem:
+                            logger.error("Could not finalize all tasks so no post-processing will be run (rerun in verbose mode for the full list of directories and commands)")
+                            return
+                        else:
+                            logger.info("All tasks finalized")
                 elif not tasks:
                     logger.warning("No tasks defined, skipping to postprocess")
                 else: ## need to run tasks

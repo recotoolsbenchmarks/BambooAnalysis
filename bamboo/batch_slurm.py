@@ -174,9 +174,10 @@ class CommandListJob(CommandListJobBase):
                     status = self._statuses[i]
             self._statuses[i] = status
 
+    def getID(self, command):
+        return self._arrayIndex(command)
     def commandStatus(self, command):
         return self.subjobStatus(self._arrayIndex(command))
-
     def getLogFile(self, command):
         return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self._arrayIndex(command)))
 

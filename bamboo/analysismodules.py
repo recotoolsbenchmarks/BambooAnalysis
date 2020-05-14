@@ -364,8 +364,9 @@ class AnalysisModule:
                         for j in clusJobs:
                             j.submit()
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
-                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
-                                "and produce the final results by rerunning the --onlypost option afterwards.")
+                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to resubmit or rerun them manually "
+                                "and (if necessary) merge the outputs and produce the final results either by rerunning with --driver=finalize, "
+                                "or manually, using the commands that will be printed if any jobs fail, and by rerunning with the --onlypost option.")
                         clusMon = batchBackend.makeTasksMonitor(clusJobs, beTasks, interval=int(self.envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
 

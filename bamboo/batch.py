@@ -55,6 +55,9 @@ class CommandListJob(object):
     def commandStatus(self, command):
         """ get the status of the jobs corresponding to one of the commands """
         pass
+    def getID(self, command):
+        """ job identifier for command """
+        pass
     def getLogFile(self, command):
         """ get path to log file corresponding to the given command """
         pass
@@ -287,9 +290,12 @@ class TasksMonitor(object):
                 exitEvent.wait(self.interval)
                 prevStats = stats
                 stats = self.makeStats(chain.from_iterable(j.statuses() for j in self.jobs), self.allStatuses)
-                logger.info("[ {0} :: {1} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses)))
                 if self._shouldTryFinalize(prevStats, stats):
                     self._tryFinalize()
+                failedMsg = ""
+                if any(task.failedCommands for task in self.tasks):
+                    failedMsg = " ; failed: {0}".format(",".join(str(task.jobCluster.getID(cmd)) for task in self.tasks for cmd in task.failedCommands))
+                logger.info("[ {0} :: {1}{2} ]".format(datetime.now().strftime("%H:%M:%S"), self.formatStats(stats, self.allStatuses), failedMsg))
         # Check for failed tasks, retrieve all failed commands:
         if any(task.failedCommands for task in self.tasks):
             logFiles = "\n".join(

@@ -225,17 +225,19 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
     ## helper: print one bamboo.plots.CutFlowReport.Entry
-    def printEntry(entry, printFun=logger.info, recursive=True):
+    def printEntry(entry, printFun=logger.info, recursive=True, genEvents=None):
         effMsg = ""
         if entry.parent:
             sumPass = entry.nominal.GetBinContent(1)
             sumTotal = entry.parent.nominal.GetBinContent(1)
             if sumTotal != 0.:
                 effMsg = f", Eff={sumPass/sumTotal:.2%}"
+                if genEvents:
+                    effMsg += f", TotalEff={sumPass/genEvents:.2%}"
         printFun(f"Selection {entry.name}: N={entry.nominal.GetEntries()}, SumW={entry.nominal.GetBinContent(1)}{effMsg}")
         if recursive:
             for c in entry.children:
-                printEntry(c, printFun=printFun, recursive=recursive)
+                printEntry(c, printFun=printFun, recursive=recursive, genEvents=genEvents)
     ## retrieve results files
     from .root import gbl
     resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
@@ -243,6 +245,7 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
         for smp, resultsFile in resultsFiles.items():
             smpCfg = config["samples"][smp]
             logger.info(f"Cutflow report {report.name} for sample {smp}")
+            generated_events = None
             if "generated-events" in smpCfg:
                 if isinstance(smpCfg["generated-events"], str):
                     generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
@@ -251,7 +254,7 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
                 logger.info(f"Sum of event weights for processed files: {generated_events:e}")
             smpReport = report.readFromResults(resultsFile)
             for root in smpReport.rootEntries():
-                printEntry(root)
+                printEntry(root, genEvents=generated_events)
 
 plotit_plotdefaults = {
         "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),

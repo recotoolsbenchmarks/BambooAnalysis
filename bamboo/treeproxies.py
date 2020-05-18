@@ -224,7 +224,7 @@ class ListBase(object):
                 raise RuntimeError("Slices with non-unit step are not implemented")
             return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
         else:
-            return self._getItem(index)
+            return self._getItem(adaptArg(index, SizeType))
     def _getItem(self, baseIndex):
         """ Get item using index of base range """
         return self._base[baseIndex]
@@ -389,7 +389,7 @@ class SliceProxy(TupleBaseProxy,ListBase):
         self._begin = makeProxy(SizeType, adaptArg(begin, SizeType)) if begin is not None else None ## None signals 0
         self._end = makeProxy(SizeType, adaptArg(end, SizeType)) if end is not None else makeConst(parent.__len__(), SizeType)
         self.valueType = valueType if valueType else parent.valueType
-        super(SliceProxy, self).__init__(self.valueType, parent=adaptArg(parent))
+        super(SliceProxy, self).__init__(self.valueType, parent=(adaptArg(parent) if parent is not None else None))
     def _offset(self, idx):
         if self._begin is not None:
             return self._begin+idx

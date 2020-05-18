@@ -588,4 +588,4 @@ def systematic(nominal, name=None, **kwargs):
             variations["{0}down".format(name)] = _to.adaptArg(varExpr)
         else:
             variations[varNm] = _to.adaptArg(varExpr)
-    return _to.SystAltOp(_to.adaptArg(nominal), name, variations)
+    return _to.SystAltOp(_to.adaptArg(nominal), name, variations).result

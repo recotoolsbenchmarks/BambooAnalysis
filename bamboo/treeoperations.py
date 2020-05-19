@@ -746,7 +746,7 @@ class Select(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -805,7 +805,7 @@ class Sort(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.funExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -865,7 +865,7 @@ class Map(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.funExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -924,7 +924,7 @@ class Next(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -992,7 +992,7 @@ class Reduce(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.start, self.accuExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg not in (self._i, self._prevRes) ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp not in (self._i, self._prevRes):
@@ -1070,7 +1070,7 @@ class Combine(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in chain(self.ranges, [self.candPredExpr]):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg not in self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp not in self._i:

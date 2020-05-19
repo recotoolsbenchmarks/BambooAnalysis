@@ -208,8 +208,8 @@ class TreeBaseProxy(LeafGroupProxy):
 class ListBase(object):
     """ Interface definition for range proxies (Array/Vector, split object vector, selection/reordering)
 
-    Important for users: _base always contains a basic container (e.g. ContainerGroupProxy), and _idxs
-    the indices out of _base this list contains (so _base[_idxs[i]] for i in range(len) are always valid).
+    Important for users: _base always contains a basic container (e.g. ContainerGroupProxy), and idxs
+    the indices out of _base this list contains (so _base[idxs[i]] for i in range(len) are always valid).
 
     TODO verify / stress-tests (selection of selection, next of selection of selection etc.)
     """
@@ -231,7 +231,7 @@ class ListBase(object):
     def __len__(self):
         pass ## need overridde
     @property
-    def _idxs(self):
+    def idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
 
 class ContainerGroupItemProxy(TupleBaseProxy):
@@ -361,7 +361,7 @@ class SelectionProxy(TupleBaseProxy,ListBase):
         ## the list of indices is stored as the parent
         super(SelectionProxy, self).__init__(self.valueType, parent=parent)
     @property
-    def _idxs(self):
+    def idxs(self):
         return self._parent.result
     def __getitem__(self, index):
         if isinstance(index, slice):
@@ -369,7 +369,7 @@ class SelectionProxy(TupleBaseProxy,ListBase):
                 raise RuntimeError("Slices with non-unit step are not implemented")
             return SliceProxy(self, index.start, index.stop, valueType=self.valueType)
         else:
-            return self._getItem(self._idxs[index])
+            return self._getItem(self.idxs[index])
     def _getItem(self, baseIndex):
         itm = self._base[baseIndex]
         if self.valueType and self.valueType != self._base.valueType:
@@ -377,7 +377,7 @@ class SelectionProxy(TupleBaseProxy,ListBase):
         else:
             return itm
     def __len__(self):
-        return self._idxs.__len__()
+        return self.idxs.__len__()
     def __repr__(self):
         return "SelectionProxy({0!r}, {1!r}, valueType={2!r})".format(self._base, self._parent, self.valueType)
 
@@ -402,7 +402,7 @@ class SliceProxy(TupleBaseProxy,ListBase):
         else:
             return makeConst(0, SizeType)
     @property
-    def _idxs(self):
+    def idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (
             adaptArg(self.begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
     def __getitem__(self, key):

@@ -742,7 +742,7 @@ class Select(TupleOp):
         predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Select(adaptArg(rng._idxs), predExpr, idx)
+        res = Select(adaptArg(rng.idxs), predExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
         return SelectionProxy(rng._base, res, valueType=rng.valueType)
@@ -801,7 +801,7 @@ class Sort(TupleOp):
         funExpr = adaptArg(fun(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Sort(adaptArg(rng._idxs), funExpr, idx)
+        res = Sort(adaptArg(rng.idxs), funExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
         return SelectionProxy(rng._base, res, valueType=rng.valueType)
@@ -862,7 +862,7 @@ class Map(TupleOp):
         funExpr = adaptArg(val)
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Map(adaptArg(rng._idxs), funExpr, idx, typeName=(typeName if typeName is not None else val._typeName))
+        res = Map(adaptArg(rng.idxs), funExpr, idx, typeName=(typeName if typeName is not None else val._typeName))
         idx._parent = res
         return res.result
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -921,7 +921,7 @@ class Next(TupleOp):
         predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Next(adaptArg(rng._idxs), predExpr, idx)
+        res = Next(adaptArg(rng.idxs), predExpr, idx)
         idx._parent = res
         return rng._getItem(res)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
@@ -988,7 +988,7 @@ class Reduce(TupleOp):
         idx.i = maxLVIdx+1
         prevRes.i = maxLVIdx+2
 
-        res = Reduce(adaptArg(rng._idxs), resultType, adaptArg(start), accuExpr, idx, prevRes)
+        res = Reduce(adaptArg(rng.idxs), resultType, adaptArg(start), accuExpr, idx, prevRes)
         idx._parent = res
         prevRes._parent = res
         return res.result
@@ -1062,7 +1062,7 @@ class Combine(TupleOp):
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))
         for i,ilvp in enumerate(idx):
             ilvp.i = maxLVIdx+1+i
-        res = Combine(tuple(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
+        res = Combine(tuple(adaptArg(rng.idxs) for rng in ranges), candPredExpr, idx)
         for ilvp in idx:
             ilvp._parent = res
         from .treeproxies import CombinationListProxy

@@ -704,7 +704,10 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
                 print("WARNING: dependency {0} is there twice".format(nm))
         else:
             raise AssertionError("Dependency with unknown type: {0}".format(ld))
-    return zip(*sorted(capDeclCall, key=(lambda elm : elm[1]))) ## sort by declaration (alphabetic for the same type)
+    if capDeclCall:
+        return zip(*sorted(capDeclCall, key=(lambda elm : elm[1]))) ## sort by declaration (alphabetic for the same type)
+    else:
+        return [], [], []
 
 def _normFunArgs(expr, args, argNames):
     newExpr = expr

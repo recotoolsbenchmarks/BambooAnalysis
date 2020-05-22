@@ -77,7 +77,10 @@ class SelWithDefines(top.CppStrRedir):
         return self(expr)
 
     def _define(self, name, expr):
-        cppStr = expr.get_cppStr(defCache=self)
+        if expr in self._definedColumns:
+            cppStr = self(expr)
+        else:
+            cppStr = expr.get_cppStr(defCache=self)
         logger.debug("Defining {0} as {1}", name, cppStr)
         self.df = self.df.Define(name, cppStr)
         _RDFNodeStats["Define"] += 1

@@ -423,9 +423,9 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
     >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
-    return rng._base[_to.Reduce.fromRngFun(rng,
+    return rng._getItem(_to.Reduce.fromRngFun(rng,
         construct(pairType, (c_int(-1), c_float(float("-inf")))),
-        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first]
+        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first)
 
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
@@ -438,9 +438,9 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
     >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
-    return rng._base[_to.Reduce.fromRngFun(rng,
+    return rng._getItem(_to.Reduce.fromRngFun(rng,
         construct(pairType, (c_int(-1), c_float(float("+inf")))),
-        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first]
+        ( lambda fn,tp : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond", returnType=tp)(ibest, elm._idx.result, fn(elm)) ) )(fun, pairType)).first)
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):

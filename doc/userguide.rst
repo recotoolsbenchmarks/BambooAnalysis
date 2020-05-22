@@ -357,6 +357,8 @@ Some of the ``rng_...`` methods are extremely powerful, e.g.
     variation (e.g. for :ref:`jets<recipejetsystematics>`) of the collection.
     This can be especially useful to ensure that two objects are (not)
     identical, or when directly comparing systematic variations.
+    Similarly, all collections, selections, slices etc. have an ``idxs`` attribute,
+    with the list of indices in the original collection.
 
 The proxy classes are generated on the fly with all branches as attributes, so
 tab-completion can be used to have a look at what's there:

@@ -704,7 +704,10 @@ def _convertFunArgs(deps, defCache=cppNoRedir):
                 print("WARNING: dependency {0} is there twice".format(nm))
         else:
             raise AssertionError("Dependency with unknown type: {0}".format(ld))
-    return zip(*sorted(capDeclCall, key=(lambda elm : elm[1]))) ## sort by declaration (alphabetic for the same type)
+    if capDeclCall:
+        return zip(*sorted(capDeclCall, key=(lambda elm : elm[1]))) ## sort by declaration (alphabetic for the same type)
+    else:
+        return [], [], []
 
 def _normFunArgs(expr, args, argNames):
     newExpr = expr
@@ -739,14 +742,14 @@ class Select(TupleOp):
         predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Select(adaptArg(rng._idxs), predExpr, idx)
+        res = Select(adaptArg(rng.idxs), predExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
         return SelectionProxy(rng._base, res, valueType=rng.valueType)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -798,14 +801,14 @@ class Sort(TupleOp):
         funExpr = adaptArg(fun(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Sort(adaptArg(rng._idxs), funExpr, idx)
+        res = Sort(adaptArg(rng.idxs), funExpr, idx)
         idx._parent = res
         from .treeproxies import SelectionProxy
         return SelectionProxy(rng._base, res, valueType=rng.valueType)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.funExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -859,13 +862,13 @@ class Map(TupleOp):
         funExpr = adaptArg(val)
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(funExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Map(adaptArg(rng._idxs), funExpr, idx, typeName=(typeName if typeName is not None else val._typeName))
+        res = Map(adaptArg(rng.idxs), funExpr, idx, typeName=(typeName if typeName is not None else val._typeName))
         idx._parent = res
         return res.result
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.funExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -918,13 +921,13 @@ class Next(TupleOp):
         predExpr = adaptArg(pred(rng._getItem(idx.result)))
         idx.i = max(chain([-1], ((nd.i if nd.i is not None else -1) for nd in collectNodes(predExpr,
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))+1
-        res = Next(adaptArg(rng._idxs), predExpr, idx)
+        res = Next(adaptArg(rng.idxs), predExpr, idx)
         idx._parent = res
         return rng._getItem(res)
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.predExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg != self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp != self._i:
@@ -985,14 +988,14 @@ class Reduce(TupleOp):
         idx.i = maxLVIdx+1
         prevRes.i = maxLVIdx+2
 
-        res = Reduce(adaptArg(rng._idxs), resultType, adaptArg(start), accuExpr, idx, prevRes)
+        res = Reduce(adaptArg(rng.idxs), resultType, adaptArg(start), accuExpr, idx, prevRes)
         idx._parent = res
         prevRes._parent = res
         return res.result
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in (self.rng, self.start, self.accuExpr):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg not in (self._i, self._prevRes) ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp not in (self._i, self._prevRes):
@@ -1059,7 +1062,7 @@ class Combine(TupleOp):
             select=(lambda nd : isinstance(nd, LocalVariablePlaceholder))))))
         for i,ilvp in enumerate(idx):
             ilvp.i = maxLVIdx+1+i
-        res = Combine(tuple(adaptArg(rng._idxs) for rng in ranges), candPredExpr, idx)
+        res = Combine(tuple(adaptArg(rng.idxs) for rng in ranges), candPredExpr, idx)
         for ilvp in idx:
             ilvp._parent = res
         from .treeproxies import CombinationListProxy
@@ -1070,7 +1073,7 @@ class Combine(TupleOp):
     def deps(self, defCache=cppNoRedir, select=(lambda x : True), includeLocal=False):
         if not defCache._getColName(self):
             for arg in chain(self.ranges, [self.candPredExpr]):
-                if select(arg):
+                if select(arg) and ( includeLocal or arg not in self._i ):
                     yield arg
                 for dp in arg.deps(defCache=defCache, select=select, includeLocal=includeLocal):
                     if includeLocal or dp not in self._i:

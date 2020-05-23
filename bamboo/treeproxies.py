@@ -296,7 +296,7 @@ class ObjectProxy(NumberProxy):
         if name not in dir(typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
         from .root import gbl
-        if hasattr(typ, name) and isinstance(getattr(typ, name), gbl.MethodProxy):
+        if hasattr(typ, name) and (isinstance(getattr(typ, name), gbl.MethodProxy) if hasattr(gbl, "MethodProxy") else getattr(typ, name).__class__.__name__ == "CPPOverload"):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result
@@ -345,8 +345,8 @@ class VectorProxy(ObjectProxy,ListBase):
             vecClass = getattr(gbl, typeName)
             if hasattr(vecClass, "value_type"):
                 value = getattr(vecClass, "value_type")
-                if hasattr(value, "__cppname__"):
-                    self.valueType = value.__cppname__
+                if hasattr(value, "__cpp_name__"):
+                    self.valueType = value.__cpp_name__
                 elif str(value) == value:
                     self.valueType = value
                 else:

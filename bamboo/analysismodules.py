@@ -11,6 +11,8 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
+from itertools import chain
+from functools import partial
 import logging
 logger = logging.getLogger(__name__)
 import os.path
@@ -60,7 +62,38 @@ def parseEras(eraStr):
         else:
             return ("all", list(eraStr.split(",")))
 
-class AnalysisModule(object):
+class SampleTask:
+    """ Information about work to be done for single sample (input and output file, parameters etc.) """
+    def __init__(self, name, inputFiles=None, outputFile=None, kwargs=None, config=None, resolver=None):
+        self.name = name
+        self._inputFiles = inputFiles
+        self.outputFile = outputFile
+        self.kwargs = kwargs
+        self.config = config
+        self._resolver = resolver
+    @property
+    def inputFiles(self):
+        if self._inputFiles is None:
+            self._inputFiles = self._resolver(self.name, self.config)
+        return self._inputFiles
+
+def getBatchDefaults(backend):
+    if backend == "slurm":
+        return {
+            "sbatch_time"     : "0-01:00",
+            "sbatch_mem"      : "2048",
+            "stageoutFiles"   : ["*.root"],
+            "sbatch_workdir"  : os.getcwd(),
+            "sbatch_additionalOptions" : [ "--export=ALL" ],
+            }
+    elif backend == "htcondor":
+        return {"cmd" : [
+            "universe     = vanilla",
+            "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
+            "getenv       = True"
+            ]}
+
+class AnalysisModule:
     """ Base analysis module
     
     Adds common infrastructure for parsing analysis config files
@@ -85,13 +118,13 @@ class AnalysisModule(object):
             "to process the samples, for instance on a batch system (depending on the settings in the --envConfig file)."))
         parser.add_argument("-m", "--module", type=str, default="bamboo.analysismodules:AnalysisModule", help="Module to run (format: modulenameOrPath[:classname])")
         parser.add_argument("-v", "--verbose", action="store_true", help="Run in verbose mode")
-        parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver"])
+        parser.add_argument("--distributed", type=str, help="Role in distributed mode (sequential mode if not specified)", choices=["worker", "driver", "finalize"])
         parser.add_argument("input", nargs="*", help="Input: analysis description yml file (driver mode) or files to process (worker mode)")
         parser.add_argument("-o", "--output", type=str, default=".", help="Output directory (driver mode) or file (worker mode) name")
         parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode (initialize to an IPython shell for exploration)")
         parser.add_argument("--maxFiles", type=int, default=-1, help="Maximum number of files to process per sample (all by default, 1 may be useful for tests)")
         parser.add_argument("-t", "--threads", type=int, help="Enable implicit multithreading, specify number of threads to launch")
-        driver = parser.add_argument_group("driver mode only (--distributed=driver or unspecified) optional arguments")
+        driver = parser.add_argument_group("non-worker mode only (--distributed=driver, finalize, or unspecified) optional arguments")
         driver.add_argument("--redodbqueries", action="store_true", help="Redo all DAS/SAMADhi queries even if results can be read from cache files")
         driver.add_argument("--overwritesamplefilelists", action="store_true", help="Write DAS/SAMADhi results to files even if files exist (meaningless without --redodbqueries)")
         driver.add_argument("--envConfig", type=str, help="Config file to read computing environment configuration from (batch system, storage site etc.)")
@@ -108,6 +141,7 @@ class AnalysisModule(object):
         self.addArgs(specific)
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
+        self._envConfig = None
         self.initialize()
     def addArgs(self, parser):
         """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
@@ -123,6 +157,24 @@ class AnalysisModule(object):
                 with open(ifl) as iflf:
                     inputs += [ ln.strip() for ln in iflf if len(ln.strip()) > 0 ]
         return inputs
+    @property
+    def envConfig(self):
+        if self._envConfig is None:
+            self._envConfig = readEnvConfig(self.args.envConfig)
+        return self._envConfig
+    def getSampleFilesResolver(self, cfgDir="."):
+        from .analysisutils import sample_resolveFiles
+        resolver = partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
+        if self.args.maxFiles <= 0:
+            return resolver
+        else:
+            def maxFilesResolver(smpName, smpConfig, maxFiles=-1, resolve=None):
+                inputFiles = resolve(smpName, smpConfig)
+                if maxFiles > 0 and maxFiles < len(inputFiles):
+                    logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(maxFiles, len(inputFiles), smpName))
+                    inputFiles = inputFiles[:maxFiles]
+                return inputFiles
+            return partial(maxFilesResolver, maxFiles=self.args.maxFiles, resolve=resolver)
     def getATree(self, fileName=None, sampleName=None):
         """ Retrieve a representative TTree, e.g. for defining the plots or interactive inspection, and a dictionary with metadata """
         if self.args.distributed == "worker":
@@ -131,16 +183,16 @@ class AnalysisModule(object):
             if not tup.Add(self.inputs[0], 0):
                 raise IOError("Could not open file {}".format(self.inputs[0]))
             return tup, "", {}
-        elif ( not self.args.distributed ) or self.args.distributed == "driver":
+        elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
             if len(self.args.input) != 1:
-                raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
+                raise RuntimeError("Main process (driver, finalize, or non-distributed) needs exactly one argument (analysis description YAML file)")
             anaCfgName = self.args.input[0]
-            envConfig = readEnvConfig(self.args.envConfig)
-            analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=False, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+            analysisCfg = parseAnalysisConfig(anaCfgName)
             if fileName and sampleName:
                 sampleCfg = analysisCfg["samples"][sampleName]
             else:
-                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig, cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=filesResolver)
             logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
@@ -148,7 +200,7 @@ class AnalysisModule(object):
                 raise IOError("Could not open file {}".format(fileName))
             return tup, sampleName, sampleCfg
         else:
-            raise RuntimeError("--distributed should be either worker, driver, or be unspecified (for sequential mode)")
+            raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
     def customizeAnalysisCfg(self, analysisCfg):
         """ Hook to modify the analysis configuration before jobs are created (only called in driver or non-distributed mode) """
         pass
@@ -178,7 +230,7 @@ class AnalysisModule(object):
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample))
                 if self.args.anaConfig:
-                    analysisCfg = parseAnalysisConfig(self.args.anaConfig, resolveFiles=False)
+                    analysisCfg = parseAnalysisConfig(self.args.anaConfig)
                     sampleCfg = analysisCfg["samples"][self.args.sample]
                 else:
                     sampleCfg = None
@@ -187,32 +239,79 @@ class AnalysisModule(object):
                     logger.info(f"Enabling implicit MT for {self.args.threads} threads")
                     gbl.ROOT.EnableImplicitMT(self.args.threads)
                 self.processTrees(inputFiles, self.args.output, tree=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample, sampleCfg=sampleCfg)
-            elif ( not self.args.distributed ) or self.args.distributed == "driver":
+            elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
                 if len(self.args.input) != 1:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
-                envConfig = readEnvConfig(self.args.envConfig)
-                analysisCfg = parseAnalysisConfig(anaCfgName, resolveFiles=(not self.args.onlypost), redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=envConfig)
+                analysisCfg = parseAnalysisConfig(anaCfgName)
                 self.customizeAnalysisCfg(analysisCfg)
-                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"))
-                taskArgs, taskConfigs = zip(*(((targs, tkwargs), tconfig) for targs, tkwargs, tconfig in tasks))
-                taskArgs, certifLumiFiles = downloadCertifiedLumiFiles(taskArgs, workdir=workdir)
+                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
-                    if not os.path.exists(resultsdir):
-                        raise RuntimeError("Results directory {0} does not exist".format(resultsdir))
-                    ## TODO check for all output files?
+                    if os.path.exists(resultsdir):
+                        aProblem = False
+                        for tsk in tasks:
+                            fullOutName = os.path.join(resultsdir, tsk.outputFile)
+                            if not os.path.exists(fullOutName):
+                                logger.error(f"Output file for {tsk.name} not found ({fullOutName})")
+                                aProblem = True
+                        if aProblem:
+                            logger.error(f"Not all output files were found, cannot perform post-processing")
+                            return
+                    else:
+                        logger.error(f"Results directory {resultsdir} does not exist, cannot perform post-processing")
+                        return
+                elif self.args.distributed == "finalize":
+                    tasks_notfinalized = [ tsk for tsk in tasks if not os.path.exists(os.path.join(resultsdir, tsk.outputFile)) ]
+                    if not tasks_notfinalized:
+                        logger.info(f"All output files were found, so no finalization was redone. If you merged the outputs of partially-done MC samples please remove them from {resultsdir} and rerun to pick up the rest.")
+                    else:
+                        def cmdMatch(ln, smpNm):
+                            return f" --sample={smpNm} " in ln or ln.endswith(f" --sample={smpNm}")
+                        from .batch import getBackend
+                        batchBackend = getBackend(self.envConfig["batch"]["backend"])
+                        outputs = batchBackend.findOutputsForCommands(os.path.join(workdir, "batch"),
+                                { tsk.name: partial(cmdMatch, smpNm=tsk.name) for tsk in tasks_notfinalized })
+                        aProblem = False
+                        for tsk in tasks_notfinalized:
+                            nExpected, tskOut = outputs[tsk.name]
+                            if nExpected != len(tskOut):
+                                logger.error(f"Not all jobs for {tsk.name} produced an output ({len(tskOut):d}/{nExpected:d} found), cannot finalize")
+                                aProblem = True
+                            elif tskOut:
+                                if not all(os.path.basename(outFile) == tsk.outputFile for outFile in tskOut):
+                                    logger.error("Not all of {0} have the expected name {1}, cannot finalize".format(", ".join(tskOut), tsk.outputFile))
+                                    aProblem = True
+                                else:
+                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, tsk.outputFile)]+tskOut
+                                    import subprocess
+                                    try:
+                                        logger.debug("Merging outputs for sample {0} with {1}".format(tsk.name, " ".join(haddCmd)))
+                                        subprocess.check_call(haddCmd, stdout=subprocess.DEVNULL)
+                                    except subprocess.CalledProcessError:
+                                        loger.error("Failed to run {0}".format(" ".join(haddCmd)))
+                                        aProblem = True
+                            else:
+                                logger.error(f"No output files for sample {tsk.name}")
+                                aProblem = True
+                        if aProblem:
+                            logger.error("Could not finalize all tasks so no post-processing will be run (rerun in verbose mode for the full list of directories and commands)")
+                            return
+                        else:
+                            logger.info("All tasks finalized")
                 elif not tasks:
                     logger.warning("No tasks defined, skipping to postprocess")
-                else:
+                else: ## need to run tasks
+                    downloadCertifiedLumiFiles(tasks, workdir=workdir)
                     if os.path.exists(resultsdir):
                         logger.warning("Output directory {0} exists, previous results may be overwritten".format(resultsdir))
                     else:
                         os.makedirs(resultsdir)
                     ## store one "skeleton" tree (for more efficient "onlypost" later on
-                    (aTaskIn, aTaskOut), aTaskKwargs = taskArgs[0]
-                    aFileName = aTaskIn[0]
+                    aTask = tasks[0]
+                    aFileName = aTask.inputFiles[0]
                     from .root import gbl
                     aFile = gbl.TFile.Open(aFileName)
                     if not aFile:
@@ -223,7 +322,7 @@ class AnalysisModule(object):
                         if not aTree:
                             logger.warning(f"Could not get {treeName} from file {aFileName}, no skeleton tree will be saved")
                         else:
-                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTaskKwargs["sample"]))
+                            outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTask.kwargs["sample"]))
                             outf = gbl.TFile.Open(outfName, "RECREATE")
                             skeletonTree = aTree.CloneTree(1) ## copy header and a single event
                             outf.Write()
@@ -231,79 +330,61 @@ class AnalysisModule(object):
                             logger.debug(f"Skeleton tree written to {outfName}")
                     ## run all tasks
                     if not self.args.distributed: ## sequential mode
-                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
-                            output = os.path.join(resultsdir, output)
-                            logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(inputs, output, ", ".join("{0}={1}".format(k,v) for k,v in kwargs.items()), mod=self.args.module))
-                            if "runRange" in kwargs:
-                                kwargs["runRange"] = parseRunRange(kwargs["runRange"])
+                        for task in tasks:
+                            output = os.path.join(resultsdir, task.outputFile)
+                            logger.info("Sequential mode: calling processTrees for {mod} with ({0}, {1}, {2}".format(task.inputFiles, output, ", ".join("{0}={1}".format(k,v) for k,v in task.kwargs.items()), mod=self.args.module))
+                            if "runRange" in task.kwargs:
+                                task.kwargs["runRange"] = parseRunRange(task.kwargs["runRange"])
                             if self.args.threads:
                                 from .root import gbl
                                 logger.info(f"Enabling implicit MT for {self.args.threads} threads")
                                 gbl.ROOT.EnableImplicitMT(self.args.threads)
-                            self.processTrees(inputs, output, sampleCfg=tConfig, **kwargs)
-                    else:
+                            self.processTrees(task.inputFiles, output, sampleCfg=task.config, **task.kwargs)
+                    elif self.args.distributed == "driver":
                         ## construct the list of tasks
-                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime
+                        from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime, getBackend
                         commArgs = [
                               "bambooRun"
                             , "--module={0}".format(modAbsPath(self.args.module))
                             , "--distributed=worker"
                             , "--anaConfig={0}".format(os.path.abspath(anaCfgName))
                         ] + self.specificArgv + (["--verbose"] if self.args.verbose else []) + ([f"-t {self.args.threads}"] if self.args.threads else [])
-                        tasks = []
-                        for ((inputs, output), kwargs), tConfig in zip(taskArgs, taskConfigs):
+                        beTasks = []
+                        for tsk in tasks:
                             split = 1
-                            if tConfig and "split" in tConfig:
-                                split = tConfig["split"]
+                            if tsk.config and "split" in tsk.config:
+                                split = tsk.config["split"]
                             if split >= 0: ## at least 1 (no splitting), at most the numer of arguments (one job per input)
-                                chunks = splitInChunks(inputs, nChunks=max(1, min(split, len(inputs))))
+                                chunks = splitInChunks(tsk.inputFiles, nChunks=max(1, min(split, len(tsk.inputFiles))))
                             else: ## at least 1 (one job per input), at most the number of arguments (no splitting)
-                                chunks = splitInChunks(inputs, chunkLength=max(1, min(-split, len(inputs))))
+                                chunks = splitInChunks(tsk.inputFiles, chunkLength=max(1, min(-split, len(tsk.inputFiles))))
                             cmds = []
                             os.makedirs(os.path.join(workdir, "infiles"), exist_ok=True)
                             for i,chunk in enumerate(chunks):
-                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(kwargs["sample"], i))
+                                cfn = os.path.join(workdir, "infiles", "{0}_in_{1:d}.txt".format(tsk.kwargs["sample"], i))
                                 writeFileList(chunk, cfn)
                                 cmds.append(" ".join([str(a) for a in commArgs] + [
-                                    "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(output)]+
-                                    ["--{0}={1}".format(key, value) for key, value in kwargs.items()]
+                                    "--input={0}".format(os.path.abspath(cfn)), "--output={0}".format(tsk.outputFile)]+
+                                    ["--{0}={1}".format(key, value) for key, value in tsk.kwargs.items()]
                                     ))
-                            tasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
+                            beTasks.append(SplitAggregationTask(cmds, finalizeAction=HaddAction(cmds, outDir=resultsdir, options=["-f"])))
                         ## submit to backend
-                        backend = envConfig["batch"]["backend"]
-                        if backend == "slurm":
-                            from . import batch_slurm as batchBackend
-                            backendOpts = {
-                                    "sbatch_time"     : "0-01:00",
-                                    "sbatch_mem"      : "2048",
-                                    "stageoutFiles"   : ["*.root"],
-                                    "sbatch_workdir"  : os.getcwd(),
-                                    "sbatch_additionalOptions" : [ "--export=ALL" ],
-                                    }
-                        elif backend == "htcondor":
-                            from . import batch_htcondor as batchBackend
-                            backendOpts = {
-                                    "cmd" : [
-                                        "universe     = vanilla",
-                                        "+MaxRuntime  = {0:d}".format(20*60), # 20 minutes
-                                        "getenv       = True"
-                                        ]
-                                    }
-                        else:
-                            raise RuntimeError("Unknown backend: {0}".format(backend))
-                        clusJobs = batchBackend.jobsFromTasks(tasks, workdir=os.path.join(workdir, "batch"), batchConfig=envConfig.get(backend), configOpts=backendOpts)
+                        backend = self.envConfig["batch"]["backend"]
+                        batchBackend = getBackend(backend)
+                        clusJobs = batchBackend.jobsFromTasks(beTasks, workdir=os.path.join(workdir, "batch"), batchConfig=self.envConfig.get(backend), configOpts=getBatchDefaults(backend))
                         for j in clusJobs:
                             j.submit()
                         logger.info("The status of the batch jobs will be periodically checked, and the outputs merged if necessary. "
-                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to rerun (and/or merge) them manually "
-                                "and produce the final results by rerunning the --onlypost option afterwards.")
-                        clusMon = batchBackend.makeTasksMonitor(clusJobs, tasks, interval=int(envConfig["batch"].get("update", 120)))
+                                "If only few jobs (or the monitoring loop) fail, it may be more efficient to resubmit or rerun them manually "
+                                "and (if necessary) merge the outputs and produce the final results either by rerunning with --driver=finalize, "
+                                "or manually, using the commands that will be printed if any jobs fail, and by rerunning with the --onlypost option.")
+                        clusMon = batchBackend.makeTasksMonitor(clusJobs, beTasks, interval=int(self.envConfig["batch"].get("update", 120)))
                         collectResult = clusMon.collect() ## wait for batch jobs to finish and finalize
 
-                        if any(not tsk.failedCommands for tsk in tasks):
+                        if any(not tsk.failedCommands for tsk in beTasks):
                             ## Print time report (possibly more later)
                             logger.info("Average runtime for successful tasks (to further tune job splitting):")
-                            for tsk in tasks:
+                            for tsk in beTasks:
                                 if not tsk.failedCommands:
                                     totTime = sum((next(clus for clus in clusJobs if cmd in clus.commandList).getRuntime(cmd) for cmd in tsk.commandList), datetime.timedelta())
                                     nTasks = len(tsk.commandList)
@@ -312,15 +393,13 @@ class AnalysisModule(object):
 
                         if not collectResult["success"]:
                             # Print missing hadd actions to be done when (if) those recovery jobs succeed
-                            haddCmds = []
-                            for tsk,((inputs, outputFile), kwargs) in zip(tasks, taskArgs):
-                                if tsk.failedCommands:
-                                    haddCmds.append("hadd -f {0} {1}".format(os.path.join(resultsdir, outputFile), os.path.join(workdir, "batch", "output", "*", outputFile)))
-                            logger.error("Finalization hadd commands to be run are:\n{0}".format("\n".join(haddCmds)))
-                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. After performing manual recovery actions you may run me again with the --onlypost option instead.")
+                            haddCmds = list(chain.from_iterable(tsk.finalizeAction.getActions() for tsk in beTasks if tsk.failedCommands and tsk.finalizeAction))
+                            logger.error("Finalization commands to be run are:\n{0}".format("\n".join(" ".join(cmd) for cmd in haddCmds)))
+                            logger.error("Since there were failed jobs, I'm not doing the postprocessing step. "
+                                    "After performing recovery actions (see above) you may run me again with the --distributed=finalize (to merge) or --onlypost (if merged manually) option instead.")
                             return
                 try:
-                    self.postProcess(taskArgs, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
+                    self.postProcess(tasks, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:
                     logger.exception(ex)
                     logger.error("Exception in postprocessing. If the worker job results (e.g. histograms) were correctly produced, you do not need to resubmit them, and may recover by running with the --onlypost option instead.")
@@ -341,10 +420,10 @@ class AnalysisModule(object):
         :param sampleCfg: that sample's entry in the configuration file
         """
         pass
-    def getTasks(self, analysisCfg, **extraOpts):
+    def getTasks(self, analysisCfg, resolveFiles=None, **extraOpts):
         """ Get tasks from analysis configs (and args), called in for driver or sequential mode
 
-        Should return a list of ``(inputs, output), kwargs, config``
+        :returns: a list of :py:class:`~bamboo.analysismodules.SampleTask` instances
         """
         tasks = []
         sel_eras = analysisCfg["eras"].keys()
@@ -357,12 +436,8 @@ class AnalysisModule(object):
             if "run_range" in sConfig:
                 opts["runRange"] = ",".join(str(rn) for rn in sConfig.get("run_range"))
             opts["sample"] = sName
-            sInputFiles = sConfig.get("files", [])
-            if self.args.maxFiles > 0 and self.args.maxFiles < len(sInputFiles):
-                logger.warning("Only processing first {0:d} of {1:d} files for sample {2}".format(self.args.maxFiles, len(sInputFiles), sName))
-                sInputFiles = sInputFiles[:self.args.maxFiles]
             if "era" not in sConfig or sConfig["era"] in sel_eras:
-                tasks.append(((sInputFiles, "{0}.root".format(sName)), opts, sConfig))
+                tasks.append(SampleTask(sName, outputFile=f"{sName}.root", kwargs=opts, config=sConfig, resolver=resolveFiles))
         return tasks
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
@@ -642,7 +717,7 @@ class SkimmerModule(AnalysisModule):
             raise RuntimeError("Worker task needs at least one input file")
 
     def interact(self):
-        """ Inte ## TODO fully genericractively inspect a decorated input tree
+        """ Interactively inspect a decorated input tree
 
         Available variables: ``tree`` (decorated tree), ``tup`` (raw tree),
         ``noSel`` (root selection), ``backend``, and ``runAndLS`` (e.g. ``(runExpr, lumiBlockExpr)``)

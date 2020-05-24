@@ -3,10 +3,10 @@ Slurm tools (based on previous condorhelpers and cp3-llbb/CommonTools condorSubm
 """
 __all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
 
-from itertools import chain
+from itertools import chain, count
 import logging
 logger = logging.getLogger(__name__)
-import os.path
+import os, os.path
 import subprocess
 
 from .batch import CommandListJob as CommandListJobBase
@@ -174,9 +174,10 @@ class CommandListJob(CommandListJobBase):
                     status = self._statuses[i]
             self._statuses[i] = status
 
+    def getID(self, command):
+        return self._arrayIndex(command)
     def commandStatus(self, command):
         return self.subjobStatus(self._arrayIndex(command))
-
     def getLogFile(self, command):
         return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self._arrayIndex(command)))
 
@@ -231,3 +232,38 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
             , failedStatuses=[SlurmJobStatus.index(stNm) for stNm in SlurmJobStatus_failed]
             , completedStatus=SlurmJobStatus.index(SlurmJobStatus_completed)
             )
+
+
+def findOutputsForCommands(batchDir, commandMatchers):
+    """ Look for outputs of matching commands inside batch submission directory """
+    with open(os.path.join(batchDir, "slurmSubmission.sh")) as slurmFile:
+        cmds = []
+        finished, readingCmds = False, False
+        ln = next(slurmFile)
+        while not finished:
+            if ln.strip().endswith("inputParams=("):
+                readingCmds = True
+            elif readingCmds:
+                if ln.strip() == ")":
+                    finished = True
+                else:
+                    cmds.append(ln.strip().strip('"'))
+            ln = next(slurmFile)
+    matches = dict()
+    for mName, matcher in commandMatchers.items():
+        ids_matched = [ (i, cmd) for i, cmd in zip(count(1), cmds) if matcher(cmd) ]
+        files_found = []
+        if not ids_matched:
+            logger.warning(f"No jobs matched for {mName}")
+        else:
+            for sjId, cmd in ids_matched:
+                outdir = os.path.join(batchDir, "output", str(sjId))
+                if not os.path.exists(outdir):
+                    logger.debug(f"Output directory for {mName} not found: {outdir} (command: {cmd})")
+                else:
+                    sjOut = [ os.path.join(outdir, fn) for fn in os.listdir(outdir) ]
+                    if not sjOut:
+                        logger.debug(f"No output files for {mName} found in {outdir} (command: {cmd})")
+                    files_found += sjOut
+        matches[mName] = len(ids_matched), files_found
+    return matches

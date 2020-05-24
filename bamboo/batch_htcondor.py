@@ -3,7 +3,7 @@ HTCondor tools (based on cp3-llbb/CommonTools condorSubmitter)
 """
 __all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
 
-from itertools import chain
+from itertools import chain, count
 import logging
 logger = logging.getLogger(__name__)
 import os, os.path
@@ -187,3 +187,31 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
             , activeStatuses=(1,2)
             , completedStatus=4
             )
+
+def findOutputsForCommands(batchDir, commandMatchers):
+    """ Look for outputs of matching commands inside batch submission directory """
+    with open(os.path.join(batchDir, "input", "condor.cmd")) as cmdFile:
+        nJobs = int(next(ln for ln in cmdFile if ln.startswith("queue ")).split()[1])
+    cmds = []
+    for iJ in range(nJobs):
+        with open(os.path.join(batchDir, "input", "condor_{0:d}.sh".format(iJ))) as jobShFile:
+            cmdLine = next(ln for ln in jobShFile if ln.strip().endswith(" && move_files"))
+            cmds.append(cmdLine.split(" && ")[0])
+    matches = dict()
+    for mName, matcher in commandMatchers.items():
+        ids_matched = [ (i, cmd) for i, cmd in zip(count(), cmds) if matcher(cmd) ]
+        files_found = []
+        if not ids_matched:
+            logger.warning(f"No jobs matched for {mName}")
+        else:
+            for sjId, cmd in ids_matched:
+                outdir = os.path.join(batchDir, "output", str(sjId))
+                if not os.path.exists(outdir):
+                    logger.debug(f"Output directory for {mName} not found: {outdir} (command: {cmd})")
+                else:
+                    sjOut = [ os.path.join(outdir, fn) for fn in os.listdir(outdir) ]
+                    if not sjOut:
+                        logger.debug(f"No output files for {mName} found in {outdir} (command: {cmd})")
+                    files_found += sjOut
+        matches[mName] = len(ids_matched), files_found
+    return matches

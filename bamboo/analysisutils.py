@@ -35,10 +35,9 @@ def addLumiMask(sel, jsonName, runRange=None, runAndLS=None, name="goodlumis"):
                 jsonName, (", {0:d}, {1:d}".format(*runRange) if runRange is not None else "")))
     return sel.refine(name, cut=lumiSel.accept(*runAndLS))
 
-def downloadCertifiedLumiFiles(taskArgs, workdir="."):
+def downloadCertifiedLumiFiles(tasks, workdir="."):
     """ download certified lumi files (if needed) and replace in args """
-    taskArgs = copy.deepcopy(taskArgs)
-    certifLumiFiles = set(kwargs["certifiedLumiFile"] for args,kwargs in taskArgs if "certifiedLumiFile" in kwargs)
+    certifLumiFiles = set(tsk.kwargs["certifiedLumiFile"] for tsk in tasks if "certifiedLumiFile" in tsk.kwargs)
     ## download if needed
     clf_downloaded = dict()
     for clfu in certifLumiFiles:
@@ -51,13 +50,13 @@ def downloadCertifiedLumiFiles(taskArgs, workdir="."):
                 subprocess.check_call(["wget", "--directory-prefix={0}".format(workdir), clfu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             clf_downloaded[clfu] = os.path.abspath(fname)
     ## update args
-    for args,kwargs in taskArgs:
-        if "certifiedLumiFile" in kwargs:
-            clf = kwargs["certifiedLumiFile"]
+    for tsk in tasks:
+        if "certifiedLumiFile" in tsk.kwargs:
+            clf = tsk.kwargs["certifiedLumiFile"]
             if clf in clf_downloaded:
-                kwargs["certifiedLumiFile"] = clf_downloaded[clf]
+                tsk.kwargs["certifiedLumiFile"] = clf_downloaded[clf]
 
-    return taskArgs, set(clf_downloaded.keys())
+    return set(clf_downloaded.keys())
 
 def _dasLFNtoPFN(lfn, dasConfig):
     localPFN = os.path.join(dasConfig["storageroot"], lfn.lstrip("/"))
@@ -72,7 +71,6 @@ def _dasLFNtoPFN(lfn, dasConfig):
         return localPFN
 
 def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
-    smp = copy.deepcopy(smpCfg)
     ## read cache, if it's there
     listfile, cachelist = None, []
     if "files" in smpCfg and str(smpCfg["files"]) == smpCfg["files"]:
@@ -81,8 +79,8 @@ def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefil
             with open(listfile) as smpF:
                 cachelist = [ fn for fn in [ ln.strip() for ln in smpF ] if len(fn) > 0 ]
 
+    files = []
     if "db" in smpCfg and ( "files" not in smpCfg or len(cachelist) == 0 or redodbqueries ):
-        files = []
         for dbEntry in (smpCfg["db"] if str(smpCfg["db"]) != smpCfg["db"] else [smpCfg["db"]]): ## convert to list if string
             if ":" not in dbEntry:
                 raise RuntimeError("'db' entry should be of the format 'protocol:location', e.g. 'das:/SingleMuon/Run2016E-03Feb2017-v1/MINIAOD'")
@@ -117,7 +115,6 @@ def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefil
                 files += entryFiles
             else:
                 raise RuntimeError("Unsupported protocol in '{0}': {1}".format(dbEntry, protocol))
-        smp["files"] = files
         if listfile and ( len(cachelist) == 0 or overwritesamplefilelists ):
             with open(listfile, "w") as listF:
                 listF.write("\n".join(files))
@@ -126,10 +123,10 @@ def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefil
     elif listfile:
         if len(cachelist) == 0:
             raise RuntimeError("No file names read from {0}".format())
-        smp["files"] = cachelist
+        files = cachelist
     else: ## list in yml
-        smp["files"] = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
-    return smp
+        files = [ (fn if os.path.isabs(fn) or urllib.parse.urlparse(fn).scheme != "" in fn else os.path.join(cfgDir, fn)) for fn in smpCfg["files"] ]
+    return files
 
 class YMLIncludeLoader(yaml.SafeLoader):
     """Custom yaml loading to support including config files. Use `!include (file)` to insert content of `file` at that position."""
@@ -145,17 +142,12 @@ class YMLIncludeLoader(yaml.SafeLoader):
 
 YMLIncludeLoader.add_constructor('!include', YMLIncludeLoader.include)
 
-def parseAnalysisConfig(anaCfgName, resolveFiles=True, redodbqueries=False, overwritesamplefilelists=False, envConfig=None):
-    cfgDir = os.path.dirname(os.path.abspath(anaCfgName))
+def parseAnalysisConfig(anaCfgName):
     with open(anaCfgName) as anaCfgF:
         analysisCfg = yaml.load(anaCfgF, YMLIncludeLoader)
-    if resolveFiles:
-        analysisCfg["samples"] = dict((smpName,
-            sample_resolveFiles(smpName, smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir))
-            for smpName, smpCfg in analysisCfg["samples"].items())
     return analysisCfg
 
-def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists=False, envConfig=None, cfgDir="."):
+def getAFileFromAnySample(samples, resolveFiles=None):
     """ Helper method: get a file from any sample (minimizing the risk of errors)
 
     Tries to find any samples with:
@@ -181,8 +173,8 @@ def getAFileFromAnySample(samples, redodbqueries=False, overwritesamplefilelists
         for smpNm,smpCfg in samples.items():
             if smpNm not in failed_names and condition(smpCfg):
                 try:
-                    smpCfg = sample_resolveFiles(smpNm, smpCfg, redodbqueries=redodbqueries, overwritesamplefilelists=overwritesamplefilelists, envConfig=envConfig, cfgDir=cfgDir)
-                    return smpNm,smpCfg,smpCfg["files"][0]
+                    files = resolveFiles(smpNm, smpCfg)
+                    return smpNm,smpCfg,files[0]
                 except Exception as ex:
                     failed_names.add(smpNm)
                     logger.warning("Problem while resolving files for {0}{1}: {2!s}".format(smpNm, method, ex))

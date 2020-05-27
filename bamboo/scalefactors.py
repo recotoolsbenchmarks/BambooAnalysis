@@ -202,7 +202,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
             else:
                 bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in config))
                 return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in config)),
-                        args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
+                        args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
                         iface=iface, systName=systName)
         else:
             if not ( all((isinstance(iCfg, tuple) and len(iCfg) == 3 and all(isinstance(iPth, str) for iPth in iCfg) ) for iCfg in config) ):
@@ -218,7 +218,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                 elif len(selConfigs) == 1:
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in selConfigs[0]))
                     return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in selConfigs[0])),
-                            args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
+                            args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
                             iface=iface, systName=systName)
                 else:
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iPth) for iWgt,paths in selConfigs for iPth in paths))
@@ -228,7 +228,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                                 'const {cmb}ScaleFactor <<name>>{{ {{ {0} }}, '.format(", ".join("{0:e}".format(wgt) for wgt,paths in selConfigs), cmb=combPrefix)+
                                   'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                                 ),
-                            arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), (lambda j : op.extMethod("IJetScaleFactor::get_flavour")(getFlavour(j)))),
+                            arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
                             iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
     else:
         raise ValueError("Unknown object type: {0}".format(objType))

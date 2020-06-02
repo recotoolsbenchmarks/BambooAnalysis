@@ -324,6 +324,8 @@ class AnalysisModule:
                         else:
                             outfName = os.path.join(resultsdir, "__skeleton__{0}.root".format(aTask.kwargs["sample"]))
                             outf = gbl.TFile.Open(outfName, "RECREATE")
+                            if "/" in treeName:
+                                outf.mkdir("/".join(treeName.split("/")[:-1])).cd()
                             skeletonTree = aTree.CloneTree(1) ## copy header and a single event
                             outf.Write()
                             outf.Close()

@@ -203,7 +203,7 @@ def readEnvConfig(explName=None):
     if explName:
         toTry.insert(0, explName)
     for iniName in toTry:
-        if os.path.exists(iniName):
+        if os.path.exists(iniName) and os.path.isfile(iniName):
             try:
                 res = readFromFile(iniName)
                 logger.info("Read config from file {0}".format(iniName))

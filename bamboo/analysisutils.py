@@ -147,7 +147,7 @@ def parseAnalysisConfig(anaCfgName):
         analysisCfg = yaml.load(anaCfgF, YMLIncludeLoader)
     return analysisCfg
 
-def getAFileFromAnySample(samples, resolveFiles=None):
+def getAFileFromAnySample(samples, resolveFiles=None, cfgDir="."):
     """ Helper method: get a file from any sample (minimizing the risk of errors)
 
     Tries to find any samples with:

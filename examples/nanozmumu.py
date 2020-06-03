@@ -29,6 +29,56 @@ class Plot(bamboo.plots.Plot):
                 return bareResults + [ hVar_up, hVar_down ]
         return bareResults
 
+def makeBTagCalibrationReader(taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, measurementType="comb", flavours=None, sel=None, uName=None):
+    if otherSysTypes is None:
+        otherSysTypes = []
+    calibName = sel._fbe.symbol(f'const BTagCalibration <<name>>{{"{taggerName}", "{csvFileName}"}};', nameHint=f"bTagCalib_{taggerName}")
+    readerName = sel._fbe.symbol('BTagCalibrationReader <<name>>{{BTagEntry::OP_{0}, "{1}", {{ {2} }} }}; // for {3}'.format(wp.upper(), sysType, ", ".join(f'"{sv}"' for sv in otherSysTypes), uName), nameHint=f"bTagReader_{uName}")
+    from bamboo.root import gbl
+    calibHandle = getattr(gbl, calibName)
+    readerHandle = getattr(gbl, readerName)
+    if flavours is None:
+        flavours = ("B", "C", "UDSG")
+    for flav in flavours:
+        readerHandle.load(calibHandle, getattr(gbl.BTagEntry, f"FLAV_{flav}"), measurementType)
+    import bamboo.treefunctions as op
+    return op.extVar("BTagCalibrationReader", readerName)
+
+class BtagSF:
+    def _nano_getPt(jet):
+        import bamboo.treeproxies as _tp
+        if isinstance(jet._parent, _tp.AltCollectionProxy):
+            bs = jet._parent._base
+            return bs.brMap["pt"].wrapped.result[jet.idx] ## use nominal always
+        else:
+            return jet.pt
+    def _nano_getEta(jet):
+        import bamboo.treefunctions as op
+        return op.abs(jet.eta)
+    def _nano_getJetFlavour(jet):
+        import bamboo.treefunctions as op
+        return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
+
+    def __init__(self, reader, getPt=None, getEta=None, getJetFlavour=None):
+        self.reader = reader
+        self.getPt = getPt if getPt is not None else BtagSF._nano_getPt
+        self.getEta = getEta if getEta is not None else BtagSF._nano_getEta
+        self.getJetFlavour = getJetFlavour if getJetFlavour is not None else BtagSF._nano_getJetFlavour
+
+    def _evalFor(self, var, jet):
+        import bamboo.treefunctions as op
+        return self.reader.eval_auto_bounds(op._tp.makeConst(var, "std::string"), self.getJetFlavour(jet), self.getEta(jet), self.getPt(jet))
+
+    def __call__(self, jet, systVars=None, systName=None):
+        import bamboo.treefunctions as op
+        nom = self._evalFor("central", jet)
+        if systVars is None:
+            return nom
+        else:
+            if systName is None:
+                raise RuntimeError("A name for the systematic uncertainty group is needed")
+            return op.systematic(nom, name=systName, **{ var : self._evalFor(var, jet) for var in systVars })
+
 class NanoZMuMuBase(NanoAODModule):
     """ Base module for NanoAOD Z->MuMu example """
     def addArgs(self, parser):
@@ -40,7 +90,7 @@ class NanoZMuMuBase(NanoAODModule):
         metName = "METFixEE2017" if era == "2017" else "MET"
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         ## Decorate the tree
-        from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc
+        from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc, nanoJetMETCalc_METFixEE2017
         tree,noSel,be,lumiArgs = super(NanoZMuMuBase, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
                 description=NanoAODDescription.get("v5", year=(era if era else "2016"), isMC=isMC,
                     systVariations=[ nanoRochesterCalc, (nanoJetMETCalc_METFixEE2017 if era == "2017" else nanoJetMETCalc) ]), ## will do Jet and MET variations, and the Rochester correction
@@ -154,7 +204,16 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
 
-        plots.append(CutFlowReport("mumujj", twoMuTwoJetSel))
+        deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
+        btagReader = makeBTagCalibrationReader("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
+        sf_deepcsv = BtagSF(btagReader)
+
+        bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
+        bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],
+                weight=(sf_deepcsv(bJets_DeepCSVLoose[0]) if self.isMC(sample) else None))
+        plots.append(Plot.make1D("bjetpt", bJets_DeepCSVLoose[0].pt, bTagSel, EquidistantBinning(50, 0., 250.), title="B-jet pt"))
+
+        plots.append(CutFlowReport("mumujj", [ twoMuTwoJetSel, bTagSel ]))
 
         return plots
 

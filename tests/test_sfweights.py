@@ -43,6 +43,7 @@ def puWeight():
     puWeightJSON = os.path.join(os.path.dirname(__file__), "data", "puweights.json")
     return gbl.ScaleFactor(puWeightJSON)
 
+@pytest.fixture(scope="module")
 def test_lepSingle_constructEval(sf_leptonSingle):
     from bamboo.root import gbl
     central = 0.9901639223098755

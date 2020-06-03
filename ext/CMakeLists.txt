@@ -22,7 +22,7 @@ target_include_directories(BambooRandom PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT
 target_link_libraries(BambooRandom ROOT::MathCore)
 install(TARGETS BambooRandom LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc)
+add_library(BinnedValues SHARED src/BinnedValues.cc src/BinnedValuesJSONParser.cc src/BTagCalibrationStandalone.cpp)
 target_compile_features(BinnedValues PRIVATE cxx_std_17)
 target_include_directories(BinnedValues PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_link_libraries(BinnedValues ROOT::Hist Boost::boost)

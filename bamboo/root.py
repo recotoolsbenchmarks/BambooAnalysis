@@ -54,7 +54,7 @@ def loadBambooExtensions():
     loadLibrary("libBambooLumiMask")
     loadLibrary("libBambooRandom")
     loadLibrary("libBinnedValues")
-    for fname in ("bamboohelpers.h", "range.h", "LumiMask.h", "bamboorandom.h", "scalefactors.h"):
+    for fname in ("bamboohelpers.h", "range.h", "LumiMask.h", "bamboorandom.h", "scalefactors.h", "BTagCalibrationStandalone.h"):
         loadHeader(fname)
 
 def loadJMESystematicsCalculators():

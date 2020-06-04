@@ -16,7 +16,7 @@ try:
     from cp3_llbb.SAMADhi.SAMADhi import Sample, SAMADhiDB
     _SAMADhi_found = True
 except ImportError as ex:
-    logger.warning("Could not load SAMADhi, please install the SAMADhi library if you want to use the database to locate samples")
+    pass
 
 bamboo_cachedir = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache")), "bamboo")
 
@@ -96,7 +96,7 @@ def sample_resolveFiles(smpName, smpCfg, redodbqueries=False, overwritesamplefil
                 ## TODO improve: check for grid proxy before querying; maybe do queries in parallel
             elif protocol == "samadhi":
                 if not _SAMADhi_found:
-                    raise RuntimeError("SAMADhi could not be found, cannot resolve '{0}'".format(dbEntry))
+                    raise RuntimeError("SAMADhi could not be found, cannot resolve '{0}'. Please install the SAMADhi library (see https://github.com/cp3-llbb/SAMADhi) if you want to use the database to locate samples".format(dbEntry))
                 samaCred = "~/.samadhi"
                 if "SAMADhi" in envConfig and "credentials" in envConfig["SAMADhi"]:
                     samaCred = envConfig["SAMADhi"]["credentials"]
@@ -147,7 +147,7 @@ def parseAnalysisConfig(anaCfgName):
         analysisCfg = yaml.load(anaCfgF, YMLIncludeLoader)
     return analysisCfg
 
-def getAFileFromAnySample(samples, resolveFiles=None):
+def getAFileFromAnySample(samples, resolveFiles=None, cfgDir="."):
     """ Helper method: get a file from any sample (minimizing the risk of errors)
 
     Tries to find any samples with:
@@ -203,7 +203,7 @@ def readEnvConfig(explName=None):
     if explName:
         toTry.insert(0, explName)
     for iniName in toTry:
-        if os.path.exists(iniName):
+        if os.path.exists(iniName) and os.path.isfile(iniName):
             try:
                 res = readFromFile(iniName)
                 logger.info("Read config from file {0}".format(iniName))

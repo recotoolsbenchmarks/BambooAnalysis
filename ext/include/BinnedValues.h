@@ -49,6 +49,7 @@ enum class BinningVariable {
     Eta,
     AbsEta,
     BTagDiscri,
+    NumJets,
     NumTrueInteractions
 };
 

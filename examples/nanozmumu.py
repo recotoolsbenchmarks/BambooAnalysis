@@ -204,16 +204,20 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
 
+        selsForCutFlowReport = [ twoMuTwoJetSel ]
+
         deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
-        btagReader = makeBTagCalibrationReader("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
-        sf_deepcsv = BtagSF(btagReader)
+        if os.path.exists(deepCSVFile): ## protection for CI tests
+            btagReader = makeBTagCalibrationReader("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
+            sf_deepcsv = BtagSF(btagReader)
 
-        bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
-        bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],
-                weight=(sf_deepcsv(bJets_DeepCSVLoose[0]) if self.isMC(sample) else None))
-        plots.append(Plot.make1D("bjetpt", bJets_DeepCSVLoose[0].pt, bTagSel, EquidistantBinning(50, 0., 250.), title="B-jet pt"))
+            bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
+            bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],
+                    weight=(sf_deepcsv(bJets_DeepCSVLoose[0]) if self.isMC(sample) else None))
+            plots.append(Plot.make1D("bjetpt", bJets_DeepCSVLoose[0].pt, bTagSel, EquidistantBinning(50, 0., 250.), title="B-jet pt"))
 
-        plots.append(CutFlowReport("mumujj", [ twoMuTwoJetSel, bTagSel ]))
+            selsForCutFlowReport.append(bTagSel)
+        plots.append(CutFlowReport("mumujj", selsForCutFlowReport))
 
         return plots
 

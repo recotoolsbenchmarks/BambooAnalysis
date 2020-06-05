@@ -29,18 +29,32 @@ class Plot(bamboo.plots.Plot):
                 return bareResults + [ hVar_up, hVar_down ]
         return bareResults
 
-def makeBTagCalibrationReader(taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, measurementType="comb", flavours=None, sel=None, uName=None):
+def makeBTagCalibrationReader(taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, measurementType=None, sel=None, uName=None):
+    """
+    Declare a BTagCalibration (if needed) and BTagCalibrationReader (unique, based on ``uName``)
+
+    :param taggerName: first argument for ``BTagCalibration``
+    :param csvFileName: name of the CSV file with scalefactors
+    :param wp: working point (used as ``BTagEntry::OP_{wp.upper()}``)
+    :param systType: nominal value systematic type (``"central"``, by default)
+    :param otherSysTypes: other systematic types to load in the reader
+    :param measurementType: dictionary with measurement type per true flavour, or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
+    :param sel: a selection in the current graph
+    :param uName: unique name, to declare the reader (e.g. sample name)
+    """
     if otherSysTypes is None:
         otherSysTypes = []
+    if measurementType is None: ## BTV recommendation for b-tagging with fixed working points
+        measurementType = {"B": "comb", "C": "comb", "UDSG": "incl"}
+    elif isinstance(measurementType, str): ## if string, use it for all
+        measurementType = {fl: measurementType for fl in ("B", "C", "UDSG")}
     calibName = sel._fbe.symbol(f'const BTagCalibration <<name>>{{"{taggerName}", "{csvFileName}"}};', nameHint=f"bTagCalib_{taggerName}")
-    readerName = sel._fbe.symbol('BTagCalibrationReader <<name>>{{BTagEntry::OP_{0}, "{1}", {{ {2} }} }}; // for {3}'.format(wp.upper(), sysType, ", ".join(f'"{sv}"' for sv in otherSysTypes), uName), nameHint=f"bTagReader_{uName}")
+    readerName = sel._fbe.symbol('BTagCalibrationReader <<name>>{{BTagEntry::OP_{0}, "{1}", {{ {2} }} }}; // for {3}'.format(wp.upper(), sysType, ", ".join(f'"{sv}"' for sv in otherSysTypes), uName), nameHint="bTagReader_{0}".format("".join(c for c in uName if c.isalnum())))
     from bamboo.root import gbl
     calibHandle = getattr(gbl, calibName)
     readerHandle = getattr(gbl, readerName)
-    if flavours is None:
-        flavours = ("B", "C", "UDSG")
-    for flav in flavours:
-        readerHandle.load(calibHandle, getattr(gbl.BTagEntry, f"FLAV_{flav}"), measurementType)
+    for flav,measType in measurementType.items():
+        readerHandle.load(calibHandle, getattr(gbl.BTagEntry, f"FLAV_{flav}"), measType)
     import bamboo.treefunctions as op
     return op.extVar("BTagCalibrationReader", readerName)
 

@@ -64,6 +64,7 @@ throw std::exception();
 
   // make formula
   formula = vec[10];
+#ifndef NO_CHECK_ALL_FORMULAS
   TF1 f1("", formula.c_str());  // compile formula to check validity
   if (f1.IsZombie()) {
 std::cerr << "ERROR in BTagCalibration: "
@@ -71,6 +72,7 @@ std::cerr << "ERROR in BTagCalibration: "
           << csvLine;
 throw std::exception();
   }
+#endif // NO_CHECK_ALL_FORMULAS
 
   // make parameters
   unsigned op = stoi(vec[0]);
@@ -105,6 +107,7 @@ BTagEntry::BTagEntry(const std::string &func, BTagEntry::Parameters p):
   formula(func),
   params(p)
 {
+#ifndef NO_CHECK_ALL_FORMULAS
   TF1 f1("", formula.c_str());  // compile formula to check validity
   if (f1.IsZombie()) {
 std::cerr << "ERROR in BTagCalibration: "
@@ -112,6 +115,7 @@ std::cerr << "ERROR in BTagCalibration: "
           << func;
 throw std::exception();
   }
+#endif // NO_CHECK_ALL_FORMULAS
 }
 
 BTagEntry::BTagEntry(const TF1* func, BTagEntry::Parameters p):
@@ -213,6 +217,7 @@ BTagEntry::BTagEntry(const TH1* hist, BTagEntry::Parameters p):
     formula = th1ToFormulaBinTree(hist);
   }
 
+#ifndef NO_CHECK_ALL_FORMULAS
   // compile formula to check validity
   TF1 f1("", formula.c_str());
   if (f1.IsZombie()) {
@@ -221,6 +226,7 @@ std::cerr << "ERROR in BTagCalibration: "
           << hist->GetName();
 throw std::exception();
   }
+#endif // NO_CHECK_ALL_FORMULAS
 }
 
 std::string BTagEntry::makeCSVHeader()
@@ -472,6 +478,9 @@ throw std::exception();
     } else {
       te.func = TF1("", be.formula.c_str(),
                     be.params.ptMin, be.params.ptMax);
+    }
+    if (te.func.IsZombie()) {
+      throw std::runtime_error("Could not parse compile formula: "+be.formula);
     }
 
     tmpData_[be.params.jetFlavor].push_back(te);

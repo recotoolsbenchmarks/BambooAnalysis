@@ -116,7 +116,7 @@ class Plot(Product):
         self.axisBinLabels = axisBinLabels
         self.plotopts = plotopts if plotopts else dict()
         ## register with backend
-        selection._fbe.addPlot(self, autoSyst=autoSyst)
+        selection.registerPlot(self, autoSyst=autoSyst)
 
     def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None):
         """ Helper method: create a copy with optional re-setting of attributes """
@@ -266,6 +266,12 @@ class Selection:
             assert isinstance(parent, FactoryBackend)
             self._fbe = parent
         self._fbe.addSelection(self)
+    def registerPlot(self, plot, **kwargs):
+        self._fbe.addPlot(plot, **kwargs)
+    def registerDerived(self, product, **kwargs):
+        self._fbe.addDerived(product, **kwargs)
+    def registerCutFlowReport(self, product, **kwargs):
+        self._fbe.addCutFlowReport(product, **kwargs)
 
     @property
     def cuts(self):
@@ -379,7 +385,7 @@ class DerivedPlot(Product):
                     for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
         self.plotopts = kwargs.get("plotopts", dict())
         # register with backend
-        dependencies[0].selection._fbe.addDerived(self)
+        dependencies[0].selection.registerDerived(self)
     @property
     def variables(self):
         return [ None for x in self.binnings ]
@@ -459,7 +465,7 @@ class CutFlowReport(Product):
         self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
         self.cfres = cfres
         if selections and cfres is None:
-            self.selections[0]._fbe.addCutFlowReport(self, autoSyst=autoSyst)
+            self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
     def produceResults(self, bareResults, fbe):
         self.cfres = fbe.results[self.name]
         entries = list()

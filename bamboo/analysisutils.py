@@ -364,7 +364,7 @@ def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir="."
     if eras is None:
         eras = list(config["eras"].keys())
     try:
-        from plotit.config import loadConfiguration, loadFiles, loadGroups, loadPlots, loadSystematics
+        from plotit.config import loadConfiguration, loadFiles, loadGroups, loadPlots, loadSystematics, loadLegend
         from plotit.plotit import resolveFiles, samplesFromFilesAndGroups
     except ImportError as ex:
         raise RuntimeError(f"Could not load plotit python library ({ex!r})")
@@ -376,11 +376,11 @@ def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir="."
     cGroups = loadGroups(plotitCfg.get("groups"), files=cFiles)
     plots = loadPlots(plotsCfg)
     systematics = loadSystematics(plotitCfg.get("systematics"), configuration=configuration)
-    ## TODO add legend loading
+    legend = loadLegend(plotitCfg.get("legend"))
     ## resolve, select, group, and sort the files -> samples
     files = resolveFiles(cFiles, configuration, systematics=systematics, histodir=workdir)
     samples = samplesFromFilesAndGroups(files, cGroups, eras=eras)
-    return configuration, samples, plots, systematics, None
+    return configuration, samples, plots, systematics, legend
 
 def runPlotIt(cfgName, workdir=".", plotIt="plotIt", eras=("all", None), verbose=False):
     """

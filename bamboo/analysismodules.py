@@ -34,6 +34,12 @@ def reproduceArgv(args, group):
         elif isinstance(action, argparse._StoreAction):
             argv.append(action.option_strings[0])
             argv.append(getattr(args, action.dest))
+        elif isinstance(action, argparse._AppendAction):
+            items = getattr(args, action.dest)
+            if items:
+                for item in items:
+                    argv.append(action.option_strings[0])
+                    argv.append(item)
         else:
             raise RuntimeError("Reconstruction of action {0} not supported".format(action))
     return argv
@@ -143,6 +149,7 @@ class AnalysisModule:
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
         self._envConfig = None
+        self._analysisConfig = None
         self.initialize()
     def addArgs(self, parser):
         """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
@@ -163,6 +170,17 @@ class AnalysisModule:
         if self._envConfig is None:
             self._envConfig = readEnvConfig(self.args.envConfig)
         return self._envConfig
+    @property
+    def analysisConfig(self):
+        if self._analysisConfig is None:
+            if self.args.distributed == "worker":
+                anaCfgName = self.args.anaConfig
+            elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
+                anaCfgName = self.args.input[0]
+            else:
+                raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
+            self._analysisConfig = parseAnalysisConfig(anaCfgName)
+        return self._analysisConfig
     def getSampleFilesResolver(self, cfgDir="."):
         from .analysisutils import sample_resolveFiles
         resolver = partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
@@ -187,8 +205,7 @@ class AnalysisModule:
         elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver, finalize, or non-distributed) needs exactly one argument (analysis description YAML file)")
-            anaCfgName = self.args.input[0]
-            analysisCfg = parseAnalysisConfig(anaCfgName)
+            analysisCfg = self.analysisConfig
             if fileName and sampleName:
                 sampleCfg = analysisCfg["samples"][sampleName]
             else:
@@ -231,8 +248,7 @@ class AnalysisModule:
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample))
                 if self.args.anaConfig:
-                    analysisCfg = parseAnalysisConfig(self.args.anaConfig)
-                    sampleCfg = analysisCfg["samples"][self.args.sample]
+                    sampleCfg = self.analysisConfig["samples"][self.args.sample]
                 else:
                     sampleCfg = None
                 if self.args.threads:
@@ -245,7 +261,7 @@ class AnalysisModule:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
-                analysisCfg = parseAnalysisConfig(anaCfgName)
+                analysisCfg = self.analysisConfig
                 self.customizeAnalysisCfg(analysisCfg)
                 filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
                 tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))

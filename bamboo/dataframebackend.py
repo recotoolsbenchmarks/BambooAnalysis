@@ -258,8 +258,8 @@ class DataframeBackend(FactoryBackend):
 
     def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
-        if plot.name in self.results:
-            raise ValueError(f"A Plot with the name '{plot.name}' already exists")
+        if plot.key in self.results:
+            raise ValueError(f"A Plot with key '{plot.key}' has already been added")
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
@@ -309,7 +309,7 @@ class DataframeBackend(FactoryBackend):
                         if not wN: ## no weight
                             raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
 
-        self.results[plot.name] = plotRes
+        self.results[plot.key] = plotRes
 
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
@@ -390,8 +390,8 @@ class DataframeBackend(FactoryBackend):
         _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)
 
-    def getResults(self, plot):
-        return plot.produceResults(self.results.get(plot.name), self)
+    def getResults(self, plot, key=None):
+        return plot.produceResults(self.results.get(key if key is not None else plot.key), self)
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
         selND = self.selDFs[sele.name]
@@ -505,8 +505,8 @@ class LazyDataframeBackend(DataframeBackend):
         self.plotsPerSelection[selection.name] = []
     def addPlot(self, plot, autoSyst=True):
         ## keep track and do nothing
-        if any((ap.name == plot.name) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
-            raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
+        if any((ap.key == plot.key) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
+            raise RuntimeError(f"A Plot with key '{plot.key}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
     def addCutFlowReport(self, report, autoSyst=True):
         self.cutFlowReports.append((report, autoSyst))

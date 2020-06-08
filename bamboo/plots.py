@@ -31,9 +31,9 @@ class FactoryBackend(object):
 
 class Product:
     """ Interface for output products (plots, counters etc.) """
-    __slots__ = ("name",)
-    def __init__(self, name):
+    def __init__(self, name, key=None):
         self.name = name
+        self.key = key if key is not None else name
     def produceResults(self, bareResults, fbe):
         """
         Main interface method, called by the backend
@@ -98,8 +98,7 @@ class Plot(Product):
         to define DataFrame columns with readable names.
         The constructor will raise an exception if an existing name is used.
     """
-    __slots__ = ("__weakref__", "name", "variables", "selection", "binnings", "title", "axisTitles", "axisBinLabels", "plotopts", "df")
-    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None, autoSyst=True):
+    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None, autoSyst=True, key=None):
         """ Generic constructor. Please use the static :py:meth:`~bamboo.plots.Plot.make1D`,
         :py:meth:`~bamboo.plots.Plot.make2D` and :py:meth:`~bamboo.plots.Plot.make3D` methods,
         which provide a more convenient interface to construct histograms
@@ -107,7 +106,7 @@ class Plot(Product):
         """
         if len(variables) != len(binnings):
             raise ValueError("Unequal number of variables ({0:d}) and binnings ({1:d})".format(len(variables), len(binnings)))
-        super(Plot, self).__init__(name)
+        super(Plot, self).__init__(name, key=key)
         self.variables = variables
         self.selection = selection
         self.binnings = binnings
@@ -118,7 +117,7 @@ class Plot(Product):
         ## register with backend
         selection.registerPlot(self, autoSyst=autoSyst)
 
-    def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None):
+    def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None, autoSyst=True, key=None):
         """ Helper method: create a copy with optional re-setting of attributes """
         return Plot( (name if name is not None else self.name)
                    , (variables if variables is not None else self.variables)
@@ -128,6 +127,8 @@ class Plot(Product):
                    , axisTitles=(axisTitles if axisTitles is not None else self.axisTitles)
                    , axisBinLabels=(axisBinLabels if axisBinLabels is not None else self.axisBinLabels)
                    , plotopts=(plotopts if plotopts is not None else self.plotopts)
+                   , autoSyst=autoSyst
+                   , key=key ## default is name
                    )
 
     def produceResults(self, bareResults, fbe):

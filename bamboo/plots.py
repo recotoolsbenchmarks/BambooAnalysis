@@ -251,8 +251,8 @@ class Selection:
         """
         self.name      = name
         self.parent   = None
-        self._cuts     = [ adaptArg(cut, "Bool_t") for cut in cuts ] if cuts else []
-        self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in weights ] if weights else []
+        self._cuts     = [ adaptArg(cut, typeHint="Bool_t") for cut in Selection._optionalToIterable(cuts) ]
+        self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in Selection._optionalToIterable(weights) ]
         self._cSysts = top.collectSystVars(self._cuts)
         self._wSysts = top.collectSystVars(self._weights)
 
@@ -272,6 +272,17 @@ class Selection:
         self._fbe.addDerived(product, **kwargs)
     def registerCutFlowReport(self, product, **kwargs):
         self._fbe.addCutFlowReport(product, **kwargs)
+
+    ## helper: convert None, single item, or iterable arg to iterable
+    @staticmethod
+    def _optionalToIterable(arg):
+        if arg is None:
+            return []
+        else:
+            if hasattr(arg, "__iter__"):
+                return arg
+            else:
+                return [arg]
 
     @property
     def cuts(self):
@@ -324,11 +335,7 @@ class Selection:
 
         :returns: the new :py:class:`~bamboo.plots.Selection`
         """
-        return Selection(self, name,
-                cuts   =( ( adaptArg(ct, "Bool_t") for ct in (cut    if hasattr(cut   , "__len__") else [cut   ]) ) if cut    else None ),
-                weights=( ( adaptArg(wt, "Bool_t") for wt in (weight if hasattr(weight, "__len__") else [weight]) ) if weight else None ),
-                autoSyst=autoSyst
-                )
+        return Selection(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)
 
     @staticmethod
     def _makeExprAnd(listOfReqs):

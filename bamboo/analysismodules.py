@@ -573,6 +573,7 @@ class HistogramsModule(AnalysisModule):
         logger.info(f"Plots finished in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB ({numHistos:d} histograms)")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
+        return backend
     # processTrees customisation points
     def prepareTree(self, tree, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
@@ -805,6 +806,7 @@ class SkimmerModule(AnalysisModule):
         outF = gbl.TFile.Open(outputFile, "UPDATE")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
+        return backend
 
     # processTrees customisation points
     def prepareTree(self, tree, sample=None, sampleCfg=None):

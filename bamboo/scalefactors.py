@@ -105,11 +105,11 @@ class ScaleFactor(object):
             expr._parent = ScaleFactorWithSystOp(expr._parent, self._systName)
         return expr
 
-def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=dict(), paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None, seedFun=None):
+def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=None, paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None, seedFun=None):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
-    :param key: key in ``sfLib`` (or tuple of keys, in case of a nested dictionary)
+    :param key: key in ``sfLib`` (or tuple of keys, in case of a nested dictionary), or JSON path (or list thereof) if ``sfLib`` is not specified
     :param sfLib: dictionary (or nested dictionary) of scale factors. A scale factor entry is either a path to a JSON file, or a list of pairs ``(periods, path)``, where ``periods`` is a list of periods found in ``lumiPerPeriod`` and ``path`` is a path to the JSON file with the scale factors corresponding to those run periods.
     :param combine: combination strategy for combining different run periods (``"weight"`` or ``"sample"``)
     :param paramDefs: dictionary of binning variable definitions (name to callable)
@@ -125,14 +125,14 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
     ##
     ## Interpret args, get defaults etc.
     ## 
-    if isinstance(key, tuple):
+    if sfLib is None:
+        config = key
+    elif isinstance(key, tuple):
         # interpret key=("a", "b") as ...["a"]["b"]
-        mainKey = key[0]
         config = sfLib[key[0]]
         for idx in range(1,len(key)):
             config = config[key[idx]]
     else:
-        mainKey = key
         config = sfLib[key]
 
     if combine is not None:

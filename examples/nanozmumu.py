@@ -73,15 +73,19 @@ class BtagSF:
         import bamboo.treefunctions as op
         return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
 
-    def __init__(self, reader, getPt=None, getEta=None, getJetFlavour=None):
+    def __init__(self, reader, getPt=None, getEta=None, getJetFlavour=None, getDiscri=None):
         self.reader = reader
         self.getPt = getPt if getPt is not None else BtagSF._nano_getPt
         self.getEta = getEta if getEta is not None else BtagSF._nano_getEta
         self.getJetFlavour = getJetFlavour if getJetFlavour is not None else BtagSF._nano_getJetFlavour
+        self.getDiscri = getDiscri
 
     def _evalFor(self, var, jet):
         import bamboo.treefunctions as op
-        return self.reader.eval_auto_bounds(op._tp.makeConst(var, "std::string"), self.getJetFlavour(jet), self.getEta(jet), self.getPt(jet))
+        args = [ op._tp.makeConst(var, "std::string"), self.getJetFlavour(jet), self.getEta(jet), self.getPt(jet) ]
+        if self.getDiscri:
+            args.append(self.getDiscri(jet))
+        return self.reader.eval_auto_bounds(*args)
 
     def __call__(self, jet, systVars=None, systName=None):
         import bamboo.treefunctions as op
@@ -223,6 +227,7 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
         if os.path.exists(deepCSVFile): ## protection for CI tests
             btagReader = makeBTagCalibrationReader("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
+            #sf_deepcsv = BtagSF(btagReader, getDiscri=lambda j : j.btagDeepB) ## for reshaping
             sf_deepcsv = BtagSF(btagReader)
 
             bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)

@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <sstream>
 
+// Copied from https://github.com/cms-sw/cmssw/blob/master/CondTools/BTau/test/BTagCalibrationStandalone.cpp
+// and slightly modified for use in RDataFrame (faster initialization)
 
 BTagEntry::Parameters::Parameters(
   OperatingPoint op,

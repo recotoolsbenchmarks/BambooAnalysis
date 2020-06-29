@@ -1,6 +1,9 @@
 #ifndef BTagEntry_H
 #define BTagEntry_H
 
+// Copied from https://github.com/cms-sw/cmssw/blob/master/CondTools/BTau/test/BTagCalibrationStandalone.h
+// and slightly modified for use in RDataFrame (faster initialization)
+
 /**
  *
  * BTagEntry

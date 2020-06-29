@@ -528,15 +528,20 @@ class HistogramsModule(AnalysisModule):
         """
         return dict()
 
-    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
-        """ Postprocess: run plotIt
-
-        The list of plots is created if needed (from a representative file,
-        this enables rerunning the postprocessing step on the results files),
-        and then plotIt is executed
+    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None):
         """
-        if not self.plotList:
-            fileHint, sampleHint = None, None
+        Helper method for postprocessing: construct the plot list
+
+        The path (and sample name) of an input file can be specified.
+        Otherwise the results directory is searched for a skeleton tree.
+
+        :param fileHint: name of an input file for one of the samples
+        :param sampleHint: sample name for the input file passed in ``fileHint``
+        :param resultsdir: directory with the produced results files (mandatory if no ``fileHint`` and ``sampleHint`` are passed)
+        """
+        if fileHint is not None and sampleHint is not None:
+            pass
+        elif resultsdir is not None:
             try:
                 import os
                 prefix = "__skeleton__"
@@ -545,13 +550,25 @@ class HistogramsModule(AnalysisModule):
                 fileHint = os.path.join(resultsdir, skelFn)
                 sampleHint = skelFn[len(prefix):-len(suffix)]
             except StopIteration:
-                pass
-            tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
-            tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
-            if "certified_lumi_file" in smpCfg:
-                lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
-                noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
-            self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
+                raise RuntimeError(f"No skeleton file found in {resultsdir}")
+        else:
+            raise RuntimeError("Either the results directory, or an input file and corresponding sample name, needs to be specified")
+        tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+        if "certified_lumi_file" in smpCfg:
+            lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
+            noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
+        return self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
+
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        """ Postprocess: run plotIt
+
+        The list of plots is created if needed (from a representative file,
+        this enables rerunning the postprocessing step on the results files),
+        and then plotIt is executed
+        """
+        if not self.plotList:
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
         plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]

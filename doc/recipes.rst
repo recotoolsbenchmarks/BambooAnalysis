@@ -502,6 +502,63 @@ otherwise they are taken from the first component plot.
    it is up to the user to make sure an event can only enter one of the
    categories, if this is what it is used for.
 
+.. _recipeotherhistogrampostprocessing:
+
+Postprocessing beyond plotIt
+----------------------------
+
+The :py:class:`~bamboo.analysismodules.HistogramsModule` postprocessing method
+calls plotIt_ to make the usual data and simulation stack plots (for the
+different eras that are considered), and prints the counter values of cut flow
+reports, but since all possible (meta-)information is available there, as well
+as the filled histograms, it can be useful to do any further processing there
+(e.g. running fits to the distributions, dividing histograms to obtain scale
+factors or fake rates, exporting counts and histograms to a different format).
+
+For many simple cases, it should be sufficient to override the
+:py:meth:`~bamboo.analysismodules.HistogramsModule.postProcess` method, first
+call the base class method, and then do any additional processing.
+If the base class method is not called, the plot list should be constructed
+by calling the :py:meth:`~bamboo.analysismodules.HistogramsModule.getPlotList`
+method.
+
+Most of the other code, e.g. to generate the plotIt_ YAML configuration file,
+is factored out in helper methods to allow reuse from user-defined additions
+|---| see the :py:func:`bamboo.analysisutils.writePlotIt` and
+:py:func:`bamboo.analysisutils.printCutFlowReports` methods, and their
+implementation.
+
+It is also possible to skip the writing of a plotIt_ YAML file, and directly
+load the configuration as it would be parsed by the plotIt-inspired python
+library under development
+`here <https://github.com/pieterdavid/mplbplot/pull/5>`_, to transparently
+access the scaled grouped and stacked histograms.
+
+As an example, a simple visualisation of 2D histograms could be obtained with
+
+.. code-block:: python
+
+   def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+       super(MyModule, self).postProcess(taskList, config=config, workdir=workdir, resultsdir=resultsdir)
+       from bamboo.plots import Plot, DerivedPlot
+       plotList_2D = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 2 ]
+       from bamboo.analysisutils import loadPlotIt
+       p_config, samples, plots_2D, systematics, legend = loadPlotIt(config, plotList_2D, eras=self.args.eras, workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
+       from plotit.plotit import Stack
+       from bamboo.root import gbl
+       for plot in plots_2D:
+           obsStack = Stack(smp.getHist(plot) for smp in samples if smp.cfg.type == "DATA")
+           expStack = Stack(smp.getHist(plot) for smp in samples if smp.cfg.type == "MC")
+           cv = gbl.TCanvas(f"c{plot.name}")
+           cv.Divide(2)
+           cv.cd(1)
+           expStack.obj.Draw("COLZ")
+           cv.cd(2)
+           obsStack.obj.Draw("COLZ")
+           cv.Update()
+           cv.SaveAs(os.path.join(resultsdir, f"{plot.name}.png"))
+
+
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 
@@ -520,6 +577,8 @@ otherwise they are taken from the first component plot.
 .. _argument group: https://docs.python.org/3/library/argparse.html#argument-groups
 
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
+
+.. _plotIt: https://github.com/cp3-llbb/plotIt
 
 .. |---| unicode:: U+2014
    :trim:

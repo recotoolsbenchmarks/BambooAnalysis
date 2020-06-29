@@ -347,9 +347,9 @@ def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resu
 
 def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
     """
-    Combine creation and saving of a plotIt config file
+    Load the plotit configuration with the plotIt python library
 
-    for convenience inside a :py:class:`~bamboo.analysismodules.HistogramsModule`, the individual parts are also available in :py:mod:`bamboo.analysisutils`.
+    The plotIt YAML file writing and parsing is skipped in this case (to write the file, the :py:func:`~bamboo.analysisutils.writePlotIt` method should be used, with the same arguments).
 
     :param config: parsed analysis configuration. Only the ``configuration`` (if present) and ``eras`` sections (to get the luminosities) are read.
     :param plotList: list of plots to convert (``name`` and ``plotopts``, combined with the default style)

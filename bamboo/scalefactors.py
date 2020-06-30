@@ -248,7 +248,13 @@ class BtagSF:
         import bamboo.treefunctions as op
         return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
 
-    def __init__(self, taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, systName="jet", measurementType=None, sel=None, uName=None, getters=None):
+    def _translate_btagSFVarToJECVar(btagVarName):
+        if btagVarName.startswith("up_jes") or btagVarName.startswith("down_jes"):
+            return f"jes{1}{0}".format(*btagVarName.split("_jes"))
+        else:
+            return btagVarName
+
+    def __init__(self, taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, systName="jet", measurementType=None, getters=None, jesTranslate=None, sel=None, uName=None):
         """
         Declare a BTagCalibration (if needed) and BTagCalibrationReader (unique, based on ``uName``), and decorate for evaluation
 
@@ -260,6 +266,7 @@ class BtagSF:
         :param systName: name of the systematic ("jet", by default, to coordinate the JEC variations)
         :param measurementType: dictionary with measurement type per true flavour, or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
         :param getters: dictionary of methods to get the kinematics and classifier for a jet (the keys ``Pt``, ``Eta``, ``JetFlavour``, and ``Discri`` are used. For the former three, the defaults are for NanoAOD)
+        :param jesTranslate: translation function for JEC systematic variations, from the names in the CSV file to those used for the jets (the default default should work for on-the-fly corrections)
         :param sel: a selection in the current graph
         :param uName: unique name, to declare the reader (e.g. sample name)
         """
@@ -287,6 +294,7 @@ class BtagSF:
             self.getters = [ getters.get("JetFlavour", BtagSF._nano_getJetFlavour), getters.get("Eta", BtagSF._nano_getEta), getters.get("Pt", BtagSF._nano_getPt) ]
             if "Discri" in getters:
                 self.getters.append(getters["Discri"])
+        self.jesTranslate = jesTranslate if jesTranslate is not None else BtagSF._translate_btagSFVarToJECVar
     def _evalFor(self, var, jet):
         import bamboo.treefunctions as op
         return self.reader.eval_auto_bounds(op._tp.makeConst(var, "std::string"), *(gtr(jet) for gtr in self.getters))
@@ -316,4 +324,4 @@ class BtagSF:
             else:
                 systVars = self.varNames
             return op.systematic(nom, name=(systName if systName is not None else self.systName),
-                    **{ var : self._evalFor(var, jet) for var in systVars })
+                    **{ self.jesTranslate(var) : self._evalFor(var, jet) for var in systVars })

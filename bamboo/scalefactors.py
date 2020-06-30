@@ -253,6 +253,9 @@ class BtagSF:
             if btagVarName.endswith("_jes"):
                 return f"jesTotal{0}".format(btagVarName.split("_jes")[0])
             return f"jes{1}{0}".format(*btagVarName.split("_jes"))
+        elif btagVarName.startswith("up_") or btagVarName.startswith("down_"):
+            tk = btagVarName.split("_")
+            return "{0}{1}".format("_".join(tk[1:]), tk[0])
         else:
             return btagVarName
 

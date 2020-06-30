@@ -250,6 +250,8 @@ class BtagSF:
 
     def _translate_btagSFVarToJECVar(btagVarName):
         if btagVarName.startswith("up_jes") or btagVarName.startswith("down_jes"):
+            if btagVarName.endswith("_jes"):
+                return f"jesTotal{0}".format(btagVarName.split("_jes")[0])
             return f"jes{1}{0}".format(*btagVarName.split("_jes"))
         else:
             return btagVarName

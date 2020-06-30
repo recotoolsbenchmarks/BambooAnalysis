@@ -248,14 +248,14 @@ class BtagSF:
         import bamboo.treefunctions as op
         return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
 
-    def _translate_btagSFVarToJECVar(btagVarName):
+    def _translate_btagSFVarToJECVar(btagVarName, prefix="btagSF_"):
         if btagVarName.startswith("up_jes") or btagVarName.startswith("down_jes"):
             if btagVarName.endswith("_jes"):
                 return f"jesTotal{0}".format(btagVarName.split("_jes")[0])
             return f"jes{1}{0}".format(*btagVarName.split("_jes"))
         elif btagVarName.startswith("up_") or btagVarName.startswith("down_"):
             tk = btagVarName.split("_")
-            return "{0}{1}".format("_".join(tk[1:]), tk[0])
+            return "".join((prefix, "_".join(tk[1:]), tk[0]))
         else:
             return btagVarName
 

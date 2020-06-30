@@ -29,74 +29,6 @@ class Plot(bamboo.plots.Plot):
                 return bareResults + [ hVar_up, hVar_down ]
         return bareResults
 
-def makeBTagCalibrationReader(taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, measurementType=None, sel=None, uName=None):
-    """
-    Declare a BTagCalibration (if needed) and BTagCalibrationReader (unique, based on ``uName``)
-
-    :param taggerName: first argument for ``BTagCalibration``
-    :param csvFileName: name of the CSV file with scalefactors
-    :param wp: working point (used as ``BTagEntry::OP_{wp.upper()}``)
-    :param systType: nominal value systematic type (``"central"``, by default)
-    :param otherSysTypes: other systematic types to load in the reader
-    :param measurementType: dictionary with measurement type per true flavour, or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
-    :param sel: a selection in the current graph
-    :param uName: unique name, to declare the reader (e.g. sample name)
-    """
-    if otherSysTypes is None:
-        otherSysTypes = []
-    if measurementType is None: ## BTV recommendation for b-tagging with fixed working points
-        measurementType = {"B": "comb", "C": "comb", "UDSG": "incl"}
-    elif isinstance(measurementType, str): ## if string, use it for all
-        measurementType = {fl: measurementType for fl in ("B", "C", "UDSG")}
-    calibName = sel._fbe.symbol(f'const BTagCalibration <<name>>{{"{taggerName}", "{csvFileName}"}};', nameHint=f"bTagCalib_{taggerName}")
-    readerName = sel._fbe.symbol('BTagCalibrationReader <<name>>{{BTagEntry::OP_{0}, "{1}", {{ {2} }} }}; // for {3}'.format(wp.upper(), sysType, ", ".join(f'"{sv}"' for sv in otherSysTypes), uName), nameHint="bTagReader_{0}".format("".join(c for c in uName if c.isalnum())))
-    from bamboo.root import gbl
-    calibHandle = getattr(gbl, calibName)
-    readerHandle = getattr(gbl, readerName)
-    for flav,measType in measurementType.items():
-        readerHandle.load(calibHandle, getattr(gbl.BTagEntry, f"FLAV_{flav}"), measType)
-    import bamboo.treefunctions as op
-    return op.extVar("BTagCalibrationReader", readerName)
-
-class BtagSF:
-    def _nano_getPt(jet):
-        import bamboo.treeproxies as _tp
-        if isinstance(jet._parent, _tp.AltCollectionProxy):
-            bs = jet._parent._base
-            return bs.brMap["pt"].wrapped.result[jet.idx] ## use nominal always
-        else:
-            return jet.pt
-    def _nano_getEta(jet):
-        import bamboo.treefunctions as op
-        return op.abs(jet.eta)
-    def _nano_getJetFlavour(jet):
-        import bamboo.treefunctions as op
-        return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
-
-    def __init__(self, reader, getPt=None, getEta=None, getJetFlavour=None, getDiscri=None):
-        self.reader = reader
-        self.getPt = getPt if getPt is not None else BtagSF._nano_getPt
-        self.getEta = getEta if getEta is not None else BtagSF._nano_getEta
-        self.getJetFlavour = getJetFlavour if getJetFlavour is not None else BtagSF._nano_getJetFlavour
-        self.getDiscri = getDiscri
-
-    def _evalFor(self, var, jet):
-        import bamboo.treefunctions as op
-        args = [ op._tp.makeConst(var, "std::string"), self.getJetFlavour(jet), self.getEta(jet), self.getPt(jet) ]
-        if self.getDiscri:
-            args.append(self.getDiscri(jet))
-        return self.reader.eval_auto_bounds(*args)
-
-    def __call__(self, jet, systVars=None, systName=None):
-        import bamboo.treefunctions as op
-        nom = self._evalFor("central", jet)
-        if systVars is None:
-            return nom
-        else:
-            if systName is None:
-                raise RuntimeError("A name for the systematic uncertainty group is needed")
-            return op.systematic(nom, name=systName, **{ var : self._evalFor(var, jet) for var in systVars })
-
 class NanoZMuMuBase(NanoAODModule):
     """ Base module for NanoAOD Z->MuMu example """
     def addArgs(self, parser):
@@ -226,9 +158,9 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
 
         deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
         if os.path.exists(deepCSVFile): ## protection for CI tests
-            btagReader = makeBTagCalibrationReader("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
-            #sf_deepcsv = BtagSF(btagReader, getDiscri=lambda j : j.btagDeepB) ## for reshaping
-            sf_deepcsv = BtagSF(btagReader)
+            from bamboo.scalefactors import BtagSF
+            sf_deepcsv = BtagSF("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
+            ## for reshaping: add getters={"Discri": lambda j : j.btagDeepB}
 
             bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
             bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],

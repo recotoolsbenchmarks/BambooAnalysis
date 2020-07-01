@@ -160,7 +160,7 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         from bamboo.scalefactors import get_scalefactor, binningVariables_nano
         elIDSF = get_scalefactor("lepton", os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "Electron_EGamma_SF2D_loose_moriond17.json"), isElectron=True, paramDefs=binningVariables_nano)
         twoElSel = noSel.refine("twoElectrons", cut=[ op.rng_len(electrons) > 1 ],
-                weight=[ op.defineOnFirstUse(elIDSF(electrons[i])) for i in range(2) ])
+                weight=[ elIDSF(electrons[i]) for i in range(2) ])
         plots.append(Plot.make1D("Melel", op.invariant_mass(electrons[0].p4, electrons[1].p4), twoElSel, EquidistantBinning(100, 20., 120.), title="Dimuon invariant mass", plotopts={"show-overflow":False}))
 
         return plots

@@ -107,7 +107,11 @@ def defineOnFirstUse(sth):
     Sometimes it is useful to explicitly insert the Define node explicitly, in that case
     :py:func:`bamboo.analysisutils.forceDefine` can be used.
     """
-    return _to.DefineOnFirstUse(_to.adaptArg(sth)).result
+    arg = _to.adaptArg(sth)
+    if isinstance(arg, _to.DefineOnFirstUse):
+        return sth
+    else:
+        return _to.DefineOnFirstUse(arg).result
 
 ## math
 def abs(sth):

@@ -97,7 +97,17 @@ def static_cast(typeName, arg):
 def initList(typeName, elmName, elms):
     return _to.InitList(typeName, elms, elmType=elmName).result
 def define(typeName, definition, nameHint=None):
+    """ Declare a C++ variable (that does not depend on the column values); returns the decorated result """
     return _to.DefinedVar(typeName, definition, nameHint=nameHint).result
+def defineOnFirstUse(sth):
+    """
+    Construct an expression that will be precalculated (with an RDataFrame::Define node) when first used
+
+    This may be useful for expensive function calls, and should prevent double work in most cases.
+    Sometimes it is useful to explicitly insert the Define node explicitly, in that case
+    :py:func:`bamboo.analysisutils.forceDefine` can be used.
+    """
+    return _to.DefineOnFirstUse(_to.adaptArg(sth)).result
 
 ## math
 def abs(sth):

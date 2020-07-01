@@ -134,7 +134,7 @@ class DataframeBackend(FactoryBackend):
         return "myCol{0:d}".format(self._iCol)
 
     def shouldDefine(self, op, defCache=None):
-        return any(isinstance(op, expType) for expType in (top.Select, top.Sort, top.Map, top.Next, top.Reduce, top.Combine)) and op.canDefine
+        return any(isinstance(op, expType) for expType in (top.Select, top.Sort, top.Map, top.Next, top.Reduce, top.Combine, top.DefineOnFirstUse)) and op.canDefine
     def define(self, op, selection):
         self.selDFs[selection.name].define(op)
 

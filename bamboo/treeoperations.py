@@ -1184,6 +1184,12 @@ class SystAltOp(OpWithSyst):
         if newVariation in self.varMap:
             self.wrapped = self.varMap[newVariation]
 
+class DefineOnFirstUse(ForwardingOp):
+    """ Node marked for definition as a column on first use """
+    __slots__ = tuple()
+    def __init__(self, wrapped, canDefine=None):
+        super(DefineOnFirstUse, self).__init__(wrapped, canDefine=canDefine)
+
 def collectSystVars(exprs):
     systVars = {}
     for sfs in chain.from_iterable(collectNodes(expr, select=(lambda nd : isinstance(nd, OpWithSyst) and nd.systName and nd.variations)) for expr in exprs):

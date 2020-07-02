@@ -26,7 +26,7 @@ Parameters& Parameters::setBTagDiscri(float d) {
     return *this;
 }
 
-Parameters& Parameters::set(const BinningVariable& bin, float value) {
+Parameters& Parameters::set(BinningVariable bin, float value) {
     m_values.emplace(bin, value);
 
     // Special case for eta

@@ -80,7 +80,7 @@ class Parameters {
         Parameters& setPt(float pt);
         Parameters& setEta(float eta);
         Parameters& setBTagDiscri(float d);
-        Parameters& set(const BinningVariable& bin, float value);
+        Parameters& set(BinningVariable bin, float value);
         Parameters& set(const typename value_type::value_type& value);
 
         std::vector<float> toArray(const std::vector<BinningVariable>&) const;

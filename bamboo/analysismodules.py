@@ -532,8 +532,13 @@ class HistogramsModule(AnalysisModule):
         """
         Helper method for postprocessing: construct the plot list
 
-        The path (and sample name) of an input file can be specified.
-        Otherwise the results directory is searched for a skeleton tree.
+        The path (and sample name) of an input file can be specified,
+        otherwise the results directory is searched for a skeleton tree.
+        Please note that in the latter case, the skeleton file is arbitrary
+        (in practice it probably corresponds to the first sample encountered
+        when running in sequential or ``--distributed=driver`` mode), so if
+        the postprocessing depends on things that are different between
+        samples, one needs to be extra careful to avoid surprises.
 
         :param fileHint: name of an input file for one of the samples
         :param sampleHint: sample name for the input file passed in ``fileHint``

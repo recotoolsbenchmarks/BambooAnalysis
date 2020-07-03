@@ -528,6 +528,19 @@ is factored out in helper methods to allow reuse from user-defined additions
 :py:func:`bamboo.analysisutils.printCutFlowReports` methods, and their
 implementation.
 
+.. note:: :py:meth:`~bamboo.analysismodules.HistogramsModule.getPlotList`,
+   when called without a specified file and sample, will read a so-called
+   skeleton file *for an arbitrary sample* (essentially an empty tree with the
+   same format as the input |---| typically for the first sample encountered)
+   from the results directory and calls the
+   :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` method with
+   that to obtain the list of defined plots.
+   This is also done when running with the ``--onlypost`` option, and works as
+   expected when the same plots are defined for all samples.
+   If this assumption does not hold, some customisation of the 
+   :py:meth:`~bamboo.analysismodules.HistogramsModule.definePlots` method will
+   be necessary.
+
 It is also possible to skip the writing of a plotIt_ YAML file, and directly
 load the configuration as it would be parsed by the plotIt-inspired python
 library under development

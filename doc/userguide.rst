@@ -76,7 +76,8 @@ the results of previously run tasks, assuming these did not change).
 More concretely, for histogram stack plots the tasks produce histograms while
 the postprocessing step runs plotIt_, so with the ``--onlypost`` option the
 normalization, colors, labels etc. can be changed without reprocessing the
-samples.
+samples (some tips on additional postprocessing can be found in
+:ref:`this recipe<recipeotherhistogrampostprocessing>`).
 Passing the ``--distributed=driver`` option will submit the independent tasks to
 a batch scheduler (currently HTCondor and Slurm are supported) instead of
 running them sequentially, wait for the results to be ready, and combine them

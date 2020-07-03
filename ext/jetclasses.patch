@@ -123,12 +123,13 @@ index 9688d7d..aa7c2bd 100644
  
  #include <string>
  #include <vector>
-@@ -16,8 +16,6 @@
+@@ -16,8 +16,7 @@
  #include <algorithm>
  #include <functional>
  #include <iostream>
 -#include "FWCore/Utilities/interface/Exception.h"
 -#include "FWCore/MessageLogger/interface/MessageLogger.h"
++#include <unordered_map>
  
  
  //---------- JetCorrectorParametersHelper class ----------------
@@ -391,6 +392,14 @@ diff --git a/ext/src/FormulaEvaluator.cc b/ext/src/FormulaEvaluator.cc
 index f964455..a41a060 100644
 --- a/ext/src/FormulaEvaluator.cc
 +++ b/ext/src/FormulaEvaluator.cc
+@@ -15,6 +15,7 @@
+ #include <functional>
+ #include <cstdlib>
+ #include <cmath>
++#include <stdexcept>
+ #include "TMath.h"
+ 
+ //#define DEBUG_AST
 @@ -22,7 +22,7 @@
  #include <iostream>
  #endif

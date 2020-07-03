@@ -87,12 +87,13 @@ def getBinningParameters(bVarNames, isElectron=False, moreVars=dict(), paramDefs
     return BinningParameters(dict((k,theDict[k]) for k in bVarNames))
 
 class ScaleFactor(object):
-    def __init__(self, cppDef=None, args=None, iface="ILeptonScaleFactor", systName=None, seedFun=None):
+    def __init__(self, cppDef=None, args=None, iface="ILeptonScaleFactor", systName=None, seedFun=None, defineOnFirstUse=True):
         self._cppDef = cppDef
         self._args = args
         self.sfOp = op.define(iface, cppDef)
         self._systName = systName
         self._seedFun = seedFun
+        self.defineOnFirstUse = defineOnFirstUse
     def __call__(self, obj, variation="Nominal"):
         from .treedecorators import makeConst, boolType
         from .treeoperations import ScaleFactorWithSystOp
@@ -103,9 +104,11 @@ class ScaleFactor(object):
                )))
         if self._systName and variation == "Nominal": ## wrap
             expr._parent = ScaleFactorWithSystOp(expr._parent, self._systName)
+        if self.defineOnFirstUse:
+            expr = op.defineOnFirstUse(expr)
         return expr
 
-def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=None, paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None, seedFun=None):
+def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLib=None, paramDefs=dict(), lumiPerPeriod=dict(), periods=None, getFlavour=None, isElectron=False, systName=None, seedFun=None, defineOnFirstUse=True):
     """ Construct a scalefactor callable
 
     :param objType: object type: ``"lepton"``, ``"dilepton"``, or ``"jet"``
@@ -119,6 +122,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
     :param isElectron: if True, will use supercluster eta instead of eta (for ``"lepton"`` type only) (TODO: find a better way of doing that)
     :param systName: name of the associated systematic nuisance parameter
     :param seedFun: (only when combining scalefactor by sampling) callable to get a random generator seed for an object, e.g. ``lambda l : l.idx+42``
+    :param defineOnFirstUse: wrap with :py:func:`~bamboo.treefunctions.defineOnFirstUse` (to define as a column and reuse afterwards), this is enabled by default since it is usually more efficient
 
     :returns: a callable that takes ``(object, variation="Nominal")`` and returns a floating-point number proxy
     """
@@ -158,7 +162,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
         if isinstance(config, str):
             return ScaleFactor(cppDef='const ScaleFactor <<name>>{{"{0}"}};'.format(config),
                     args=(getBinningParameters(getBinningVarNames(config), isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
-                    iface=iface, systName=systName)
+                    iface=iface, systName=systName, defineOnFirstUse=defineOnFirstUse)
         else:
             if combPrefix == "":
                 raise ValueError("A combination mode needs to be specified for this scale factor")
@@ -170,7 +174,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
             elif len(selConfigs) == 1:
                 return ScaleFactor(cppDef='const ScaleFactor <<name>>{{"{0}"}};'.format(selConfigs[0][1]),
                         args=(getBinningParameters(getBinningVarNames(selConfigs[0][1]), isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
-                        iface=iface, systName=systName)
+                        iface=iface, systName=systName, defineOnFirstUse=defineOnFirstUse)
             else:
                 bVarNames = set(chain.from_iterable(getBinningVarNames(iPth) for iWgt,iPth in selConfigs))
                 return ScaleFactor(cppDef=(
@@ -180,7 +184,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                               'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                             ),
                         args=(getBinningParameters(bVarNames, isElectron=isElectron, moreVars=additionalVariables, paramDefs=paramDefs),),
-                        iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
+                        iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None), defineOnFirstUse=defineOnFirstUse)
     elif objType == "dilepton":
         iface = "IDiLeptonScaleFactor"
         if isinstance(config, tuple) and len(config) == 4:
@@ -191,7 +195,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                         'std::make_unique<ScaleFactor>("{0}")'.format(leplepCfg) for leplepCfg in config)),
                     args=[ (lambda bp : (lambda ll : bp(ll[0])))(getBinningParameters(set(chain(getBinningVarNames(config[0]), getBinningVarNames(config[1]))), moreVars=additionalVariables, paramDefs=paramDefs))
                          , (lambda bp : (lambda ll : bp(ll[1])))(getBinningParameters(set(chain(getBinningVarNames(config[2]), getBinningVarNames(config[3]))), moreVars=additionalVariables, paramDefs=paramDefs)) ],
-                    iface=iface, systName=systName)
+                    iface=iface, systName=systName, defineOnFirstUse=defineOnFirstUse)
         else:
             raise NotImplementedError("Still to do this part")
     elif objType == "jet":
@@ -203,7 +207,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                 bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in config))
                 return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in config)),
                         args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
-                        iface=iface, systName=systName)
+                        iface=iface, systName=systName, defineOnFirstUse=defineOnFirstUse)
         else:
             if not ( all((isinstance(iCfg, tuple) and len(iCfg) == 3 and all(isinstance(iPth, str) for iPth in iCfg) ) for iCfg in config) ):
                 raise TypeError("Config for b-tagging should be triplet of paths or list of weights and triplets, found {0}".format(config))
@@ -219,7 +223,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iCfg) for iCfg in selConfigs[0]))
                     return ScaleFactor(cppDef='const BTaggingScaleFactor <<name>>{{{0}}};'.format(", ".join('"{0}"'.format(iCfg) for iCfg in selConfigs[0])),
                             args=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
-                            iface=iface, systName=systName)
+                            iface=iface, systName=systName, defineOnFirstUse=defineOnFirstUse)
                 else:
                     bVarNames = set(chain.from_iterable(getBinningVarNames(iPth) for iWgt,paths in selConfigs for iPth in paths))
                     return ScaleFactor(cppDef=(
@@ -229,6 +233,6 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                                   'std::vector<std::unique_ptr<{iface}>>{{std::make_move_iterator(std::begin(tmpSFs_<<name>>)), std::make_move_iterator(std::end(tmpSFs_<<name>>))}} }};'.format(iface=iface)
                                 ),
                             arg=(getBinningParameters(bVarNames, moreVars=additionalVariables, paramDefs=paramDefs), getFlavour),
-                            iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None))
+                            iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None), defineOnFirstUse=defineOnFirstUse)
     else:
         raise ValueError("Unknown object type: {0}".format(objType))

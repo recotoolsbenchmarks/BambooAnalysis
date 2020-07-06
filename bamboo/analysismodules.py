@@ -21,7 +21,7 @@ import datetime
 from timeit import default_timer as timer
 import resource
 import urllib.parse
-from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig, runPlotIt, printCutFlowReports
+from .analysisutils import addLumiMask, downloadCertifiedLumiFiles, parseAnalysisConfig, getAFileFromAnySample, readEnvConfig
 
 def reproduceArgv(args, group):
     # Reconstruct the module-specific arguments (to pass them to the worker processes later on)
@@ -102,6 +102,7 @@ class AnalysisModule:
     :py:meth:`~bamboo.analysismodules.AnalysisModule.processTrees`
     and :py:meth:`~bamboo.analysismodules.AnalysisModule.postProcess`)
     """
+    CustomSampleAttributes = ["db", "split", "files", "run_range", "certified_lumi_file"]
     def __init__(self, args):
         """ Constructor
 
@@ -604,15 +605,25 @@ class HistogramsModule(AnalysisModule):
         """
         return dict()
 
-    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
-        """ Postprocess: run plotIt
-
-        The list of plots is created if needed (from a representative file,
-        this enables rerunning the postprocessing step on the results files),
-        and then plotIt is executed
+    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None):
         """
-        if not self.plotList:
-            fileHint, sampleHint = None, None
+        Helper method for postprocessing: construct the plot list
+
+        The path (and sample name) of an input file can be specified,
+        otherwise the results directory is searched for a skeleton tree.
+        Please note that in the latter case, the skeleton file is arbitrary
+        (in practice it probably corresponds to the first sample encountered
+        when running in sequential or ``--distributed=driver`` mode), so if
+        the postprocessing depends on things that are different between
+        samples, one needs to be extra careful to avoid surprises.
+
+        :param fileHint: name of an input file for one of the samples
+        :param sampleHint: sample name for the input file passed in ``fileHint``
+        :param resultsdir: directory with the produced results files (mandatory if no ``fileHint`` and ``sampleHint`` are passed)
+        """
+        if fileHint is not None and sampleHint is not None:
+            pass
+        elif resultsdir is not None:
             try:
                 import os
                 prefix = "__skeleton__"
@@ -621,18 +632,39 @@ class HistogramsModule(AnalysisModule):
                 fileHint = os.path.join(resultsdir, skelFn)
                 sampleHint = skelFn[len(prefix):-len(suffix)]
             except StopIteration:
-                pass
-            tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
-            tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
-            if "certified_lumi_file" in smpCfg:
-                lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
-                noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
-            self.plotList = self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
+                raise RuntimeError(f"No skeleton file found in {resultsdir}")
+        else:
+            raise RuntimeError("Either the results directory, or an input file and corresponding sample name, needs to be specified")
+        tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
+        tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
+        if "certified_lumi_file" in smpCfg:
+            lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
+            noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
+        return self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
+
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        """ Postprocess: run plotIt
+
+        The list of plots is created if needed (from a representative file,
+        this enables rerunning the postprocessing step on the results files),
+        and then plotIt is executed
+        """
+        if not self.plotList:
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
-        plotList_plotIt = [ ap for ap in self.plotList if isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ]
-        printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
-        runPlotIt(config, plotList_plotIt, workdir=workdir, resultsdir=resultsdir, plotIt=self.args.plotIt, plotDefaults=self.plotDefaults, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
+        if plotList_cutflowreport:
+            from bamboo.analysisutils import printCutFlowReports
+            printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        if plotList_plotIt:
+            from bamboo.analysisutils import writePlotIt, runPlotIt
+            eraMode, eras = self.args.eras
+            if eras is None:
+                eras = list(config["eras"].keys())
+            cfgName = os.path.join(workdir, "plots.yml")
+            writePlotIt(config, plotList_plotIt, cfgName, eras=(eraMode, eras), workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
+            runPlotIt(cfgName, workdir=workdir, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):
     """ A :py:class:`~bamboo.analysismodules.AnalysisModule` extension for NanoAOD, adding decorations and merging of the counters """

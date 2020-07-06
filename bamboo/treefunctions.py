@@ -615,12 +615,13 @@ def systematic(nominal, name=None, **kwargs):
 
 class MVAEvaluator:
     """ Small wrapper to make sure MVA evaluation is cached """
-    def __init__(self, evaluator):
-        self._evaluator = evaluator
+    def __init__(self, evaluate):
+        self.evaluate = evaluate
     def __call__(self, *inputs):
-        return defineOnFirstUse(self._evaluator.evaluate(initList("std::vector<float>", "float", (static_cast("float", iin) for iin in inputs))))
+        return defineOnFirstUse(self.evaluate(initList("std::vector<float>", "float", (static_cast("float", iin) for iin in inputs))))
 
 _mvaExtMap = {
+    "TMVA" : [".xml"],
     "Tensorflow" : [".pb"],
     "Torch" : [".pt"],
     "lwtnn" : [".json"]
@@ -635,12 +636,12 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
 
     Currently the following formats are supported:
 
-    * .pt (mvaType='Torch') lib pytorch script files (loaded with ``torch::jit::load``).
-       In this case no addtional arguments are required.
-    * .pb (mvaType='Tensorflow') tensorflow graph definition (loaded with Tensorflow-C).
+    * .xml (``mvaType='TMVA'``) TMVA weights file, evaluated with a ``TMVA::Experimental::RReader``
+    * .pt (``mvaType='Torch'``) pytorch script files (loaded with ``torch::jit::load``).
+    * .pb (``mvaType='Tensorflow'``) tensorflow graph definition (loaded with Tensorflow-C).
        The ``otherArgs`` keyword argument should be passed the names of the input and output nodes,
        and the number of values for each.
-    * .json (mvaType='lwtnn') lwtnn json. The ``otherArgs`` keyword argument should be passed
+    * .json (``mvaType='lwtnn'``) lwtnn json. The ``otherArgs`` keyword argument should be passed
       the lists of input and output nodes/values, as C++ initializer list strings, e.g.
       ``'{ { "node_0", "variable_0" }, { "node_0", "variable_1" } ... }'`` and
       ``'{ "out_0", "out_1" }'``.
@@ -666,7 +667,12 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
             mvaType = next(k for k,v in _mvaExtMap.items() if ext in v)
         except StopIteration:
             raise ValueError("Unknown extension {0!r}, please pass mvaType explicitly".format(ext))
-    if mvaType == "Tensorflow":
+    methodName = "evaluate" ## default, used for wrappers
+    if mvaType == "TMVA":
+        cppType = "TMVA::Experimental::RReader"
+        argStr = f'"{fileName}"'
+        methodName = "Compute"
+    elif mvaType == "Tensorflow":
         from bamboo.root import loadTensorflowC
         loadTensorflowC()
         cppType = "bamboo::TensorflowCEvaluator"
@@ -675,7 +681,7 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         from bamboo.root import loadLibTorch
         loadLibTorch()
         cppType = "bamboo::TorchEvaluator"
-        argStr = '"{0}"'.format(fileName)
+        argStr = f'"{fileName}"'
     elif mvaType == "lwtnn":
         from bamboo.root import loadlwtnn
         loadlwtnn()
@@ -683,4 +689,5 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         argStr = '"{0}", {1}'.format(fileName, (", ".join(repr(arg) for arg in otherArgs) if str(otherArgs) != otherArgs else otherArgs))
     else:
         raise ValueError("Unknown MVA type: {0!r}".format(ext))
-    return MVAEvaluator(define(cppType, 'const auto <<name>> = {0}({1});'.format(cppType, argStr), nameHint=nameHint))
+    evaluator = define(cppType, 'const auto <<name>> = {0}({1});'.format(cppType, argStr), nameHint=nameHint)
+    return MVAEvaluator(getattr(evaluator, methodName))

@@ -877,7 +877,10 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
     The ``--datadriven`` command-line switch then allows to specify a scenario
     for data-driven backgrounds, i.e. a list of data-driven contributions to
     include (``all`` and ``none`` are also possible, the latter is the default
-    setting)
+    setting).
+    The parsed contributions are available as ``self.datadrivenContributions``,
+    and the scenarios (each list is a list of contributions) as
+    ``self.datadrivenScenarios``.
     """
     def addArgs(self, parser):
         super(DataDrivenBackgroundAnalysisModule, self).addArgs(parser)

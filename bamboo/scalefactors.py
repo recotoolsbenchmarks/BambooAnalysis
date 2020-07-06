@@ -236,3 +236,101 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
                             iface=iface, systName=systName, seedFun=(seedFun if combine == "sample" else None), defineOnFirstUse=defineOnFirstUse)
     else:
         raise ValueError("Unknown object type: {0}".format(objType))
+
+class BtagSF:
+    def _nano_getPt(jet):
+        import bamboo.treeproxies as _tp
+        if isinstance(jet._parent, _tp.AltCollectionProxy):
+            bs = jet._parent._base
+            return bs.brMap["pt"].wrapped.result[jet.idx] ## use nominal always
+        else:
+            return jet.pt
+    def _nano_getEta(jet):
+        import bamboo.treefunctions as op
+        return op.abs(jet.eta)
+    def _nano_getJetFlavour(jet):
+        import bamboo.treefunctions as op
+        return op.extMethod("BTagEntry::jetFlavourFromHadronFlavour")(jet.hadronFlavour)
+
+    def _translate_btagSFVarToJECVar(btagVarName, prefix="btagSF_"):
+        if btagVarName.startswith("up_jes") or btagVarName.startswith("down_jes"):
+            if btagVarName.endswith("_jes"):
+                return "jesTotal{0}".format(btagVarName.split("_jes")[0])
+            return "jes{1}{0}".format(*btagVarName.split("_jes"))
+        elif btagVarName.startswith("up_") or btagVarName.startswith("down_"):
+            tk = btagVarName.split("_")
+            return "".join((prefix, "_".join(tk[1:]), tk[0]))
+        else:
+            return btagVarName
+
+    def __init__(self, taggerName, csvFileName, wp=None, sysType="central", otherSysTypes=None, systName="jet", measurementType=None, getters=None, jesTranslate=None, sel=None, uName=None):
+        """
+        Declare a BTagCalibration (if needed) and BTagCalibrationReader (unique, based on ``uName``), and decorate for evaluation
+
+        :param taggerName: first argument for ``BTagCalibration``
+        :param csvFileName: name of the CSV file with scalefactors
+        :param wp: working point (used as ``BTagEntry::OP_{wp.upper()}``)
+        :param sysType: nominal value systematic type (``"central"``, by default)
+        :param otherSysTypes: other systematic types to load in the reader
+        :param systName: name of the systematic ("jet", by default, to coordinate the JEC variations)
+        :param measurementType: dictionary with measurement type per true flavour, or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
+        :param getters: dictionary of methods to get the kinematics and classifier for a jet (the keys ``Pt``, ``Eta``, ``JetFlavour``, and ``Discri`` are used. For the former three, the defaults are for NanoAOD)
+        :param jesTranslate: translation function for JEC systematic variations, from the names in the CSV file to those used for the jets (the default default should work for on-the-fly corrections)
+        :param sel: a selection in the current graph
+        :param uName: unique name, to declare the reader (e.g. sample name)
+        """
+        if otherSysTypes is None:
+            otherSysTypes = []
+        self.nomName = sysType
+        self.varNames = otherSysTypes
+        self.systName = systName
+        if measurementType is None: ## BTV recommendation for b-tagging with fixed working points
+            measurementType = {"B": "comb", "C": "comb", "UDSG": "incl"}
+        elif isinstance(measurementType, str): ## if string, use it for all
+            measurementType = {fl: measurementType for fl in ("B", "C", "UDSG")}
+        calibName = sel._fbe.symbol(f'const BTagCalibration <<name>>{{"{taggerName}", "{csvFileName}"}};', nameHint=f"bTagCalib_{taggerName}")
+        readerName = sel._fbe.symbol('BTagCalibrationReader <<name>>{{BTagEntry::OP_{0}, "{1}", {{ {2} }} }}; // for {3}'.format(wp.upper(), sysType, ", ".join(f'"{sv}"' for sv in otherSysTypes), uName), nameHint="bTagReader_{0}".format("".join(c for c in uName if c.isalnum())))
+        from bamboo.root import gbl
+        calibHandle = getattr(gbl, calibName)
+        readerHandle = getattr(gbl, readerName)
+        for flav,measType in measurementType.items():
+            readerHandle.load(calibHandle, getattr(gbl.BTagEntry, f"FLAV_{flav}"), measType)
+        import bamboo.treefunctions as op
+        self.reader = op.extVar("BTagCalibrationReader", readerName)
+        if getters is None:
+            self.getters = [ BtagSF._nano_getJetFlavour, BtagSF._nano_getEta, BtagSF._nano_getPt ]
+        else:
+            self.getters = [ getters.get("JetFlavour", BtagSF._nano_getJetFlavour), getters.get("Eta", BtagSF._nano_getEta), getters.get("Pt", BtagSF._nano_getPt) ]
+            if "Discri" in getters:
+                self.getters.append(getters["Discri"])
+        self.jesTranslate = jesTranslate if jesTranslate is not None else BtagSF._translate_btagSFVarToJECVar
+    def _evalFor(self, var, jet):
+        import bamboo.treefunctions as op
+        return self.reader.eval_auto_bounds(op._tp.makeConst(var, "std::string"), *(gtr(jet) for gtr in self.getters))
+    def __call__(self, jet, systName=None, nomVar=None, systVars=None):
+        """
+        Evaluate the scalefactor for a jet
+
+        Please note that this only gives the applicable scalefactor:
+        to obtain the event weight one of the recipes in the
+        `POG twiki<https://twiki.cern.ch/twiki/bin/viewauth/CMS/BTagSFMethods>`_
+        should be used.
+
+        By default the systematic name, nominal and systematic variations
+        are taken from the :py:class:`bamboo.scalefactors.BtagSF` instances,
+        but they can be overriden with the ``systName``, ``nomVar`` and ``systVars``
+        keyword arguments.
+        """
+        import bamboo.treefunctions as op
+        nom = self._evalFor((nomVar if nomVar is not None else self.nomName), jet)
+        if systVars is not None and not systVars: ## empty, no systematic
+            return nom
+        else:
+            if systVars is not None:
+                if any(sv not in self.varNames for sv in systVars):
+                    logger.error("B-tag SF systematic variations {0} were not loaded, skipping".format(", ".join(sv for sv in systVars if sv not in self.varNames)))
+                    systVars = [ sv for sv in systVars if sv in self.varNames ]
+            else:
+                systVars = self.varNames
+            return op.systematic(nom, name=(systName if systName is not None else self.systName),
+                    **{ self.jesTranslate(var) : self._evalFor(var, jet) for var in systVars })

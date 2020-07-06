@@ -40,7 +40,7 @@ class NanoZMuMuBase(NanoAODModule):
         metName = "METFixEE2017" if era == "2017" else "MET"
         isNotWorker = True # for tests - more realistic: (self.args.distributed != "worker")
         ## Decorate the tree
-        from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc
+        from bamboo.treedecorators import NanoAODDescription, nanoRochesterCalc, nanoJetMETCalc, nanoJetMETCalc_METFixEE2017
         tree,noSel,be,lumiArgs = super(NanoZMuMuBase, self).prepareTree(tree, sample=sample, sampleCfg=sampleCfg,
                 description=NanoAODDescription.get("v5", year=(era if era else "2016"), isMC=isMC,
                     systVariations=[ nanoRochesterCalc, (nanoJetMETCalc_METFixEE2017 if era == "2017" else nanoJetMETCalc) ]), ## will do Jet and MET variations, and the Rochester correction
@@ -154,7 +154,21 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
 
-        plots.append(CutFlowReport("mumujj", twoMuTwoJetSel))
+        selsForCutFlowReport = [ twoMuTwoJetSel ]
+
+        deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
+        if os.path.exists(deepCSVFile): ## protection for CI tests
+            from bamboo.scalefactors import BtagSF
+            sf_deepcsv = BtagSF("csv", deepCSVFile, wp="Loose", sysType="central", otherSysTypes=("up", "down"), measurementType="comb", sel=noSel, uName=sample)
+            ## for reshaping: add getters={"Discri": lambda j : j.btagDeepB}
+
+            bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
+            bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],
+                    weight=(sf_deepcsv(bJets_DeepCSVLoose[0]) if self.isMC(sample) else None))
+            plots.append(Plot.make1D("bjetpt", bJets_DeepCSVLoose[0].pt, bTagSel, EquidistantBinning(50, 0., 250.), title="B-jet pt"))
+
+            selsForCutFlowReport.append(bTagSel)
+        plots.append(CutFlowReport("mumujj", selsForCutFlowReport))
 
         electrons = op.select(t.Electron, lambda el : op.AND(el.pt > 20, op.abs(el.eta) < 2.5))
         from bamboo.scalefactors import get_scalefactor, binningVariables_nano

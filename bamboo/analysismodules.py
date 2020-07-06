@@ -842,3 +842,105 @@ class NanoAODSkimmerModule(NanoAODModule, SkimmerModule):
     """ A :py:class:`~bamboo.analysismodules.SkimmerModule` implementation for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODSkimmerModule, self).__init__(args)
+
+class DataDrivenContribution:
+    # helper class for the next one
+    def __init__(self, uses, replaces):
+        self.uses = uses
+        self.replaces = replaces
+    def usesSample(self, sampleName, sampleConfig):
+        return sampleName in self.uses or sampleConfig.get("group") in self.uses
+    def replacesSample(self, sampleName, sampleConfig):
+        return sampleName in self.replaces or sampleConfig.get("group") in self.replaces
+
+class DataDrivenBackgroundAnalysisModule(AnalysisModule):
+    """
+    :py:class:`~bamboo.analysismoduldes.AnalysisModule` with support for data-driven backgrounds
+
+    A number of contributions can be defined, each based on a list of samples or
+    groups needed to evaluate the contribution (typically just data) and a list
+    of samples or groups that should be left out when making the plot with
+    data-driven contributions.
+    The contributions should be defined in the analysis YAML file, with a block
+    ``datadriven`` (at the top level) that could look as follows:
+
+    .. code-block:: yaml
+
+     datadriven:
+       chargeMisID:
+         use: [ data ]
+         replaces: [ DY ]
+       nonprompt:
+         use: [ data ]
+         replaces: [ TTbar ]
+
+    The ``--datadriven`` command-line switch then allows to specify a scenario
+    for data-driven backgrounds, i.e. a list of data-driven contributions to
+    include (``all`` and ``none`` are also possible, the latter is the default
+    setting)
+    """
+    def addArgs(self, parser):
+        super(DataDrivenBackgroundAnalysisModule, self).addArgs(parser)
+        parser.add_argument("--datadriven", action="append", help="Scenarios for data-driven backgrounds ('all' for all available in yaml, 'none' for everything from MC (default), or a comma-separated list of contributions; several can be specified)")
+    def initialize(self):
+        super(DataDrivenBackgroundAnalysisModule, self).initialize()
+        ddConfig = self.analysisConfig.get("datadriven")
+        if not self.args.datadriven:
+            scenarios = [ [] ]
+        else:
+            scenarios = []
+            for arg in self.args.datadriven:
+                if arg.lower() == "all":
+                    sc = tuple(sorted(config.keys()))
+                elif arg.lower() == "none":
+                    sc = tuple()
+                else:
+                    sc = tuple(sorted(arg.split(",")))
+                    if any(st not in ddConfig for st in sc):
+                        raise RuntimeError("Unknown data-driven contribution(s): {0}".format(", ".join(st for st in sc if st not in ddConfig)))
+                if sc not in scenarios:
+                    scenarios.append(sc)
+            if not scenarios:
+                raise RuntimeError("No data-driven scenarios, please check the arguments ({0}) and config ({1})".format(self.args.datadriven, str(config)))
+        self.datadrivenScenarios = scenarios
+        self.datadrivenContributions = {
+                contribName: DataDrivenContribution(config["uses"], config["replaces"])
+                for contribName, config in ddConfig.items()
+                if any(contribName in scenario for scenario in scenarios)
+                }
+    def customizeAnalysisCfg(self, analysisCfg):
+        """ Remove samples that are not needed in any of the data-driven background scenarios """
+        super(DataDrivenBackgroundAnalysisModule, self).customizeAnalysisCfg(analysisCfg)
+        samplesToSkip = [ smp for smp, smpCfg in analysisCfg["samples"].items()
+                if all(any(self.datadrivenContributions[contrib].replacesSample(smp, smpCfg) for contrib in scenario)
+                    for scenario in self.datadrivenScenarios) ]
+        for smp in samplesToSkip:
+            del analysisCfg["samples"][smp]
+
+class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, HistogramsModule):
+    """
+    :py:class:`~bamboo.analysismoduldes.HistogramsModule` with support for data-driven backgrounds
+
+    see the :py:class:`~bamboo.analysismoduldes.DataDrivenBackgroundAnalysisModule`
+    class for more details about configuring data-driven backgrounds, and the
+    :py:class:`~bamboo.plots.SelectionWithDataDriven` class for ensuring the
+    necessary histograms are filled correctly.
+    This class makes sure the histograms for the data-driven contributions are
+    written to different files, and runs ``plotIt`` for the different scenarios.
+    """
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
+        backend = super(DataDrivenBackgroundHistogramsModule, self).processTrees(inputFiles, outputFile, tree=tree, certifiedLumiFile=certifiedLumiFile, runRange=runRange, sample=sample, sampleCfg=sampleCfg)
+        ddFiles = {}
+        from .root import gbl
+        from .plots import SelectionWithDataDriven
+        for p in self.plotList:
+            if isinstance(p.selection, SelectionWithDataDriven):
+                for ddSuffix in p.selection.dd:
+                    if ddSuffix not in ddFiles:
+                        ddFiles[ddSuffix] = gbl.TFile.Open("{1}{0}{2}".format(ddSuffix, *os.path.splitext(outputFile)), "RECREATE")
+                    ddFiles[ddSuffix].cd()
+                    for h in backend.getResults(p, key=(p.name, ddSuffix)):
+                        h.Write()
+        for ddF in ddFiles.values():
+            ddF.Close()
+    ## TODO update postprocess

@@ -248,25 +248,12 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
             for root in smpReport.rootEntries():
                 printEntry(root, genEvents=generated_events)
 
-plotit_plotdefaults = {
-        "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
-        "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
-        }
-def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", plotDefaults=None, readCounters=lambda f : -1., eras=("all", None), verbose=False):
-    eraMode, eras = eras
-    if not eras: ## from config if not specified
-        eras = list(config["eras"].keys())
-    plotitCfg = copy.deepcopy(config["plotIt"]) if plotIt in config else {"configuration":{}}
-    plotitCfg["configuration"].update({
-        "root" : os.path.relpath(resultsdir, workdir),
-        "eras" : eras,
-        "luminosity" : dict((era, config["eras"][era]["luminosity"]) for era in eras)
-        })
-    plotit_files = dict()
-    for smpName, smpCfg in config["samples"].items():
+def plotIt_files(samplesDict, resultsdir=".", eras=None, readCounters=lambda f : -1., vetoAttributes=None):
+    files = dict()
+    for smpName, smpCfg in samplesDict.items():
         if smpCfg.get("era") in eras:
             resultsName = "{0}.root".format(smpName)
-            smpOpts = dict(smpCfg)
+            smpOpts = dict(smpCfg) if vetoAttributes is None else dict((k,v) for k,v in smpCfg.items() if k not in vetoAttributes)
             isMC = ( smpCfg.get("group") != "data" )
             if "type" not in smpOpts:
                 smpOpts["type"] = ("mc" if isMC else "data")
@@ -283,25 +270,124 @@ def runPlotIt(config, plotList, workdir=".", resultsdir=".", plotIt="plotIt", pl
                     smpOpts["generated-events"] = counters[smpCfg["generated-events"]]
                 else:
                     smpOpts["generated-events"] = smpCfg["generated-events"]
-            plotit_files[resultsName] = smpOpts
-    plotitCfg["files"] = plotit_files
-    plotDefaults_yml = plotitCfg.pop("plotdefaults", {})
+            files[resultsName] = smpOpts
+    return files
+
+plotit_plotdefaults = {
+        "x-axis"           : lambda p : "{0}".format(p.axisTitles[0]),
+        "x-axis-range"     : lambda p : [p.binnings[0].minimum, p.binnings[0].maximum],
+        }
+def plotIt_plots(plotList, plotDefaults=None):
     plotit_plots = dict()
     for plot in plotList:
-        if len(plot.variables) == 1:
-            plotOpts = dict(plotit_plotdefaults)
-            if plotDefaults_yml:
-                plotOpts.update(plotDefaults_yml)
-            if plotDefaults:
-                plotOpts.update(plotDefaults)
-            plotOpts.update(plot.plotopts)
-            plotOpts = dict((k, (v(plot) if hasattr(v, "__call__") else v)) for k,v in plotOpts.items())
-            plotit_plots[plot.name] = plotOpts
-    plotitCfg["plots"] = plotit_plots
-    cfgName = os.path.join(workdir, "plots.yml")
-    with open(cfgName, "w") as plotitFile:
-        yaml.dump(plotitCfg, plotitFile)
+        plotOpts = dict(plotit_plotdefaults)
+        if plotDefaults is not None:
+            plotOpts.update(plotDefaults)
+        plotOpts.update(plot.plotopts)
+        plotOpts = dict((k, (v(plot) if hasattr(v, "__call__") else v)) for k,v in plotOpts.items())
+        plotit_plots[plot.name] = plotOpts
+    return plotit_plots
 
+def plotIt_config(config, root=".", eras=None):
+    plotitCfg = copy.deepcopy(config.get("plotIt", {"configuration":{}}))
+    plotitCfg["configuration"].update({
+        "root" : root,
+        "eras" : eras,
+        "luminosity" : dict((era, config["eras"][era]["luminosity"]) for era in eras)
+        })
+    return plotitCfg
+
+def savePlotItConfig(cfgName, plotitCfg, filesCfg, plotsCfg):
+    fullCfg = copy.deepcopy(plotitCfg)
+    fullCfg["files"] = filesCfg
+    fullCfg["plots"] = plotsCfg
+    with open(cfgName, "w") as plotitFile:
+        yaml.dump(fullCfg, plotitFile)
+
+def _plotIt_configFilesAndPlots(config, plotList, eras=None, workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+    ## helper method, to avoid overlap between writePlotIt and loadPlotIt
+    # base: copy from plotIt block, add root and translate eras/lumi
+    plotitCfg = plotIt_config(config, root=os.path.relpath(resultsdir, workdir), eras=eras)
+    # samples -> files: read sum of weights from results
+    filesCfg = plotIt_files(config["samples"], resultsdir=resultsdir, eras=eras, readCounters=readCounters, vetoAttributes=vetoFileAttributes)
+    # plots: add default style options
+    plotDefaults_cmb = plotitCfg.get("plotdefaults", {})
+    if plotDefaults:
+        plotDefaults_cmb.update(plotDefaults)
+    plotsCfg = plotIt_plots(plotList, plotDefaults=plotDefaults_cmb)
+    return plotitCfg, filesCfg, plotsCfg
+
+def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+    """
+    Combine creation and saving of a plotIt config file
+
+    for convenience inside a :py:class:`~bamboo.analysismodules.HistogramsModule`, the individual parts are also available in :py:mod:`bamboo.analysisutils`.
+
+    :param config: parsed analysis configuration. Only the ``configuration`` (if present) and ``eras`` sections (to get the luminosities) are read.
+    :param plotList: list of plots to convert (``name`` and ``plotopts``, combined with the default style)
+    :param outName: output YAML config file name
+    :param eras: tuple of era mode and valid era list (parsed ``--eras`` argument)
+    :param workdir: output directory
+    :param resultsdir: directory with output ROOT files with histograms
+    :param readCounters: method to read the sum of event weights from an output file
+    :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
+    :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
+    """
+    eraMode, eras = eras
+    if eras is None:
+        eras = list(config["eras"].keys())
+    plotitCfg, filesCfg, plotsCfg = _plotIt_configFilesAndPlots(config, plotList, eras=eras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters, vetoFileAttributes=vetoFileAttributes, plotDefaults=plotDefaults)
+    ## write
+    savePlotItConfig(outName, plotitCfg, filesCfg, plotsCfg)
+
+def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+    """
+    Load the plotit configuration with the plotIt python library
+
+    The plotIt YAML file writing and parsing is skipped in this case (to write the file, the :py:func:`~bamboo.analysisutils.writePlotIt` method should be used, with the same arguments).
+
+    :param config: parsed analysis configuration. Only the ``configuration`` (if present) and ``eras`` sections (to get the luminosities) are read.
+    :param plotList: list of plots to convert (``name`` and ``plotopts``, combined with the default style)
+    :param eras: tuple of era mode and valid era list (parsed ``--eras`` argument)
+    :param workdir: output directory
+    :param resultsdir: directory with output ROOT files with histograms
+    :param readCounters: method to read the sum of event weights from an output file
+    :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
+    :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
+    """
+    eraMode, eras = eras
+    if eras is None:
+        eras = list(config["eras"].keys())
+    try:
+        from plotit.config import loadConfiguration, loadFiles, loadGroups, loadPlots, loadSystematics, loadLegend
+        from plotit.plotit import resolveFiles, samplesFromFilesAndGroups
+    except ImportError as ex:
+        raise RuntimeError(f"Could not load plotit python library ({ex!r})")
+    ## generate dictionaries
+    plotitCfg, filesCfg, plotsCfg = _plotIt_configFilesAndPlots(config, plotList, eras=eras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters, vetoFileAttributes=vetoFileAttributes, plotDefaults=plotDefaults)
+    ## parse in (py)plotit format
+    configuration = loadConfiguration(plotitCfg["configuration"])
+    cFiles = loadFiles(filesCfg)
+    cGroups = loadGroups(plotitCfg.get("groups"), files=cFiles)
+    plots = loadPlots(plotsCfg)
+    systematics = loadSystematics(plotitCfg.get("systematics"), configuration=configuration)
+    legend = loadLegend(plotitCfg.get("legend"))
+    ## resolve, select, group, and sort the files -> samples
+    files = resolveFiles(cFiles, configuration, systematics=systematics, histodir=workdir)
+    samples = samplesFromFilesAndGroups(files, cGroups, eras=eras)
+    return configuration, samples, plots, systematics, legend
+
+def runPlotIt(cfgName, workdir=".", plotIt="plotIt", eras=("all", None), verbose=False):
+    """
+    Run plotIt
+
+    :param cfgName: plotIt YAML config file name
+    :param workdir: working directory (also the starting point for finding the histograms files, ``--i`` option)
+    :param plotIt: path of the ``plotIt`` executable
+    :param eras: ``(mode, eras)``, mode being one of ``"split"``, ``"combined"``, or ``"all"`` (both of the former), and eras a list of era names, or ``None`` for all
+    :param verbose: print the plotIt command being run
+    """
+    eraMode, eras = eras
     out_extraOpts = []
     if len(eras) > 1 and eraMode in ("all", "combined"):
         out_extraOpts.append((os.path.join(workdir, "plots"), []))

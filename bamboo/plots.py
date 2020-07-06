@@ -367,6 +367,8 @@ class DerivedPlot(Product):
     """
     def __init__(self, name, dependencies, **kwargs):
         super(DerivedPlot, self).__init__(name)
+        if "__" in name:
+            raise RuntimeError("No '__' should be present in the name of a derived plot: it is reserved for separating the name from systematic variations")
         self.dependencies = dependencies
         self.binnings = kwargs.get("binnings", dependencies[0].binnings)
         self.axisTitles = kwargs.get("axisTitles",

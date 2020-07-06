@@ -314,12 +314,18 @@ class DataframeBackend(FactoryBackend):
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
         from .root import gbl
-        modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
+        binnings = plot.binnings
+        modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(binnings)))
         name = plot.name
         if variation != "nominal":
             name = "__".join((name, variation))
+        if len(binnings) > 1: # high-dimensional histo models require either all or none of the binnings to be uniform
+            from .plots import EquidistantBinning, VariableBinning
+            if any((isinstance(b, VariableBinning) for b in binnings)):
+                import numpy as np
+                binnings = [VariableBinning(np.linspace(b.minimum, b.maximum, b.N + 1)) if isinstance(b, EquidistantBinning) else b for b in binnings]
         return modCls(name, plot.title, *chain.from_iterable(
-            DataframeBackend.makeBinArgs(binning) for binning in plot.binnings))
+            DataframeBackend.makeBinArgs(binning) for binning in binnings))
     @staticmethod
     def makeBinArgs(binning):
         from .plots import EquidistantBinning, VariableBinning

@@ -541,3 +541,41 @@ class CutFlowReport(Product):
                     elif cnt > 1:
                         logger.warning("Key {ky.GetName()!r} contains '__' more than once, this will break assumptions")
         return CutFlowReport(self.name, self.selections, recursive=self.recursive, cfres=cfres)
+
+class SelectionWithDataDriven(Selection):
+    """ A main :py:class:`~bamboo.plots.Selection` with the corresponding "shadow" :py:class:`~bamboo.plots.Selection` instances for evaluating data-driven backgrounds (alternative cuts and/or weights) """
+    def __init__(self, parent, name, dd=None, cuts=None, weights=None, autoSyst=True):
+        super(SelectionWithDataDriven, self).__init__(parent, name, cuts=cuts, weights=weights, autoSyst=autoSyst)
+        self.dd = dd if dd is not None else dict()
+    @staticmethod
+    def create(parent, name, ddSuffix, cut=None, weight=None, ddCut=None, ddWeight=None, autoSyst=None, enable=True):
+        """
+        Create a selection with a data-driven shadow selection
+
+        Drop-in replacement for a :py:meth:`bamboo.plots.Selection.refine` call:
+        the main selection is made from the parent with ``cut`` and ``weight``,
+        the shadow selection is made from the parent with ``ddCut`` and ``ddWeight``.
+        With ``enable=False`` no shadow selection is made (this may help to avoid
+        duplication in the calling code).
+        """
+        if enable:
+            ddName = "".join((name, ddSuffix))
+            if isinstance(parent, SelectionWithDataDriven):
+                main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
+                main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+            else: ## create from regular Selection
+                main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
+                main.dd[ddSuffix] = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+        else:
+            main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
+        return main
+    def refine(self, name, cut=None, weight=None, autoSyst=True):
+        main = SelectionWithDataDriven(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)
+        main.dd = { ddSuff: ddParent.refine("".join((name, ddSuff)), cut=cut, weight=weight, autoSyst=autoSyst) for ddSuff, ddParent in self.dd.items() }
+        return main
+    def registerPlot(self, plot, **kwargs):
+        super(SelectionWithDataDriven, self).registerPlot(plot, **kwargs)
+        for ddSuffix, ddSel in self.dd.items():
+            ## will register and go out of scope (the module has all necessary information to retrieve and process the results; everything by reference, so cheap)
+            plot.clone(selection=ddSel, key=(plot.name, ddSuffix), **kwargs)
+    ## NOTE registerDerived not overridden, since none of the current backends need it

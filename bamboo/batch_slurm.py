@@ -158,6 +158,7 @@ class CommandListJob(CommandListJobBase):
                     if "\n" in ret:
                         raise AssertionError("More than one line in sacct... there's something wrong")
                     if len(ret) != 0:
+                        ret = ret.split(" ")[0]
                         if "CANCELLED+" in ret:
                             # Can happen if scancel command did not have time to propagate
                             status = "CANCELLED"

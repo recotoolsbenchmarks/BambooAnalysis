@@ -894,7 +894,7 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
             scenarios = []
             for arg in self.args.datadriven:
                 if arg.lower() == "all":
-                    sc = tuple(sorted(config.keys()))
+                    sc = tuple(sorted(ddConfig.keys()))
                 elif arg.lower() == "none":
                     sc = tuple()
                 else:

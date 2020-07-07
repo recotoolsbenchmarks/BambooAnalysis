@@ -887,10 +887,10 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
         parser.add_argument("--datadriven", action="append", help="Scenarios for data-driven backgrounds ('all' for all available in yaml, 'none' for everything from MC (default), or a comma-separated list of contributions; several can be specified)")
     def initialize(self):
         super(DataDrivenBackgroundAnalysisModule, self).initialize()
-        ddConfig = self.analysisConfig.get("datadriven")
+        ddConfig = self.analysisConfig.get("datadriven", dict())
         if not self.args.datadriven:
             scenarios = [ [] ]
-        elif ddConfig is None:
+        elif not ddConfig:
             raise RuntimeError("--datadriven argument passed, but no 'datadriven' top-level block was found in the analysis YAML configuration file")
         else:
             scenarios = []

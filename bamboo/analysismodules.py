@@ -868,10 +868,10 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
 
      datadriven:
        chargeMisID:
-         use: [ data ]
+         uses: [ data ]
          replaces: [ DY ]
        nonprompt:
-         use: [ data ]
+         uses: [ data ]
          replaces: [ TTbar ]
 
     The ``--datadriven`` command-line switch then allows to specify a scenario

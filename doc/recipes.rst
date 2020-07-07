@@ -605,10 +605,10 @@ be obtained, those that are replaced by it, e.g.
 
  datadriven:
    chargeMisID:
-     use: [ data ]
+     uses: [ data ]
      replaces: [ DY ]
    nonprompt:
-     use: [ data ]
+     uses: [ data ]
      replaces: [ TTbar ]
 
 The ``--datadriven`` command-line argument can then be used to specify which of

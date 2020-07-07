@@ -890,6 +890,8 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
         ddConfig = self.analysisConfig.get("datadriven")
         if not self.args.datadriven:
             scenarios = [ [] ]
+        elif ddConfig is None:
+            raise RuntimeError("--datadriven argument passed, but no 'datadriven' top-level block was found in the analysis YAML configuration file")
         else:
             scenarios = []
             for arg in self.args.datadriven:

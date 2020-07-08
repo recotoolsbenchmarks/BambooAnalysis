@@ -17,7 +17,7 @@ import functools
 boolType = "bool"
 _boolTypes = set(("bool", "Bool_t"))
 intType = "Int_t"
-_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
+_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "long", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
 floatType = "Double_t"
 _floatTypes = set(("Float_t", "Double_t", "float", "double"))
 ## TODO lists are probably not complete

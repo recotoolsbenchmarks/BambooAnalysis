@@ -129,7 +129,7 @@ def sign(sth):
 
     >>> op.sign(t.Muon[0].p4.Eta())
     """
-    return switch(sth!=0., sth/abs(sth), 0.)
+    return switch(sth!=0., extMethod("std::lround", returnType="long")(sth/abs(sth)), c_int(0, typeName="long"))
 def sum(*args, **kwargs):
     """ Return the sum of the arguments
 

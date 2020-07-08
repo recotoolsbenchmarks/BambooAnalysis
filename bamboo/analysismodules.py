@@ -913,14 +913,6 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
                 for contribName, config in ddConfig.items()
                 if any(contribName in scenario for scenario in scenarios)
                 }
-    def customizeAnalysisCfg(self, analysisCfg):
-        """ Remove samples that are not needed in any of the data-driven background scenarios """
-        super(DataDrivenBackgroundAnalysisModule, self).customizeAnalysisCfg(analysisCfg)
-        samplesToSkip = [ smp for smp, smpCfg in analysisCfg["samples"].items()
-                if all(any(self.datadrivenContributions[contrib].replacesSample(smp, smpCfg) for contrib in scenario)
-                    for scenario in self.datadrivenScenarios) ]
-        for smp in samplesToSkip:
-            del analysisCfg["samples"][smp]
 
 class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, HistogramsModule):
     """

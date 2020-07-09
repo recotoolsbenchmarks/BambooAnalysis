@@ -933,11 +933,12 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
         for p in self.plotList:
             if isinstance(p.selection, SelectionWithDataDriven):
                 for ddSuffix in p.selection.dd:
-                    if ddSuffix not in ddFiles:
-                        ddFiles[ddSuffix] = gbl.TFile.Open("{1}{0}{2}".format(ddSuffix, *os.path.splitext(outputFile)), "RECREATE")
-                    ddFiles[ddSuffix].cd()
-                    for h in backend.getResults(p, key=(p.name, ddSuffix)):
-                        h.Write()
+                    if p.selection.dd[ddSuffix] is not None:
+                        if ddSuffix not in ddFiles:
+                            ddFiles[ddSuffix] = gbl.TFile.Open("{1}{0}{2}".format(ddSuffix, *os.path.splitext(outputFile)), "RECREATE")
+                        ddFiles[ddSuffix].cd()
+                        for h in backend.getResults(p, key=(p.name, ddSuffix)):
+                            h.Write()
         for ddF in ddFiles.values():
             ddF.Close()
     ## TODO update postprocess

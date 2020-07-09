@@ -558,24 +558,25 @@ class SelectionWithDataDriven(Selection):
         With ``enable=False`` no shadow selection is made (this may help to avoid
         duplication in the calling code).
         """
-        if enable:
-            ddName = "".join((name, ddSuffix))
-            if isinstance(parent, SelectionWithDataDriven):
-                main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
-                main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
-            else: ## create from regular Selection
-                main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
-                main.dd[ddSuffix] = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
-        else:
+        ddName = "".join((name, ddSuffix))
+        if isinstance(parent, SelectionWithDataDriven):
             main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
+            main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+        else: ## create from regular Selection
+            main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
+            ddSel = None
+            if enable:
+                ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+            main.dd[ddSuffix] = ddSel
         return main
     def refine(self, name, cut=None, weight=None, autoSyst=True):
         main = SelectionWithDataDriven(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)
-        main.dd = { ddSuff: ddParent.refine("".join((name, ddSuff)), cut=cut, weight=weight, autoSyst=autoSyst) for ddSuff, ddParent in self.dd.items() }
+        main.dd = { ddSuff: (ddParent.refine("".join((name, ddSuff)), cut=cut, weight=weight, autoSyst=autoSyst) if ddParent is not None else None) for ddSuff, ddParent in self.dd.items() }
         return main
     def registerPlot(self, plot, **kwargs):
         super(SelectionWithDataDriven, self).registerPlot(plot, **kwargs)
         for ddSuffix, ddSel in self.dd.items():
-            ## will register and go out of scope (the module has all necessary information to retrieve and process the results; everything by reference, so cheap)
-            plot.clone(selection=ddSel, key=(plot.name, ddSuffix), **kwargs)
+            if ddSel is not None:
+                ## will register and go out of scope (the module has all necessary information to retrieve and process the results; everything by reference, so cheap)
+                plot.clone(selection=ddSel, key=(plot.name, ddSuffix), **kwargs)
     ## NOTE registerDerived not overridden, since none of the current backends need it

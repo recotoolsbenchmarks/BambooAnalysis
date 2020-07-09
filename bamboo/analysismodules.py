@@ -11,6 +11,7 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
+from collections import defaultdict
 from itertools import chain
 from functools import partial
 import logging
@@ -941,4 +942,57 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                             h.Write()
         for ddF in ddFiles.values():
             ddF.Close()
-    ## TODO update postprocess
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        if not self.plotList:
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
+        from .plots import Plot, DerivedPlot, CutFlowReport, SelectionWithDataDriven
+        plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
+        plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
+        if plotList_cutflowreport:
+            from bamboo.analysisutils import printCutFlowReports
+            printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        if plotList_plotIt:
+            from bamboo.analysisutils import writePlotIt, runPlotIt
+            eraMode, eras = self.args.eras
+            if eras is None:
+                eras = list(config["eras"].keys())
+            # - step 1: group per max-available scenario (combination of data-driven contributions - not the same as configured scenarios, since this one is per-plot)
+            plotList_per_availscenario = defaultdict(list)
+            for p in plotList_plotIt:
+                if isinstance(p.selection, SelectionWithDataDriven):
+                    avSc = tuple(p.selection.dd.keys())
+                    plotList_per_availscenario[avSc].append(p)
+                else:
+                    plotList_per_availscenario[tuple()].append(p)
+            # - step 2: collect plots for actual scenarios (avoiding adding them twice)
+            plots_per_scenario = defaultdict(dict)
+            for sc in self.datadrivenScenarios:
+                for avSc, avPlots in plotList_per_availscenario.items():
+                    plots_per_scenario[tuple(dd for dd in sc if dd in avSc)].update({p.name: p for p in avPlots})
+            for sc, scPlots in plots_per_scenario.items():
+                scName = "_".join(chain(["plots"], sc))
+                cfgName = os.path.join(workdir, f"{scName}.yml")
+                ## Modified samples: first remove replaced ones
+                modSamples = { smp: smpCfg for smp, smpCfg in config["samples"].items()
+                        if not any(self.datadrivenContributions[contrib].replacesSample(smp, smpCfg) for contrib in sc) }
+                ## Then add data-driven contributions
+                for contrib in sc:
+                    for smp, smpCfg in config["samples"].items():
+                        if self.datadrivenContributions[contrib].usesSample(smp, smpCfg):
+                            modCfg = dict(smpCfg)
+                            if "era" in smpCfg:
+                                lumi = config["eras"][smpCfg["era"]]["luminosity"]
+                            else:
+                                lumi = sum(eraCfg["luminosity"] for eraCfg in config["eras"].values())
+                            modCfg.update({
+                                "type": "mc",
+                                "generated-events": lumi,
+                                "cross-section": 1.,
+                                "group": contrib
+                                })
+                            modSamples[f"{smp}{contrib}"] = modCfg
+                config_sc = dict(config) # shallow copy
+                config_sc["samples"] = modSamples
+                ## TODO possible improvement: cache counters (e.g. by file name) - needs a change in readCounters interface
+                writePlotIt(config_sc, list(scPlots.values()), cfgName, eras=(eraMode, eras), workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
+                runPlotIt(cfgName, workdir=workdir, plotsdir=scName, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)

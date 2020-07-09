@@ -898,6 +898,7 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
             for arg in self.args.datadriven:
                 if arg.lower() == "all":
                     sc = tuple(sorted(ddConfig.keys()))
+                    logger.info("--datadriven=all selected contributions {0}".format(", ".join(sc)))
                 elif arg.lower() == "none":
                     sc = tuple()
                 else:
@@ -964,6 +965,12 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                     plotList_per_availscenario[avSc].append(p)
                 else:
                     plotList_per_availscenario[tuple()].append(p)
+            usedButNotUsedConfigContribs = set(contrib for avSc in plotList_per_availscenario.keys() for contrib in avSc if avSc not in self.datadrivenContributions)
+            if len(usedButNotUsedConfigContribs) > 0:
+                logger.error("Data-driven contributions {0} were used for defining selections and plots, but are not defined in the configuration file (present there are {1}); the plots will not be produced".format(
+                    ", ".join(usedButNotUsedConfigContribs),
+                    ", ".join(self.datadrivenContributions.keys())
+                    ))
             # - step 2: collect plots for actual scenarios (avoiding adding them twice)
             plots_per_scenario = defaultdict(dict)
             for sc in self.datadrivenScenarios:

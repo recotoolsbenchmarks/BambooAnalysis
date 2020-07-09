@@ -295,15 +295,18 @@ class AnalysisModule:
                         aProblem = False
                         for tsk in tasks_notfinalized:
                             nExpected, tskOut = outputs[tsk.name]
-                            if nExpected != len(tskOut):
-                                logger.error(f"Not all jobs for {tsk.name} produced an output ({len(tskOut):d}/{nExpected:d} found), cannot finalize")
+                            if not tskOut:
+                                logger.error(f"No output files for sample {tsk.name}")
                                 aProblem = True
-                            elif tskOut:
-                                if not all(os.path.basename(outFile) == tsk.outputFile for outFile in tskOut):
-                                    logger.error("Not all of {0} have the expected name {1}, cannot finalize".format(", ".join(tskOut), tsk.outputFile))
+                            tskOut_by_name = defaultdict(list)
+                            for fn in tskOut:
+                                tskOut_by_name[os.path.basename(fn)].append(fn)
+                            for outFileName, outFiles in tskOut_by_name.items():
+                                if nExpected != len(outFiles):
+                                    logger.error(f"Not all jobs for {tsk.name} produced an output file {outFileName} ({len(outFiles):d}/{nExpected:d} found), cannot finalize")
                                     aProblem = True
                                 else:
-                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, tsk.outputFile)]+tskOut
+                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, outFileName)]+outFiles
                                     import subprocess
                                     try:
                                         logger.debug("Merging outputs for sample {0} with {1}".format(tsk.name, " ".join(haddCmd)))
@@ -311,9 +314,6 @@ class AnalysisModule:
                                     except subprocess.CalledProcessError:
                                         loger.error("Failed to run {0}".format(" ".join(haddCmd)))
                                         aProblem = True
-                            else:
-                                logger.error(f"No output files for sample {tsk.name}")
-                                aProblem = True
                         if aProblem:
                             logger.error("Could not finalize all tasks so no post-processing will be run (rerun in verbose mode for the full list of directories and commands)")
                             return

@@ -539,7 +539,7 @@ class CombinationProxy(TupleBaseProxy):
     def _idx(self):
         return self._parent._index
     @property
-    def index(self):
+    def idx(self):
         return self._parent.index
     def __getitem__(self, i):
         if isinstance(i, slice):

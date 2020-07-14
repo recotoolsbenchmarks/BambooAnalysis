@@ -234,28 +234,37 @@ class ListBase(object):
     def idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
 
-class ContainerGroupItemProxy(TupleBaseProxy):
-    """ Proxy for an item in a structure of arrays """
-    def __init__(self, parent, idx):
-        self._idx = adaptArg(idx, typeHint=SizeType)
-        super(ContainerGroupItemProxy, self).__init__("struct", parent=parent)
-    def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._idx)
-    @property
-    def isValid(self):
-        return self._idx.result != -1
+class ItemProxyBase(TupleBaseProxy):
+    """ Proxy for an item in some container """
+    def __init__(self, parent):
+        ## NOTE subclasses should define _idx and _base
+        super(ItemProxyBase, self).__init__("struct", parent=parent)
     @property
     def idx(self):
         return self._idx.result
+    @property
+    def isValid(self):
+        return self.idx != -1
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             raise RuntimeError("Cannot compare proxies of different types: {0} and {1}".format(other.__class__.__name__, self.__class__.__name__))
-        if self._parent._base != other._parent._base:
+        if self._base != other._base:
             raise RuntimeError("Cannot compare elements from different containers")
-        return self._idx.result == other._idx.result
+        return self.idx == other.idx
     def __ne__(self, other):
         from bamboo.treefunctions import NOT
         return NOT(self == other)
+
+class ContainerGroupItemProxy(ItemProxyBase):
+    """ Proxy for an item in a structure of arrays """
+    def __init__(self, parent, idx):
+        self._idx = adaptArg(idx, typeHint=SizeType)
+        super(ContainerGroupItemProxy, self).__init__("struct", parent)
+    @property
+    def _base(self):
+        return self._parent._base
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._idx)
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """
@@ -530,17 +539,19 @@ class CalcCollectionVariations(AltCollectionVariations, CalcVariationsBase):
         super(CalcCollectionVariations, self).__init__(parent, orig, brMapMap, altItemType=altItemType)
         CalcVariationsBase.__init__(self, withSystName=withSystName)
 
-class CombinationProxy(TupleBaseProxy):
-    ## NOTE decorated rdfhelpers::Combination
+class CombinationProxy(ItemProxyBase):
+    """ Decorated combinations item """
     def __init__(self, cont, parent):
         self.cont = cont
-        super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
+        super(CombinationProxy, self).__init__(parent) ## parent is a GetItem
     @property
     def _idx(self):
         return self._parent._index
     @property
-    def idx(self):
-        return self._parent.index
+    def _base(self):
+        return self.cont._parent
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
     def __getitem__(self, i):
         if isinstance(i, slice):
             if i.step and i.step != 1:
@@ -549,13 +560,9 @@ class CombinationProxy(TupleBaseProxy):
         else:
             idx = makeConst(i, SizeType)
             return self.cont.base(i)[self._parent.result.get(idx)]
-    ## TODO add more (maybe simply defer to rdfhelpers::Combination object
-    def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
 
 class CombinationListProxy(TupleBaseProxy,ListBase):
     ## NOTE list of decorated rdfhelpers::Combination
-    ## TODO check if this works with selection (it should...)
     def __init__(self, ranges, parent):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
         self.ranges = ranges

@@ -259,7 +259,7 @@ class ContainerGroupItemProxy(ItemProxyBase):
     """ Proxy for an item in a structure of arrays """
     def __init__(self, parent, idx):
         self._idx = adaptArg(idx, typeHint=SizeType)
-        super(ContainerGroupItemProxy, self).__init__("struct", parent)
+        super(ContainerGroupItemProxy, self).__init__(parent)
     @property
     def _base(self):
         return self._parent._base

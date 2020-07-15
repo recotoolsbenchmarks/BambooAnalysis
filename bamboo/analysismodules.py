@@ -845,14 +845,44 @@ class NanoAODSkimmerModule(NanoAODModule, SkimmerModule):
         super(NanoAODSkimmerModule, self).__init__(args)
 
 class DataDrivenContribution:
-    # helper class for the next one
-    def __init__(self, uses, replaces):
-        self.uses = uses
-        self.replaces = replaces
+    """
+    Configuration helper class for data-driven contributions
+
+    An instance is constructed for each contribution in any of the scenarios by
+    the :py:meth:`bamboo.analysismodules.DataDrivenBackgroundAnalysisModule.initialize`
+    method, with the name and configuration dictionary found in YAML file.
+    The :py:meth:`~bamboo.analysismodules.DataDrivenContribution.usesSample`:,
+    :py:meth:`~bamboo.analysismodules.DataDrivenContribution.replacesSample`: and
+    :py:meth:`~bamboo.analysismodules.DataDrivenContribution.modifiedSampleConfig`:
+    methods can be customised for other things than using the data samples
+    to estimate a background contribution.
+    """
+    def __init__(self, name, config):
+        self.name = name
+        self.config = config
+        self.uses = config.get("uses", [])
+        self.replaces = config.get("replaces", [])
     def usesSample(self, sampleName, sampleConfig):
+        """ Check if this contribution uses a sample (name or group in 'uses') """
         return sampleName in self.uses or sampleConfig.get("group") in self.uses
     def replacesSample(self, sampleName, sampleConfig):
+        """ Check if this contribution replaces a sample (name or group in 'replaces') """
         return sampleName in self.replaces or sampleConfig.get("group") in self.replaces
+    def modifiedSampleConfig(self, sampleName, sampleConfig, lumi=None):
+        """
+        Construct the sample configuration for the reweighted counterpart of a sample
+
+        The default implementation assumes a data sample and turns it into a MC sample
+        (the luminosity is set as ``generated-events`` to avoid changing the normalisation).
+        """
+        modCfg = dict(sampleConfig)
+        modCfg.update({
+            "type": "mc",
+            "generated-events": lumi,
+            "cross-section": 1.,
+            "group": self.name
+            })
+        return modCfg
 
 class DataDrivenBackgroundAnalysisModule(AnalysisModule):
     """
@@ -911,7 +941,7 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
                 raise RuntimeError("No data-driven scenarios, please check the arguments ({0}) and config ({1})".format(self.args.datadriven, str(config)))
         self.datadrivenScenarios = scenarios
         self.datadrivenContributions = {
-                contribName: DataDrivenContribution(config["uses"], config["replaces"])
+                contribName: DataDrivenContribution(contribName, config)
                 for contribName, config in ddConfig.items()
                 if any(contribName in scenario for scenario in scenarios)
                 }
@@ -983,21 +1013,15 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                 modSamples = { smp: smpCfg for smp, smpCfg in config["samples"].items()
                         if not any(self.datadrivenContributions[contrib].replacesSample(smp, smpCfg) for contrib in sc) }
                 ## Then add data-driven contributions
-                for contrib in sc:
+                for contribName in sc:
+                    contrib = self.datadrivenContributions[contribName]
                     for smp, smpCfg in config["samples"].items():
-                        if self.datadrivenContributions[contrib].usesSample(smp, smpCfg):
-                            modCfg = dict(smpCfg)
+                        if contrib.usesSample(smp, smpCfg):
                             if "era" in smpCfg:
                                 lumi = config["eras"][smpCfg["era"]]["luminosity"]
                             else:
                                 lumi = sum(eraCfg["luminosity"] for eraCfg in config["eras"].values())
-                            modCfg.update({
-                                "type": "mc",
-                                "generated-events": lumi,
-                                "cross-section": 1.,
-                                "group": contrib
-                                })
-                            modSamples[f"{smp}{contrib}"] = modCfg
+                            modSamples[f"{smp}{contribName}"] = contrib.modifiedSampleConfig(smp, smpCfg, lumi=lumi)
                 config_sc = dict(config) # shallow copy
                 config_sc["samples"] = modSamples
                 ## TODO possible improvement: cache counters (e.g. by file name) - needs a change in readCounters interface

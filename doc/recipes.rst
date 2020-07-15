@@ -630,6 +630,11 @@ the example above):
      enable=any(contrib.usesSample(sample, sampleCfg) for contrib in self.datadrivenContributions.values())
      )
 
+The generation of modified sample configuration dictionaries in the plotIt_
+YAML file can be customised by replacing the corresponding entry in the
+:py:attr:`~bamboo.analysismodules.DataDrivenBackgroundAnalysisModule.datadrivenContributions`
+dictionary with a variation of a :py:class:`~bamboo.analysismodules.DataDrivenContribution`
+instance.
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 

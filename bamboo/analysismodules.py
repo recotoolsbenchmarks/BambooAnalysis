@@ -151,6 +151,7 @@ class AnalysisModule:
         self.specificArgv = reproduceArgv(self.args, specific)
         self._envConfig = None
         self._analysisConfig = None
+        self._sampleFilesResolver = None
         self.initialize()
     def addArgs(self, parser):
         """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
@@ -172,18 +173,22 @@ class AnalysisModule:
             self._envConfig = readEnvConfig(self.args.envConfig)
         return self._envConfig
     @property
+    def analysisConfigName(self):
+        if self.args.distributed == "worker":
+            return self.args.anaConfig
+        elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
+            return self.args.input[0]
+        else:
+            raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
+    @property
     def analysisConfig(self):
         if self._analysisConfig is None:
-            if self.args.distributed == "worker":
-                anaCfgName = self.args.anaConfig
-            elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
-                anaCfgName = self.args.input[0]
-            else:
-                raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
-            self._analysisConfig = parseAnalysisConfig(anaCfgName)
+            self._analysisConfig = parseAnalysisConfig(self.analysisConfigName)
         return self._analysisConfig
-    def getSampleFilesResolver(self, cfgDir="."):
+    @property
+    def sampleFilesResolver(self):
         from .analysisutils import sample_resolveFiles
+        cfgDir = os.path.dirname(os.path.abspath(self.analysisConfigName))
         resolver = partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
         if self.args.maxFiles <= 0:
             return resolver
@@ -210,8 +215,7 @@ class AnalysisModule:
             if fileName and sampleName:
                 sampleCfg = analysisCfg["samples"][sampleName]
             else:
-                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=filesResolver)
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=self.sampleFilesResolver)
             logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
@@ -264,8 +268,7 @@ class AnalysisModule:
                 workdir = self.args.output
                 analysisCfg = self.analysisConfig
                 self.customizeAnalysisCfg(analysisCfg)
-                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(self.sampleFilesResolver if not self.args.onlypost else None))
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
                     if os.path.exists(resultsdir):

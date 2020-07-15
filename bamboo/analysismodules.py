@@ -972,6 +972,7 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                         for h in backend.getResults(p, key=(p.name, ddSuffix)):
                             h.Write()
         for ddF in ddFiles.values():
+            self.mergeCounters(ddF, inputFiles, sample=sample)
             ddF.Close()
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         if not self.plotList:
@@ -995,7 +996,7 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                     plotList_per_availscenario[avSc].append(p)
                 else:
                     plotList_per_availscenario[tuple()].append(p)
-            usedButNotUsedConfigContribs = set(contrib for avSc in plotList_per_availscenario.keys() for contrib in avSc if avSc not in self.datadrivenContributions)
+            usedButNotUsedConfigContribs = set(contrib for avSc in plotList_per_availscenario.keys() for contrib in avSc if contrib not in self.datadrivenContributions)
             if len(usedButNotUsedConfigContribs) > 0:
                 logger.error("Data-driven contributions {0} were used for defining selections and plots, but are not defined in the configuration file (present there are {1}); the plots will not be produced".format(
                     ", ".join(usedButNotUsedConfigContribs),

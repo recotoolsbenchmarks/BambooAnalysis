@@ -948,6 +948,10 @@ class DataDrivenBackgroundAnalysisModule(AnalysisModule):
                 for contribName, config in ddConfig.items()
                 if any(contribName in scenario for scenario in scenarios)
                 }
+        if self.datadrivenContributions:
+            logger.info("Requested data-driven scenarios: {0}; selected contributions: {1}".format(", ".join("+".join(contrib for contrib in scenario) for scenario in self.datadrivenScenarios), ",".join(self.datadrivenContributions.keys())))
+        else:
+            logger.info("No data-driven contributions selected")
 
 class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, HistogramsModule):
     """

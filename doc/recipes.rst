@@ -627,7 +627,7 @@ the example above):
      cut=(diel[0].Charge == diel[1].Charge),
      ddCut=(diel[0].Charge != diel[1].Charge),
      ddWeight=p_chargeMisID(diel[0])+p_chargeMisID(diel[1]),
-     enable=any(contrib.usesSample(sample, sampleCfg) for contrib in self.datadrivenContributions.values())
+     enable=any("chargeMisID" in self.datadrivenContributions and self.datadrivenContributions["chargeMisID"].usesSample(sample, sampleCfg))
      )
 
 The generation of modified sample configuration dictionaries in the plotIt_

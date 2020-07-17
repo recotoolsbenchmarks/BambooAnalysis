@@ -124,6 +124,8 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         era = sampleCfg.get("era") if sampleCfg else None
 
         plots = []
+        cfr = CutFlowReport("yields")
+        plots.append(cfr)
 
         ## calculate (corrected) muon 4-momenta before accessing them
         forceDefine(t._Muon.calcProd, noSel)
@@ -131,6 +133,8 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         muons = op.select(t.Muon, lambda mu : mu.pt > 20.)
 
         twoMuSel = noSel.refine("twoMuons", cut=[ op.rng_len(muons) > 1 ])
+        cfr.add(twoMuSel, "With two muons")
+        cfr.add(twoMuSel, "With two leptons")
         plots.append(Plot.make1D("dimu_M", op.invariant_mass(muons[0].p4, muons[1].p4), twoMuSel,
                 EquidistantBinning(100, 20., 120.), title="Dimuon invariant mass", plotopts={"show-overflow":False}))
 
@@ -144,6 +148,7 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
                 EquidistantBinning(10, 0., 10.), title="Number of jets"))
 
         twoMuTwoJetSel = twoMuSel.refine("twoMuonsTwoJets", cut=[ op.rng_len(jets) > 1 ])
+        cfr.add(twoMuTwoJetSel, "With two muons and two jets")
 
         leadjpt = Plot.make1D("leadJetPT", jets[0].pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="Leading jet PT")
@@ -154,8 +159,6 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         plots.append(Plot.make1D("MET", met.pt, twoMuTwoJetSel,
                 EquidistantBinning(50, 0., 250.), title="MET PT"))
 
-        selsForCutFlowReport = [ twoMuTwoJetSel ]
-
         deepCSVFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "DeepCSV_2016LegacySF_V1.csv")
         if os.path.exists(deepCSVFile): ## protection for CI tests
             from bamboo.scalefactors import BtagSF
@@ -165,19 +168,26 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
             bJets_DeepCSVLoose = op.select(jets, lambda j : j.btagDeepB > 0.2217)
             bTagSel = twoMuTwoJetSel.refine("twoMuonsTwoJetsB", cut=[ op.rng_len(bJets_DeepCSVLoose) > 0 ],
                     weight=(sf_deepcsv(bJets_DeepCSVLoose[0]) if self.isMC(sample) else None))
+            cfr.add(bTagSel, "With two muons a b-tag")
             plots.append(Plot.make1D("bjetpt", bJets_DeepCSVLoose[0].pt, bTagSel, EquidistantBinning(50, 0., 250.), title="B-jet pt"))
-
-            selsForCutFlowReport.append(bTagSel)
-        plots.append(CutFlowReport("mumujj", selsForCutFlowReport))
 
         electrons = op.select(t.Electron, lambda el : op.AND(el.pt > 20, op.abs(el.eta) < 2.5))
         from bamboo.scalefactors import get_scalefactor, binningVariables_nano
         elIDSF = get_scalefactor("lepton", os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests", "data", "Electron_EGamma_SF2D_loose_moriond17.json"), isElectron=True, paramDefs=binningVariables_nano)
         twoElSel = noSel.refine("twoElectrons", cut=[ op.rng_len(electrons) > 1 ],
                 weight=[ elIDSF(electrons[i]) for i in range(2) ])
+        cfr.add(twoElSel, "With two leptons")
         plots.append(Plot.make1D("Melel", op.invariant_mass(electrons[0].p4, electrons[1].p4), twoElSel, EquidistantBinning(100, 20., 120.), title="Dimuon invariant mass", plotopts={"show-overflow":False}))
 
         return plots
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        super(NanoZMuMu, self).postProcess(taskList, config=config, workdir=workdir, resultsdir=resultsdir)
+        import bamboo.plots
+        cfr = next(p for p in self.plotList if isinstance(p, bamboo.plots.CutFlowReport))
+        cfres = { res.name : res for res in cfr.cfres }
+        from pprint import pprint
+        pprint(cfres)
+        pprint(cfr.titles)
 
 class SkimNanoZMuMu(NanoZMuMuBase, NanoAODSkimmerModule):
     def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):

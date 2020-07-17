@@ -123,6 +123,7 @@ class DataframeBackend(FactoryBackend):
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.results = dict()     ## product name -> list of result pointers
         self.allSysts = dict()    ## all systematic uncertainties and variations impacting any plot
+        self._cfrMemo = defaultdict(dict)
         super(DataframeBackend, self).__init__()
         self._iCol = 0
     def _getUSymbName(self):
@@ -435,12 +436,14 @@ class DataframeBackend(FactoryBackend):
             ky.Delete()
             outF.Close()
 
-    def addCutFlowReport(self, report, autoSyst=True):
-        logger.debug("Adding cutflow report {0} for selection(s) {1}".format(report.name, ", ".join(sele.name for sele in report.selections)))
+    def addCutFlowReport(self, report, selections=None, autoSyst=True):
+        if selections is None:
+            selections = report.selections
+        logger.debug("Adding cutflow report {0} for selection(s) {1}".format(report.name, ", ".join(sele.name for sele in selections)))
         cmArgs = {"autoSyst" : autoSyst, "makeEntry" : report.__class__.Entry, "prefix" : report.name}
-        memo = dict()
+        memo = self._cfrMemo[report.name]
         results = []
-        for sele in report.selections:
+        for sele in selections:
             if sele.name in memo:
                 cfr = memo[sele.name]
             else:
@@ -454,13 +457,13 @@ class DataframeBackend(FactoryBackend):
                         cfr_n = memo[isel.name]
                         cfr.setParent(cfr_n)
                         break ## all above should be there too, then
+                    logger.debug("Adding cutflow report {0} for selection {1}".format(report.name, isel.name))
                     cfr_n = self._makeCutFlowReport(isel, **cmArgs)
                     memo[isel.name] = cfr_n
                     cfr.setParent(cfr_n)
                     cfr = cfr_n
                     isel = isel.parent
-        logger.debug("Defined cutflow {0} reports for selections {1}".format(report.name, ", ".join(memo.keys())))
-        self.results[report.name] = results
+        self.results[report.name] = self.results.get(report.name, []) + results
 
     def _makeCutFlowReport(self, selection, autoSyst=True, makeEntry=None, prefix=None):
         from .root import gbl
@@ -509,8 +512,8 @@ class LazyDataframeBackend(DataframeBackend):
         if any((ap.key == plot.key) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
             raise RuntimeError(f"A Plot with key '{plot.key}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
-    def addCutFlowReport(self, report, autoSyst=True):
-        self.cutFlowReports.append((report, autoSyst))
+    def addCutFlowReport(self, report, selections=None, autoSyst=True):
+        self.cutFlowReports.append((report, selections, autoSyst))
     def _buildSelGraph(self, selName, plotList):
         sele = self.selections[selName]
         if sele.parent and sele.parent.name not in self._definedSel:
@@ -535,8 +538,8 @@ class LazyDataframeBackend(DataframeBackend):
             if isinstance(plot, Plot):
                 if plot.selection.name not in self._definedSel:
                     self._buildSelGraph(plot.selection.name, allPlots)
-        for report, autoSyst in self.cutFlowReports:
-            super(LazyDataframeBackend, self).addCutFlowReport(report, autoSyst=autoSyst)
+        for report, selections, autoSyst in self.cutFlowReports:
+            super(LazyDataframeBackend, self).addCutFlowReport(report, selections=selections, autoSyst=autoSyst)
     def define(self, op, selection):
         self.definesPerSelection[selection.name].append(op)
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):

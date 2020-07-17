@@ -7,6 +7,7 @@ __all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "Derive
 import logging
 logger = logging.getLogger(__name__)
 
+from collections import defaultdict
 from itertools import chain
 from . import treeoperations as top
 
@@ -474,7 +475,7 @@ class CutFlowReport(Product):
             self.parent = parent
             if self not in parent.children:
                 parent.children.append(self)
-    def __init__(self, name, selections, recursive=True, autoSyst=False, cfres=None):
+    def __init__(self, name, selections=None, recursive=False, titles=None, autoSyst=False, cfres=None):
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
         self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
@@ -483,9 +484,24 @@ class CutFlowReport(Product):
                 for selDD in sel.dd.values():
                     if selDD is not None:
                         self.selections.append(selDD)
+        self.titles = defaultdict(list)
+        if titles is not None:
+            self.titles = titles
+        elif self.selections:
+            self.titles.update({ sel.name: sel.name for sel in self.selections })
+        self.autoSyst = autoSyst
         self.cfres = cfres
         if self.selections and cfres is None:
             self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
+    def add(self, selections, title=None):
+        if not hasattr(selections, "__iter__"):
+            selections = [ selections ]
+        self.selections += [ sel for sel in selections if sel not in self.selections ]
+        if title is not None:
+            self.titles[title] += [ sel.name for sel in selections ]
+        else:
+            self.titles.update({ sel.name : sel.name for sel in selections })
+        selections[0]._fbe.addCutFlowReport(self, selections, autoSyst=self.autoSyst)
     def produceResults(self, bareResults, fbe, key=None):
         self.cfres = fbe.results[self.name]
         entries = list()
@@ -552,7 +568,7 @@ class CutFlowReport(Product):
                         entry.systVars[varNm] = ky.ReadObject()
                     elif cnt > 1:
                         logger.warning("Key {ky.GetName()!r} contains '__' more than once, this will break assumptions")
-        return CutFlowReport(self.name, self.selections, recursive=self.recursive, cfres=cfres)
+        return CutFlowReport(self.name, self.selections, titles=self.titles, recursive=self.recursive, cfres=cfres)
 
 class SelectionWithDataDriven(Selection):
     """ A main :py:class:`~bamboo.plots.Selection` with the corresponding "shadow" :py:class:`~bamboo.plots.Selection` instances for evaluating data-driven backgrounds (alternative cuts and/or weights) """

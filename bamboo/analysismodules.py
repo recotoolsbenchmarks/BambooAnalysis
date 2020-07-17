@@ -999,13 +999,13 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
             plotList_per_availscenario = defaultdict(list)
             for p in plotList_plotIt:
                 if isinstance(p.selection, SelectionWithDataDriven):
-                    avSc = tuple(p.selection.dd.keys())
+                    avSc = tuple(k for k,v in p.selection.dd.items() if v is not None)
                     plotList_per_availscenario[avSc].append(p)
                 else:
                     plotList_per_availscenario[tuple()].append(p)
             usedButNotUsedConfigContribs = set(contrib for avSc in plotList_per_availscenario.keys() for contrib in avSc if contrib not in self.datadrivenContributions)
             if len(usedButNotUsedConfigContribs) > 0:
-                logger.error("Data-driven contributions {0} were used for defining selections and plots, but are not defined in the configuration file (present there are {1}); the plots will not be produced".format(
+                logger.error("Data-driven contributions {0} were used for defining selections and plots, but are not needed for any scenario (present there are {1}); the plots will not be produced".format(
                     ", ".join(usedButNotUsedConfigContribs),
                     ", ".join(self.datadrivenContributions.keys())
                     ))

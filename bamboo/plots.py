@@ -559,18 +559,18 @@ class SelectionWithDataDriven(Selection):
         duplication in the calling code).
         """
         ddName = "".join((name, ddSuffix))
+        ddSel = None
         if isinstance(parent, SelectionWithDataDriven):
             main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
             if enable:
-                logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
-                main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+                ddSel = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
         else: ## create from regular Selection
             main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
-            ddSel = None
             if enable:
-                logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
                 ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
-            main.dd[ddSuffix] = ddSel
+        if ddSel is not None:
+            logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
+        main.dd[ddSuffix] = ddSel
         return main
     def refine(self, name, cut=None, weight=None, autoSyst=True):
         main = SelectionWithDataDriven(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)

@@ -561,11 +561,14 @@ class SelectionWithDataDriven(Selection):
         ddName = "".join((name, ddSuffix))
         if isinstance(parent, SelectionWithDataDriven):
             main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
-            main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+            if enable:
+                logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
+                main.dd[ddSuffix] = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
         else: ## create from regular Selection
             main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
             ddSel = None
             if enable:
+                logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
                 ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
             main.dd[ddSuffix] = ddSel
         return main

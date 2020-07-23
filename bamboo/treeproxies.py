@@ -427,9 +427,15 @@ class SliceProxy(TupleBaseProxy,ListBase):
                     valueType=self.valueType)
         else:
             ## item of a slice -> ask parent
-            return self.parent[self._offset(key)]
+            itm = self.parent[self._offset(key)]
+            if self.valueType and self.valueType != self.parent.valueType:
+                itm = self.valueType(itm._parent, itm._idx)
+            return itm
     def _getItem(self, baseIndex): ## correct but not used by __getitem__ (finding base index depends on self.parent, could be anything)
-        return self.parent._getItem(baseIndex)
+        itm = self.parent._getItem(baseIndex)
+        if self.valueType and self.valueType != self.parent.valueType:
+            itm = self.valueType(itm._parent, itm._idx)
+        return itm
     def __len__(self):
         return self._end-self.begin
     def __repr__(self):

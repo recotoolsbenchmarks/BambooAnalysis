@@ -394,12 +394,14 @@ class SliceProxy(TupleBaseProxy,ListBase):
     """ Proxy for part of an iterable (ContainerGroup/selection etc.) """
     def __init__(self, parent, begin, end, valueType=None): ## 'parent' is another proxy (ListBase, will become _base of this one)
         ListBase.__init__(self)
-        self._base = parent if parent is not None else None
+        self.parent = parent ## parent proxy (slices are always created with a proxy)
+        self._base = parent._base if parent is not None else None
         self._begin = makeProxy(SizeType, adaptArg(begin, SizeType)) if begin is not None else None ## None signals 0
         self._end = makeProxy(SizeType, adaptArg(end, SizeType)) if end is not None else makeConst(parent.__len__(), SizeType)
         self.valueType = valueType if valueType else parent.valueType
         super(SliceProxy, self).__init__(self.valueType, parent=(adaptArg(parent) if parent is not None else None))
     def _offset(self, idx):
+        ## from index in slice to index in slice's parent
         if self._begin is not None:
             return self._begin+idx
         else:
@@ -416,18 +418,23 @@ class SliceProxy(TupleBaseProxy,ListBase):
             adaptArg(self.begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
     def __getitem__(self, key):
         if isinstance(key, slice):
+            ## slice of a slice: just adjust the range
             if key.step and key.step != 1:
                 raise RuntimeError("Slices with non-unit step are not implemented")
-            return SliceProxy(self._base,
+            return SliceProxy(self.parent,
                     (self._offset(key.start) if key.start is not None else self._begin),
                     (self._offset(key.stop ) if key.stop  is not None else self._end  ),
                     valueType=self.valueType)
         else:
-            return self._getItem(self._offset(key))
-    def _getItem(self, baseIndex):
-        itm = self._base[baseIndex]
-        if self.valueType and self.valueType != self._base.valueType:
-            return self.valueType(itm._parent, itm._idx)
+            ## item of a slice -> ask parent
+            itm = self.parent[self._offset(key)]
+            if self.valueType and self.valueType != self.parent.valueType:
+                itm = self.valueType(itm._parent, itm._idx)
+            return itm
+    def _getItem(self, baseIndex): ## correct but not used by __getitem__ (finding base index depends on self.parent, could be anything)
+        itm = self.parent._getItem(baseIndex)
+        if self.valueType and self.valueType != self.parent.valueType:
+            itm = self.valueType(itm._parent, itm._idx)
         return itm
     def __len__(self):
         return self._end-self.begin

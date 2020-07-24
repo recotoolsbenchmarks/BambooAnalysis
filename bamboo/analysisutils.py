@@ -231,23 +231,30 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
         if recursive:
             for c in entry.children:
                 printEntry(c, printFun=printFun, recursive=recursive, genEvents=genEvents)
-    ## retrieve results files
+    ## retrieve results files, get generated events for each sample
     from .root import gbl
-    resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
-    for report in reportList:
-        for smp, resultsFile in resultsFiles.items():
-            smpCfg = config["samples"][smp]
-            logger.info(f"Cutflow report {report.name} for sample {smp}")
-            generated_events = None
+    resultsFiles = dict()
+    generated_events = dict()
+    for smp, smpCfg in config["samples"].items():
+        if "era" not in smpCfg or smpCfg["era"] in eras:
+            resF = gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))
+            resultsFiles[smp] = resF
+            genEvts = None
             if "generated-events" in smpCfg:
                 if isinstance(smpCfg["generated-events"], str):
                     generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
                 else:
                     generated_events = smpCfg["generated-events"]
                 logger.info(f"Sum of event weights for processed files: {generated_events:e}")
-            smpReport = report.readFromResults(resultsFile)
-            for root in smpReport.rootEntries():
-                printEntry(root, genEvents=generated_events)
+            generated_events[smp] = genEvts
+    for report in reportList:
+        smpReports = { smp: report.readFromResults(resF) for smp, resF in resultsFiles.items() }
+        ## debug print
+        for smp, smpRep in smpReports.items()
+            logger.info(f"Cutflow report {report.name} for sample {smp}")
+            for root in smpRep.rootEntries():
+                printEntry(root, genEvents=generated_events[smp])
+        ## TODO save yields.tex (if needed)
 
 def plotIt_files(samplesDict, resultsdir=".", eras=None, readCounters=lambda f : -1., vetoAttributes=None):
     files = dict()

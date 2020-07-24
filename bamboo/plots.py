@@ -548,7 +548,7 @@ class SelectionWithDataDriven(Selection):
         super(SelectionWithDataDriven, self).__init__(parent, name, cuts=cuts, weights=weights, autoSyst=autoSyst)
         self.dd = dd if dd is not None else dict()
     @staticmethod
-    def create(parent, name, ddSuffix, cut=None, weight=None, ddCut=None, ddWeight=None, autoSyst=None, enable=True):
+    def create(parent, name, ddSuffix, cut=None, weight=None, autoSyst=True, ddCut=None, ddWeight=None, ddAutoSyst=True, enable=True):
         """
         Create a selection with a data-driven shadow selection
 
@@ -563,11 +563,11 @@ class SelectionWithDataDriven(Selection):
         if isinstance(parent, SelectionWithDataDriven):
             main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
             if enable:
-                ddSel = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+                ddSel = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=ddAutoSyst)
         else: ## create from regular Selection
             main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
             if enable:
-                ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=autoSyst)
+                ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=ddAutoSyst)
         if ddSel is not None:
             logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
         main.dd[ddSuffix] = ddSel

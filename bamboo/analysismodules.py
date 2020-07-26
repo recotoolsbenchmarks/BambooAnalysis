@@ -648,7 +648,7 @@ class HistogramsModule(AnalysisModule):
         """
         return dict()
 
-    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None):
+    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None, workdir=None):
         """
         Helper method for postprocessing: construct the plot list
 
@@ -690,20 +690,20 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            self.plotList = self.getPlotList(resultsdir=resultsdir)
+            self.plotList = self.getPlotList(resultsdir=resultsdir, workdir=workdir)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
         plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
         if plotList_cutflowreport:
             from bamboo.analysisutils import printCutFlowReports
-            printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+            printCutFlowReports(config, plotList_cutflowreport, workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
         if plotList_plotIt:
             from bamboo.analysisutils import writePlotIt, runPlotIt
             eraMode, eras = self.args.eras
             if eras is None:
                 eras = list(config["eras"].keys())
             cfgName = os.path.join(workdir, "plots.yml")
-            writePlotIt(config, plotList_plotIt, cfgName, eras=(eraMode, eras), workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
+            writePlotIt(config, plotList_plotIt, cfgName, eras=eras, workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
             runPlotIt(cfgName, workdir=workdir, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)
 
 class NanoAODModule(AnalysisModule):

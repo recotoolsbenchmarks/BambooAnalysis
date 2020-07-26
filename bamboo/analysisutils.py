@@ -213,7 +213,95 @@ def readEnvConfig(explName=None):
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
-def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+_yieldsTexPreface = "\n".join(f"% {ln}" for ln in
+r"""Yields table generated automatically by bamboo (same as plotIt).
+Needed packages:
+   \usepackage{booktabs}
+
+Use the following if building a CMS document
+
+\makeatletter
+\newcommand{\thickhline}{%
+    \noalign {\ifnum 0=`}\fi \hrule height .08em
+    \futurelet \reserved@a \@xhline
+}
+\newcommand{\thinhline}{%
+    \noalign {\ifnum 0=`}\fi \hrule height .05em
+    \futurelet \reserved@a \@xhline
+}
+\makeatother
+\newcommand{\toprule}{\noalign{\vskip0pt}\thickhline\noalign{\vskip.65ex}}
+\newcommand{\midrule}{\noalign{\vskip.4ex}\thinhline\noalign{\vskip.65ex}}
+\newcommand{\bottomrule}{\noalign{\vskip.4ex}\thickhline\noalign{\vskip0pt}}
+""".split("\n"))
+
+def _makeYieldsTexTable(report, samples, entryPlots):
+    ## TODO column headers for MC and signal
+    from plotit.plotit import Stack
+    import numpy as np
+    def colEntriesFromCFREntryHists(report, entryHists):
+        stacks_t = [ (entryHists[entries[0]] if len(entries) == 1 else
+            Stack(entries=[entryHists[eName] for eName in entries]))
+            for entries in report.titles.values() ]
+        return stacks_t, [ "${0:.1f} \pm {1:.1f}$".format(
+            st_t.contents[1], np.sqrt(st_t.sumw2+st_t.syst2)[1]
+            ) for st_t in stacks_t ]
+
+    smp_signal = [smp for smp in samples if smp.cfg.type == "SIGNAL"]
+    smp_mc = [smp for smp in samples if smp.cfg.type == "MC"]
+    smp_data = [smp for smp in samples if smp.cfg.type == "DATA"]
+    sepStr = "|l|"
+    hdrs = ["Cat."]
+    entries_col = [ [tName for tName in report.titles.keys()] ]
+    stTotMC, stTotData = None, None
+    if smp_signal:
+        sepStr += "|"
+        for sigSmp in smp_signal:
+            _, colEntries = colEntriesFromCFREntryHists(report,
+                { eName : sigSmp.getHist(p) for eName, p in entryPlots.items() })
+            sepStr += "c|"
+            hdrs.append(f"{sigSmp.cfg.legend} {sigSmp.cfg.cross_section:f}pb")
+            entries_col.append(colEntries)
+    if smp_mc:
+        sepStr += "|"
+        for mcSmp in smp_mc:
+            _, colEntries = colEntriesFromCFREntryHists(report,
+                { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() })
+            sepStr += "c|"
+            hdrs.append(mcSmp.cfg.legend)
+            entries_col.append(colEntries)
+        if len(smp_mc) > 1:
+            sepStr += "|c|"
+            hdrs.append("Tot. MC")
+            stTotMC, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_mc]) for eName, p in entryPlots.items() })
+            entries_col.append(colEntries)
+    if smp_data:
+        sepStr += "|c|"
+        hdrs.append("Data")
+        stTotData, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_data]) for eName, p in entryPlots.items() })
+        entries_col.append(colEntries)
+    if smp_data and smp_mc:
+        sepStr += "|c|"
+        hdrs.append("Data/MC")
+        colEntries = []
+        for stData,stMC in zip(stTotData, stTotMC):
+            ratio = stData.contents/stMC.contents
+            ratioErr = np.sqrt(stData.sumw2)/stMC.contents ## FIXME data stat only
+            colEntries.append(f"${ratio[1]:.1f} \pm {ratioErr[1]:.1f}$")
+    if len(colEntries) < 2:
+        logger.warning("No samples, so no yields.tex")
+    return "\n".join([
+        f"\\begin{{tabular}}{{ {sepStr} }}",
+        "    \\hline",
+        "    {0} \\\\".format(" & ".join(hdrs)),
+        "    \\hline"]+[
+            "    {0} \\\\".format(" & ".join(colEntries[i] for colEntries in entries_col))
+            for i in range(len(report.titles)) ]+[
+        "    \\hline",
+        "\\end{tabular}"
+        ])
+
+def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
@@ -242,19 +330,48 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
             genEvts = None
             if "generated-events" in smpCfg:
                 if isinstance(smpCfg["generated-events"], str):
-                    generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
+                    genEvts = readCounters(resF)[smpCfg["generated-events"]]
                 else:
-                    generated_events = smpCfg["generated-events"]
-                logger.info(f"Sum of event weights for processed files: {generated_events:e}")
+                    genEvts = smpCfg["generated-events"]
             generated_events[smp] = genEvts
+    has_plotit = None
+    try:
+        import plotit.plotit
+        has_plotit = True
+    except ImportError:
+        has_plotit = False
+    from bamboo.plots import EquidistantBinning as EqB
+    class YieldPlot:
+        def __init__(self, name):
+            self.name = name
+            self.plotopts = dict()
+            self.axisTitles = ("Yield",)
+            self.binnings = [EqB(1, 0.,1.)]
     for report in reportList:
         smpReports = { smp: report.readFromResults(resF) for smp, resF in resultsFiles.items() }
         ## debug print
-        for smp, smpRep in smpReports.items()
+        for smp, smpRep in smpReports.items():
             logger.info(f"Cutflow report {report.name} for sample {smp}")
             for root in smpRep.rootEntries():
                 printEntry(root, genEvents=generated_events[smp])
-        ## TODO save yields.tex (if needed)
+        ## save yields.tex (if needed)
+        if any(len(cb) > 1 or tt != cb[0] for tt,cb in report.titles.items()):
+            if not has_plotit:
+                logger.error(f"Could not load plotit python library, no TeX yields tables for {report.name}")
+            else:
+                yield_plots = [ YieldPlot(f"{report.name}_{eName}") for tEntries in report.titles.values() for eName in tEntries ]
+                out_eras = []
+                if len(eras) > 1 and eraMode in ("all", "combined"):
+                    out_eras.append((f"{report.name}.tex", eras))
+                if len(eras) == 1 and eraMode in ("split", "all"):
+                    for era in eras:
+                        out_eras.append((f"{report.name}_{era}.tex", [era]))
+                for outName, iEras in out_eras:
+                    _, samples, plots, _, _ = loadPlotIt(config, yield_plots, eras=iEras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters)
+                    tabBlock = _makeYieldsTexTable(report, samples, { p.name[len(report.name)+1:]: p for p in plots })
+                    with open(os.path.join(workdir, outName), "w") as ytf:
+                        ytf.write("\n".join((_yieldsTexPreface, tabBlock)))
+                    logger.info("Yields table for era(s) {0} was written to {1}".format(",".join(eras), os.path.join(workdir, outName)))
 
 def plotIt_files(samplesDict, resultsdir=".", eras=None, readCounters=lambda f : -1., vetoAttributes=None):
     files = dict()
@@ -325,7 +442,7 @@ def _plotIt_configFilesAndPlots(config, plotList, eras=None, workdir=".", result
     plotsCfg = plotIt_plots(plotList, plotDefaults=plotDefaults_cmb)
     return plotitCfg, filesCfg, plotsCfg
 
-def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+def writePlotIt(config, plotList, outName, eras=None, workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
     """
     Combine creation and saving of a plotIt config file
 
@@ -341,14 +458,13 @@ def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resu
     :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
     :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
     """
-    eraMode, eras = eras
     if eras is None:
         eras = list(config["eras"].keys())
     plotitCfg, filesCfg, plotsCfg = _plotIt_configFilesAndPlots(config, plotList, eras=eras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters, vetoFileAttributes=vetoFileAttributes, plotDefaults=plotDefaults)
     ## write
     savePlotItConfig(outName, plotitCfg, filesCfg, plotsCfg)
 
-def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+def loadPlotIt(config, plotList, eras=None, workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
     """
     Load the plotit configuration with the plotIt python library
 
@@ -356,14 +472,13 @@ def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir="."
 
     :param config: parsed analysis configuration. Only the ``configuration`` (if present) and ``eras`` sections (to get the luminosities) are read.
     :param plotList: list of plots to convert (``name`` and ``plotopts``, combined with the default style)
-    :param eras: tuple of era mode and valid era list (parsed ``--eras`` argument)
+    :param eras: list of eras to consider (``None`` for all that are in the config)
     :param workdir: output directory
     :param resultsdir: directory with output ROOT files with histograms
     :param readCounters: method to read the sum of event weights from an output file
     :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
     :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
     """
-    eraMode, eras = eras
     if eras is None:
         eras = list(config["eras"].keys())
     try:

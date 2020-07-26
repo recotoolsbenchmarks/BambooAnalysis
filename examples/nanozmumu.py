@@ -180,14 +180,6 @@ class NanoZMuMu(NanoZMuMuBase, NanoAODHistoModule):
         plots.append(Plot.make1D("Melel", op.invariant_mass(electrons[0].p4, electrons[1].p4), twoElSel, EquidistantBinning(100, 20., 120.), title="Dimuon invariant mass", plotopts={"show-overflow":False}))
 
         return plots
-    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
-        super(NanoZMuMu, self).postProcess(taskList, config=config, workdir=workdir, resultsdir=resultsdir)
-        import bamboo.plots
-        cfr = next(p for p in self.plotList if isinstance(p, bamboo.plots.CutFlowReport))
-        cfres = { res.name : res for res in cfr.cfres }
-        from pprint import pprint
-        pprint(cfres)
-        pprint(cfr.titles)
 
 class SkimNanoZMuMu(NanoZMuMuBase, NanoAODSkimmerModule):
     def defineSkimSelection(self, tree, noSel, sample=None, sampleCfg=None):

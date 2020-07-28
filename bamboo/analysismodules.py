@@ -964,20 +964,35 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
     This class makes sure the histograms for the data-driven contributions are
     written to different files, and runs ``plotIt`` for the different scenarios.
     """
+    def _contribsForPlot(self, p, requireActive=False):
+        contribs = set()
+        from .plots import SelectionWithDataDriven, Plot, DerivedPlot, CutFlowReport
+        if isinstance(p, Plot):
+            if isinstance(p.selection, SelectionWithDataDriven):
+                for ddSuff, ddSel in p.selection.dd.items():
+                    if (not requireActive) or (ddSel is not None):
+                        contribs.add(ddSuff)
+        elif isinstance(p, DerivedPlot):
+            for dp in p.dependencies:
+                if isinstance(dp.selection, SelectionWithDataDriven):
+                    for ddSuff,ddSel in dp.selection.dd.items():
+                        if (not requireActive) or (ddSel is not None):
+                            contribs.add(ddSuff)
+        else:
+            logger.error(f"Unsupported product type for data-driven: {type(p).__name__}, additional products will not be stored")
+        return contribs
+
     def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
         backend = super(DataDrivenBackgroundHistogramsModule, self).processTrees(inputFiles, outputFile, tree=tree, certifiedLumiFile=certifiedLumiFile, runRange=runRange, sample=sample, sampleCfg=sampleCfg)
-        ddFiles = {}
+        ddFiles = dict()
         from .root import gbl
-        from .plots import SelectionWithDataDriven
         for p in self.plotList:
-            if isinstance(p.selection, SelectionWithDataDriven):
-                for ddSuffix in p.selection.dd:
-                    if p.selection.dd[ddSuffix] is not None:
-                        if ddSuffix not in ddFiles:
-                            ddFiles[ddSuffix] = gbl.TFile.Open("{1}{0}{2}".format(ddSuffix, *os.path.splitext(outputFile)), "RECREATE")
-                        ddFiles[ddSuffix].cd()
-                        for h in backend.getResults(p, key=(p.name, ddSuffix)):
-                            h.Write()
+            for ddSuff in self._contribsForPlot(p, requireActive=True):
+                if ddSuff not in ddFiles:
+                    ddFiles[ddSuff] = gbl.TFile.Open("{1}{0}{2}".format(ddSuff, *os.path.splitext(outputFile)), "RECREATE")
+                ddFiles[ddSuff].cd()
+                for h in backend.getResults(p, key=(p.name, ddSuff)):
+                    h.Write()
         for ddF in ddFiles.values():
             self.mergeCounters(ddF, inputFiles, sample=sample)
             ddF.Close()
@@ -998,17 +1013,8 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
             # - step 1: group per max-available scenario (combination of data-driven contributions - not the same as configured scenarios, since this one is per-plot)
             plotList_per_availscenario = defaultdict(list)
             for p in plotList_plotIt:
-                if isinstance(p.selection, SelectionWithDataDriven):
-                    avSc = tuple(k for k,v in p.selection.dd.items() if v is not None)
-                    plotList_per_availscenario[avSc].append(p)
-                else:
-                    plotList_per_availscenario[tuple()].append(p)
-            usedButNotUsedConfigContribs = set(contrib for avSc in plotList_per_availscenario.keys() for contrib in avSc if contrib not in self.datadrivenContributions)
-            if len(usedButNotUsedConfigContribs) > 0:
-                logger.error("Data-driven contributions {0} were used for defining selections and plots, but are not needed for any scenario (present there are {1}); the plots will not be produced".format(
-                    ", ".join(usedButNotUsedConfigContribs),
-                    ", ".join(self.datadrivenContributions.keys())
-                    ))
+                pContribs = self._contribsForPlot(p, requireActive=False)
+                plotList_per_availscenario[tuple(sorted(pContribs))].append(p)
             # - step 2: collect plots for actual scenarios (avoiding adding them twice)
             plots_per_scenario = defaultdict(dict)
             for sc in self.datadrivenScenarios:

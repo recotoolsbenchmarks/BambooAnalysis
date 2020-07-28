@@ -34,12 +34,13 @@ class Product:
     def __init__(self, name, key=None):
         self.name = name
         self.key = key if key is not None else name
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Main interface method, called by the backend
 
         :param bareResults: iterable of histograms for this plot produced by the backend
         :param fbe: reference to the backend
+        :param key: key under which the backend stores the results (if any)
 
         :returns: an iterable with ROOT objects to save to the output file
         """
@@ -131,7 +132,7 @@ class Plot(Product):
                    , key=key ## default is name
                    )
 
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Trivial implementation of :py:meth:`~bamboo.plots.Product.produceResults`, return ``bareResults``
 
@@ -139,6 +140,7 @@ class Plot(Product):
 
         :param bareResults: list of nominal and systematic variation histograms for this :py:class:`~bamboo.plots.Plot`
         :param fbe: reference to the backend
+        :param key: key under which the backend stores the results (if any)
 
         :returns: ``bareResults``
         """
@@ -397,17 +399,18 @@ class DerivedPlot(Product):
     @property
     def variables(self):
         return [ None for x in self.binnings ]
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Main interface method, called by the backend
 
         :param bareResults: iterable of histograms for this plot produced by the backend (none)
         :param fbe: reference to the backend, can be used to retrieve the histograms for the dependencies, e.g. with :py:meth:`~bamboo.plots.DerivedPlot.collectDependencyResults`
+        :param key: key under which the backend stores the results (if any)
 
         :returns: an iterable with ROOT objects to save to the output file
         """
         return []
-    def collectDependencyResults(self, fbe):
+    def collectDependencyResults(self, fbe, key=None):
         """ helper method: collect all results of the dependencies
 
         :returns: ``[ (nominalResult, {"variation" : variationResult}) ]``
@@ -416,23 +419,27 @@ class DerivedPlot(Product):
         for dep in self.dependencies:
             resNom = None
             resPerVar = {}
-            for res in fbe.getResults(dep):
-                if "__" not in res.GetName():
-                    assert resNom is None
-                    resNom = res
-                else:
-                    resVar = res.GetName().split("__")[1]
-                    resPerVar[resVar] = res
-            res_dep.append((resNom, resPerVar))
+            depResults = fbe.getResults(dep, key=((dep.name, key[1]) if key is not None and len(key) == 2 else None))
+            if depResults:
+                for res in depResults:
+                    if "__" not in res.GetName():
+                        assert resNom is None
+                        resNom = res
+                    else:
+                        resVar = res.GetName().split("__")[1]
+                        resPerVar[resVar] = res
+                res_dep.append((resNom, resPerVar))
         return res_dep
 
 class SummedPlot(DerivedPlot):
     """ A :py:class:`~bamboo.plots.DerivedPlot` implementation that sums histograms """
     def __init__(self, name, termPlots, **kwargs):
         super(SummedPlot, self).__init__(name, termPlots, **kwargs)
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         from .root import gbl
-        res_dep = self.collectDependencyResults(fbe)
+        res_dep = self.collectDependencyResults(fbe, key=key)
+        if not res_dep:
+            return []
         # list all variations (some may not be there for all)
         allVars = set()
         for _,resVar in res_dep:
@@ -474,7 +481,7 @@ class CutFlowReport(Product):
         self.cfres = cfres
         if selections and cfres is None:
             self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         self.cfres = fbe.results[self.name]
         entries = list()
         for stat in self.cfres:

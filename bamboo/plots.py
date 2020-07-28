@@ -478,6 +478,11 @@ class CutFlowReport(Product):
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
         self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
+        for sel in selections:
+            if isinstance(sel, SelectionWithDataDriven):
+                for selDD in sel.dd.values():
+                    if selDD is not None:
+                        self.selections.append(selDD)
         self.cfres = cfres
         if selections and cfres is None:
             self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)

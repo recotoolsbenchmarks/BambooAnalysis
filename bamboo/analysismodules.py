@@ -978,8 +978,10 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
                     for ddSuff,ddSel in dp.selection.dd.items():
                         if (not requireActive) or (ddSel is not None):
                             contribs.add(ddSuff)
+        elif isinstance(p, CutFlowReport):
+            logger.warning("All CutFlowReport histograms will be in the nominal file (and printed); this should be revised for the yields table")
         else:
-            logger.error(f"Unsupported product type for data-driven: {type(p).__name__}, additional products will not be stored")
+            logger.warning(f"Unsupported product type for data-driven: {type(p).__name__}, additional products will not be stored")
         return contribs
 
     def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):

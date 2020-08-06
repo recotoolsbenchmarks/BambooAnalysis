@@ -117,10 +117,7 @@ class CommandListJob(CommandListJobBase):
 
     def submit(self):
         """ Submit the job to slurm """
-        sbatchOpts = [
-              "--partition={}".format(self.cfg.sbatch_partition)
-            , "--qos={}".format(self.cfg.sbatch_qos)
-            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        sbatchOpts = []
         logger.info("Submitting an array of {0:d} jobs to slurm".format(len(self.commandList)))
         logger.debug("sbatch {0} {1}".format(" ".join(sbatchOpts), self.slurmScript))
         result = subprocess.check_output(["sbatch"]+sbatchOpts+[self.slurmScript]).decode()
@@ -201,9 +198,7 @@ class CommandListJob(CommandListJobBase):
     def getResubmitCommand(self, failedCommands):
         sbatchOpts = [
               "--array={}".format(",".join(str(self._arrayIndex(cmd)) for cmd in failedCommands))
-            , "--partition={}".format(self.cfg.sbatch_partition)
-            , "--qos={}".format(self.cfg.sbatch_qos)
-            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        ]
         return ["sbatch"]+sbatchOpts+[self.slurmScript]
 
     def getRuntime(self, command):

@@ -42,7 +42,7 @@ class CommandListJob(CommandListJobBase):
         ##
         self.cfg = CP3SlurmConfiguration()
 
-        self.cfg.sbatch_workdir = self.workDir
+        self.cfg.sbatch_chdir = self.workDir
         self.cfg.inputSandboxDir = self.workDirs["in"]
         self.cfg.batchScriptsDir = self.workDir
         self.cfg.stageoutDir = os.path.join(self.workDirs["out"], "${SLURM_ARRAY_TASK_ID}")

@@ -14,6 +14,7 @@ from .batch import TasksMonitor
 
 try:
     from CP3SlurmUtils.Configuration import Configuration as CP3SlurmConfiguration
+    from CP3SlurmUtils.ConfigurationUtils import validConfigParams as CP3SlurmConfigValidParams
     from CP3SlurmUtils.SubmitWorker import SubmitWorker as slurmSubmitWorker
 except ImportError as ex:
     logger.info("Could not import Configuration and slurmSubmitWorker from CP3SlurmUtils.SubmitUtils. Please run 'module load slurm/slurm_utils'")
@@ -53,7 +54,22 @@ class CommandListJob(CommandListJobBase):
         if configOpts:
             cfg_opts.update(configOpts)
         for k, v in cfg_opts.items():
-            setattr(self.cfg, k, v)
+            if k not in CP3SlurmConfigValidParams:
+                raise RuntimeError(f"Parameter {k} is not a valid parameter for the slurm configuration")
+            try:
+                if type(v) == str and CP3SlurmConfigValidParams[k]["type"] == int:
+                    setattr(self.cfg, k, int(v))
+                elif type(v) == str and CP3SlurmConfigValidParams[k]["type"] == bool:
+                    if v.lower() in ['0', 'false', 'no']:
+                        setattr(self.cfg, k, False)
+                    elif v.lower() in ['1', 'true', 'yes']:
+                        setattr(self.cfg, k, True)
+                    else:
+                        raise ValueError()
+                else:
+                    setattr(self.cfg, k, v)
+            except ValueError:
+                raise RuntimeError(f"Could not convert '{v}' to expected type for parameter {k}: {CP3SlurmConfigValidParams[k]}")
 
         self.slurmScript = os.path.join(self.cfg.batchScriptsDir, self.cfg.batchScriptsFilename)
         self.clusterId = None ## will be set by submit

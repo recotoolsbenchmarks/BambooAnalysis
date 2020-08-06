@@ -212,13 +212,13 @@ def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
             configOpts = dict(configOpts)
         bc_c = dict(batchConfig)
         for k,cov in configOpts.items():
-            if k.lower() in bc_c:
+            if k in bc_c:
                 if isinstance(cov, list):
-                    cov += bc_c[k.lower()].split(", ")
-                    del bc_c[k.lower()]
+                    cov += bc_c[k].split(", ")
+                    del bc_c[k]
                 else: # ini file takes preference
-                    configOpts[k] = bc_c[k.lower()]
-                    del bc_c[k.lower()]
+                    configOpts[k] = bc_c[k]
+                    del bc_c[k]
         configOpts.update(bc_c)
     slurmJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)), workDir=workdir, configOpts=configOpts)
     for task in taskList:

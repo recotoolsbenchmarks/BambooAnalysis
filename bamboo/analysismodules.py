@@ -626,7 +626,7 @@ class HistogramsModule(AnalysisModule):
         """
         return dict()
 
-    def getPlotList(self, fileHint=None, sampleHint=None, workdir=None, resultsdir=None):
+    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None):
         """
         Helper method for postprocessing: construct the plot list
 
@@ -658,9 +658,6 @@ class HistogramsModule(AnalysisModule):
             raise RuntimeError("Either the results directory, or an input file and corresponding sample name, needs to be specified")
         tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
         tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
-        if "certified_lumi_file" in smpCfg:
-            lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
-            noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
         return self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
@@ -671,7 +668,7 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            self.plotList = self.getPlotList(workdir=workdir, resultsdir=resultsdir)
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
         plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
@@ -1000,7 +997,7 @@ class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, H
             ddF.Close()
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
         if not self.plotList:
-            self.plotList = self.getPlotList(workdir=workdir, resultsdir=resultsdir)
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
         from .plots import Plot, DerivedPlot, CutFlowReport, SelectionWithDataDriven
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
         plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]

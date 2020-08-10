@@ -11,6 +11,7 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 """
 import argparse
+from collections import defaultdict
 from itertools import chain
 from functools import partial
 import logging
@@ -34,6 +35,12 @@ def reproduceArgv(args, group):
         elif isinstance(action, argparse._StoreAction):
             argv.append(action.option_strings[0])
             argv.append(getattr(args, action.dest))
+        elif isinstance(action, argparse._AppendAction):
+            items = getattr(args, action.dest)
+            if items:
+                for item in items:
+                    argv.append(action.option_strings[0])
+                    argv.append(item)
         else:
             raise RuntimeError("Reconstruction of action {0} not supported".format(action))
     return argv
@@ -143,6 +150,8 @@ class AnalysisModule:
         self.args = parser.parse_args(args)
         self.specificArgv = reproduceArgv(self.args, specific)
         self._envConfig = None
+        self._analysisConfig = None
+        self._sampleFilesResolver = None
         self.initialize()
     def addArgs(self, parser):
         """ Hook for adding module-specific argument parsing (receives an argument group), parsed arguments are available in ``self.args`` afterwards """
@@ -163,8 +172,23 @@ class AnalysisModule:
         if self._envConfig is None:
             self._envConfig = readEnvConfig(self.args.envConfig)
         return self._envConfig
-    def getSampleFilesResolver(self, cfgDir="."):
+    @property
+    def analysisConfigName(self):
+        if self.args.distributed == "worker":
+            return self.args.anaConfig
+        elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
+            return self.args.input[0]
+        else:
+            raise RuntimeError("--distributed should be either worker, driver, finalize, or unspecified (for sequential mode)")
+    @property
+    def analysisConfig(self):
+        if self._analysisConfig is None:
+            self._analysisConfig = parseAnalysisConfig(self.analysisConfigName)
+        return self._analysisConfig
+    @property
+    def sampleFilesResolver(self):
         from .analysisutils import sample_resolveFiles
+        cfgDir = os.path.dirname(os.path.abspath(self.analysisConfigName))
         resolver = partial(sample_resolveFiles, redodbqueries=self.args.redodbqueries, overwritesamplefilelists=self.args.overwritesamplefilelists, envConfig=self.envConfig, cfgDir=cfgDir)
         if self.args.maxFiles <= 0:
             return resolver
@@ -187,13 +211,11 @@ class AnalysisModule:
         elif ( not self.args.distributed ) or self.args.distributed in ("driver", "finalize"):
             if len(self.args.input) != 1:
                 raise RuntimeError("Main process (driver, finalize, or non-distributed) needs exactly one argument (analysis description YAML file)")
-            anaCfgName = self.args.input[0]
-            analysisCfg = parseAnalysisConfig(anaCfgName)
+            analysisCfg = self.analysisConfig
             if fileName and sampleName:
                 sampleCfg = analysisCfg["samples"][sampleName]
             else:
-                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=filesResolver)
+                sampleName,sampleCfg,fileName = getAFileFromAnySample(analysisCfg["samples"], resolveFiles=self.sampleFilesResolver)
             logger.debug("getATree: using a file from sample {0} ({1})".format(sampleName, fileName))
             from .root import gbl
             tup = gbl.TChain(analysisCfg.get("tree", "Events"))
@@ -231,8 +253,7 @@ class AnalysisModule:
                     inputFiles = inputFiles[:self.args.maxFiles]
                 logger.info("Worker process: calling processTrees for {mod} with ({0}, {1}, treeName={treeName}, certifiedLumiFile={certifiedLumiFile}, runRange={runRange}, sample={sample})".format(inputFiles, self.args.output, mod=self.args.module, treeName=self.args.treeName, certifiedLumiFile=self.args.certifiedLumiFile, runRange=self.args.runRange, sample=self.args.sample))
                 if self.args.anaConfig:
-                    analysisCfg = parseAnalysisConfig(self.args.anaConfig)
-                    sampleCfg = analysisCfg["samples"][self.args.sample]
+                    sampleCfg = self.analysisConfig["samples"][self.args.sample]
                 else:
                     sampleCfg = None
                 if self.args.threads:
@@ -245,10 +266,9 @@ class AnalysisModule:
                     raise RuntimeError("Main process (driver or non-distributed) needs exactly one argument (analysis description YAML file)")
                 anaCfgName = self.args.input[0]
                 workdir = self.args.output
-                analysisCfg = parseAnalysisConfig(anaCfgName)
+                analysisCfg = self.analysisConfig
                 self.customizeAnalysisCfg(analysisCfg)
-                filesResolver = self.getSampleFilesResolver(cfgDir=os.path.dirname(os.path.abspath(anaCfgName)))
-                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(filesResolver if not self.args.onlypost else None))
+                tasks = self.getTasks(analysisCfg, tree=analysisCfg.get("tree", "Events"), resolveFiles=(self.sampleFilesResolver if not self.args.onlypost else None))
                 resultsdir = os.path.join(workdir, "results")
                 if self.args.onlypost:
                     if os.path.exists(resultsdir):
@@ -278,15 +298,18 @@ class AnalysisModule:
                         aProblem = False
                         for tsk in tasks_notfinalized:
                             nExpected, tskOut = outputs[tsk.name]
-                            if nExpected != len(tskOut):
-                                logger.error(f"Not all jobs for {tsk.name} produced an output ({len(tskOut):d}/{nExpected:d} found), cannot finalize")
+                            if not tskOut:
+                                logger.error(f"No output files for sample {tsk.name}")
                                 aProblem = True
-                            elif tskOut:
-                                if not all(os.path.basename(outFile) == tsk.outputFile for outFile in tskOut):
-                                    logger.error("Not all of {0} have the expected name {1}, cannot finalize".format(", ".join(tskOut), tsk.outputFile))
+                            tskOut_by_name = defaultdict(list)
+                            for fn in tskOut:
+                                tskOut_by_name[os.path.basename(fn)].append(fn)
+                            for outFileName, outFiles in tskOut_by_name.items():
+                                if nExpected != len(outFiles):
+                                    logger.error(f"Not all jobs for {tsk.name} produced an output file {outFileName} ({len(outFiles):d}/{nExpected:d} found), cannot finalize")
                                     aProblem = True
                                 else:
-                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, tsk.outputFile)]+tskOut
+                                    haddCmd = ["hadd", "-f", os.path.join(resultsdir, outFileName)]+outFiles
                                     import subprocess
                                     try:
                                         logger.debug("Merging outputs for sample {0} with {1}".format(tsk.name, " ".join(haddCmd)))
@@ -294,9 +317,6 @@ class AnalysisModule:
                                     except subprocess.CalledProcessError:
                                         loger.error("Failed to run {0}".format(" ".join(haddCmd)))
                                         aProblem = True
-                            else:
-                                logger.error(f"No output files for sample {tsk.name}")
-                                aProblem = True
                         if aProblem:
                             logger.error("Could not finalize all tasks so no post-processing will be run (rerun in verbose mode for the full list of directories and commands)")
                             return
@@ -557,6 +577,7 @@ class HistogramsModule(AnalysisModule):
         logger.info(f"Plots finished in {end - start:.2f}s, max RSS: {maxrssmb:.2f}MB ({numHistos:d} histograms)")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
+        return backend
     # processTrees customisation points
     def prepareTree(self, tree, sample=None, sampleCfg=None):
         """ Create decorated tree, selection root (noSel), backend, and (run,LS) expressions
@@ -637,9 +658,6 @@ class HistogramsModule(AnalysisModule):
             raise RuntimeError("Either the results directory, or an input file and corresponding sample name, needs to be specified")
         tup, smpName, smpCfg = self.getATree(fileName=fileHint, sampleName=sampleHint)
         tree, noSel, backend, runAndLS = self.prepareTree(tup, sample=smpName, sampleCfg=smpCfg)
-        if "certified_lumi_file" in smpCfg:
-            lumiFile = os.path.join(workdir, urllib.parse.urlparse(smpCfg["certified_lumi_file"]).path.split("/")[-1])
-            noSel = addLumiMask(noSel, lumiFile, runRange=smpCfg.get("run_range"), runAndLS=runAndLS)
         return self.definePlots(tree, noSel, sample=smpName, sampleCfg=smpCfg)
 
     def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
@@ -789,6 +807,7 @@ class SkimmerModule(AnalysisModule):
         outF = gbl.TFile.Open(outputFile, "UPDATE")
         self.mergeCounters(outF, inputFiles, sample=sample)
         outF.Close()
+        return backend
 
     # processTrees customisation points
     def prepareTree(self, tree, sample=None, sampleCfg=None):
@@ -824,3 +843,200 @@ class NanoAODSkimmerModule(NanoAODModule, SkimmerModule):
     """ A :py:class:`~bamboo.analysismodules.SkimmerModule` implementation for NanoAOD, adding decorations and merging of the counters """
     def __init__(self, args):
         super(NanoAODSkimmerModule, self).__init__(args)
+
+class DataDrivenContribution:
+    """
+    Configuration helper class for data-driven contributions
+
+    An instance is constructed for each contribution in any of the scenarios by
+    the :py:meth:`bamboo.analysismodules.DataDrivenBackgroundAnalysisModule.initialize`
+    method, with the name and configuration dictionary found in YAML file.
+    The :py:meth:`~bamboo.analysismodules.DataDrivenContribution.usesSample`:,
+    :py:meth:`~bamboo.analysismodules.DataDrivenContribution.replacesSample`: and
+    :py:meth:`~bamboo.analysismodules.DataDrivenContribution.modifiedSampleConfig`:
+    methods can be customised for other things than using the data samples
+    to estimate a background contribution.
+    """
+    def __init__(self, name, config):
+        self.name = name
+        self.config = config
+        self.uses = config.get("uses", [])
+        self.replaces = config.get("replaces", [])
+    def usesSample(self, sampleName, sampleConfig):
+        """ Check if this contribution uses a sample (name or group in 'uses') """
+        return sampleName in self.uses or sampleConfig.get("group") in self.uses
+    def replacesSample(self, sampleName, sampleConfig):
+        """ Check if this contribution replaces a sample (name or group in 'replaces') """
+        return sampleName in self.replaces or sampleConfig.get("group") in self.replaces
+    def modifiedSampleConfig(self, sampleName, sampleConfig, lumi=None):
+        """
+        Construct the sample configuration for the reweighted counterpart of a sample
+
+        The default implementation assumes a data sample and turns it into a MC sample
+        (the luminosity is set as ``generated-events`` to avoid changing the normalisation).
+        """
+        modCfg = dict(sampleConfig)
+        modCfg.update({
+            "type": "mc",
+            "generated-events": lumi,
+            "cross-section": 1.,
+            "group": self.name
+            })
+        return modCfg
+
+class DataDrivenBackgroundAnalysisModule(AnalysisModule):
+    """
+    :py:class:`~bamboo.analysismoduldes.AnalysisModule` with support for data-driven backgrounds
+
+    A number of contributions can be defined, each based on a list of samples or
+    groups needed to evaluate the contribution (typically just data) and a list
+    of samples or groups that should be left out when making the plot with
+    data-driven contributions.
+    The contributions should be defined in the analysis YAML file, with a block
+    ``datadriven`` (at the top level) that could look as follows:
+
+    .. code-block:: yaml
+
+     datadriven:
+       chargeMisID:
+         uses: [ data ]
+         replaces: [ DY ]
+       nonprompt:
+         uses: [ data ]
+         replaces: [ TTbar ]
+
+    The ``--datadriven`` command-line switch then allows to specify a scenario
+    for data-driven backgrounds, i.e. a list of data-driven contributions to
+    include (``all`` and ``none`` are also possible, the latter is the default
+    setting).
+    The parsed contributions are available as ``self.datadrivenContributions``,
+    and the scenarios (each list is a list of contributions) as
+    ``self.datadrivenScenarios``.
+    """
+    def addArgs(self, parser):
+        super(DataDrivenBackgroundAnalysisModule, self).addArgs(parser)
+        parser.add_argument("--datadriven", action="append", help="Scenarios for data-driven backgrounds ('all' for all available in yaml, 'none' for everything from MC (default), or a comma-separated list of contributions; several can be specified)")
+    def initialize(self):
+        super(DataDrivenBackgroundAnalysisModule, self).initialize()
+        ddConfig = self.analysisConfig.get("datadriven", dict())
+        if not self.args.datadriven:
+            scenarios = [ [] ]
+        elif not ddConfig:
+            raise RuntimeError("--datadriven argument passed, but no 'datadriven' top-level block was found in the analysis YAML configuration file")
+        else:
+            scenarios = []
+            for arg in self.args.datadriven:
+                if arg.lower() == "all":
+                    sc = tuple(sorted(ddConfig.keys()))
+                    logger.info("--datadriven=all selected contributions {0}".format(", ".join(sc)))
+                elif arg.lower() == "none":
+                    sc = tuple()
+                else:
+                    sc = tuple(sorted(arg.split(",")))
+                    if any(st not in ddConfig for st in sc):
+                        raise RuntimeError("Unknown data-driven contribution(s): {0}".format(", ".join(st for st in sc if st not in ddConfig)))
+                if sc not in scenarios:
+                    scenarios.append(sc)
+            if not scenarios:
+                raise RuntimeError("No data-driven scenarios, please check the arguments ({0}) and config ({1})".format(self.args.datadriven, str(config)))
+        self.datadrivenScenarios = scenarios
+        self.datadrivenContributions = {
+                contribName: DataDrivenContribution(contribName, config)
+                for contribName, config in ddConfig.items()
+                if any(contribName in scenario for scenario in scenarios)
+                }
+        if self.datadrivenContributions:
+            logger.info("Requested data-driven scenarios: {0}; selected contributions: {1}".format(", ".join("+".join(contrib for contrib in scenario) for scenario in self.datadrivenScenarios), ",".join(self.datadrivenContributions.keys())))
+        else:
+            logger.info("No data-driven contributions selected")
+
+class DataDrivenBackgroundHistogramsModule(DataDrivenBackgroundAnalysisModule, HistogramsModule):
+    """
+    :py:class:`~bamboo.analysismoduldes.HistogramsModule` with support for data-driven backgrounds
+
+    see the :py:class:`~bamboo.analysismoduldes.DataDrivenBackgroundAnalysisModule`
+    class for more details about configuring data-driven backgrounds, and the
+    :py:class:`~bamboo.plots.SelectionWithDataDriven` class for ensuring the
+    necessary histograms are filled correctly.
+    This class makes sure the histograms for the data-driven contributions are
+    written to different files, and runs ``plotIt`` for the different scenarios.
+    """
+    def _contribsForPlot(self, p, requireActive=False):
+        contribs = set()
+        from .plots import SelectionWithDataDriven, Plot, DerivedPlot, CutFlowReport
+        if isinstance(p, Plot):
+            if isinstance(p.selection, SelectionWithDataDriven):
+                for ddSuff, ddSel in p.selection.dd.items():
+                    if (not requireActive) or (ddSel is not None):
+                        contribs.add(ddSuff)
+        elif isinstance(p, DerivedPlot):
+            for dp in p.dependencies:
+                if isinstance(dp.selection, SelectionWithDataDriven):
+                    for ddSuff,ddSel in dp.selection.dd.items():
+                        if (not requireActive) or (ddSel is not None):
+                            contribs.add(ddSuff)
+        elif isinstance(p, CutFlowReport):
+            logger.warning("All CutFlowReport histograms will be in the nominal file (and printed); this should be revised for the yields table")
+        else:
+            logger.warning(f"Unsupported product type for data-driven: {type(p).__name__}, additional products will not be stored")
+        return contribs
+
+    def processTrees(self, inputFiles, outputFile, tree=None, certifiedLumiFile=None, runRange=None, sample=None, sampleCfg=None):
+        backend = super(DataDrivenBackgroundHistogramsModule, self).processTrees(inputFiles, outputFile, tree=tree, certifiedLumiFile=certifiedLumiFile, runRange=runRange, sample=sample, sampleCfg=sampleCfg)
+        ddFiles = dict()
+        from .root import gbl
+        for p in self.plotList:
+            for ddSuff in self._contribsForPlot(p, requireActive=True):
+                if ddSuff not in ddFiles:
+                    ddFiles[ddSuff] = gbl.TFile.Open("{1}{0}{2}".format(ddSuff, *os.path.splitext(outputFile)), "RECREATE")
+                ddFiles[ddSuff].cd()
+                for h in backend.getResults(p, key=(p.name, ddSuff)):
+                    h.Write()
+        for ddF in ddFiles.values():
+            self.mergeCounters(ddF, inputFiles, sample=sample)
+            ddF.Close()
+    def postProcess(self, taskList, config=None, workdir=None, resultsdir=None):
+        if not self.plotList:
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
+        from .plots import Plot, DerivedPlot, CutFlowReport, SelectionWithDataDriven
+        plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
+        plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]
+        if plotList_cutflowreport:
+            from bamboo.analysisutils import printCutFlowReports
+            printCutFlowReports(config, plotList_cutflowreport, resultsdir=resultsdir, readCounters=self.readCounters, eras=self.args.eras, verbose=self.args.verbose)
+        if plotList_plotIt:
+            from bamboo.analysisutils import writePlotIt, runPlotIt
+            eraMode, eras = self.args.eras
+            if eras is None:
+                eras = list(config["eras"].keys())
+            # - step 1: group per max-available scenario (combination of data-driven contributions - not the same as configured scenarios, since this one is per-plot)
+            plotList_per_availscenario = defaultdict(list)
+            for p in plotList_plotIt:
+                pContribs = self._contribsForPlot(p, requireActive=False)
+                plotList_per_availscenario[tuple(sorted(pContribs))].append(p)
+            # - step 2: collect plots for actual scenarios (avoiding adding them twice)
+            plots_per_scenario = defaultdict(dict)
+            for sc in self.datadrivenScenarios:
+                for avSc, avPlots in plotList_per_availscenario.items():
+                    plots_per_scenario[tuple(dd for dd in sc if dd in avSc)].update({p.name: p for p in avPlots})
+            for sc, scPlots in plots_per_scenario.items():
+                scName = "_".join(chain(["plots"], sc))
+                cfgName = os.path.join(workdir, f"{scName}.yml")
+                ## Modified samples: first remove replaced ones
+                modSamples = { smp: smpCfg for smp, smpCfg in config["samples"].items()
+                        if not any(self.datadrivenContributions[contrib].replacesSample(smp, smpCfg) for contrib in sc) }
+                ## Then add data-driven contributions
+                for contribName in sc:
+                    contrib = self.datadrivenContributions[contribName]
+                    for smp, smpCfg in config["samples"].items():
+                        if contrib.usesSample(smp, smpCfg):
+                            if "era" in smpCfg:
+                                lumi = config["eras"][smpCfg["era"]]["luminosity"]
+                            else:
+                                lumi = sum(eraCfg["luminosity"] for eraCfg in config["eras"].values())
+                            modSamples[f"{smp}{contribName}"] = contrib.modifiedSampleConfig(smp, smpCfg, lumi=lumi)
+                config_sc = dict(config) # shallow copy
+                config_sc["samples"] = modSamples
+                ## TODO possible improvement: cache counters (e.g. by file name) - needs a change in readCounters interface
+                writePlotIt(config_sc, list(scPlots.values()), cfgName, eras=(eraMode, eras), workdir=workdir, resultsdir=resultsdir, readCounters=self.readCounters, vetoFileAttributes=self.__class__.CustomSampleAttributes, plotDefaults=self.plotDefaults)
+                runPlotIt(cfgName, workdir=workdir, plotsdir=scName, plotIt=self.args.plotIt, eras=(eraMode, eras), verbose=self.args.verbose)

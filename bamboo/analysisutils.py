@@ -377,12 +377,13 @@ def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir="."
     samples = samplesFromFilesAndGroups(files, cGroups, eras=eras)
     return configuration, samples, plots, systematics, legend
 
-def runPlotIt(cfgName, workdir=".", plotIt="plotIt", eras=("all", None), verbose=False):
+def runPlotIt(cfgName, workdir=".", plotsdir="plots", plotIt="plotIt", eras=("all", None), verbose=False):
     """
     Run plotIt
 
     :param cfgName: plotIt YAML config file name
     :param workdir: working directory (also the starting point for finding the histograms files, ``--i`` option)
+    :param plotsdir: name of the plots directory inside workdir (``plots``, by default)
     :param plotIt: path of the ``plotIt`` executable
     :param eras: ``(mode, eras)``, mode being one of ``"split"``, ``"combined"``, or ``"all"`` (both of the former), and eras a list of era names, or ``None`` for all
     :param verbose: print the plotIt command being run
@@ -390,10 +391,10 @@ def runPlotIt(cfgName, workdir=".", plotIt="plotIt", eras=("all", None), verbose
     eraMode, eras = eras
     out_extraOpts = []
     if len(eras) > 1 and eraMode in ("all", "combined"):
-        out_extraOpts.append((os.path.join(workdir, "plots"), []))
+        out_extraOpts.append((os.path.join(workdir, plotsdir), []))
     if len(eras) == 1 or eraMode in ("split", "all"):
         for era in eras:
-            out_extraOpts.append((os.path.join(workdir, "plots_{0}".format(era)), ["-e", era]))
+            out_extraOpts.append((os.path.join(workdir, f"{plotsdir}_{era}"), ["-e", era]))
     for plotsdir, extraOpts in out_extraOpts:
         if os.path.exists(plotsdir):
             logger.warning("Directory '{0}' already exists, previous plots will be overwritten".format(plotsdir))

@@ -571,7 +571,70 @@ As an example, a simple visualisation of 2D histograms could be obtained with
            cv.Update()
            cv.SaveAs(os.path.join(resultsdir, f"{plot.name}.png"))
 
+.. _recipedatadrivenbackgrounds:
 
+Data-driven backgrounds
+-----------------------
+
+In many analyses, some backgrounds are estimated from a data control region,
+with some per-event weight that depends on the physics objects found etc.
+This can be largely automatised: besides the main
+:py:class:`~bamboo.plots.Selection`, one or more instances with alternative
+cuts (the control region instead of the signal region) and weights (the
+mis-ID, fake, or transfer factors). That is exactly what is done by the
+:py:class:`~bamboo.plots.SelectionWithDataDriven` class: its
+:py:staticmethod:`~bamboo.plots.SelectionWithDataDriven.create` method is like
+:py:meth:`bamboo.plots.Selection.refine`, but with alternative cuts and weights
+to construct the correctly reweighted control region besides the signal region.
+Since it supports the same interface as :py:class:`~bamboo.plots.Selection`,
+further selections can be applied to both regions at the same time, and every
+:py:class:`~bamboo.plots.Plot` will declare the histograms for both.
+The additional code for configuring which data-driven contributions to use,
+and to make sure that histograms for backgrounds end up in a separate file
+(such that they can transparently be used e.g. in plotIt_), the analysis module
+should inherit from
+:py:class:`~bamboo.analysismoduldes.DataDrivenBackgroundHistogramsModule` (or
+:py:class:`~bamboo.analysismoduldes.DataDrivenBackgroundAnalysisModule` if the
+histogram-specific functionality is not required).
+
+Data-driven contributions should be declared in the YAML configuration file
+with the lists of samples or groups from which the background estimate should
+be obtained, those that are replaced by it, e.g.
+
+.. code-block:: yaml
+
+ datadriven:
+   chargeMisID:
+     uses: [ data ]
+     replaces: [ DY ]
+   nonprompt:
+     uses: [ data ]
+     replaces: [ TTbar ]
+
+The ``--datadriven`` command-line argument can then be used to specify which of
+these should be used (``all``, ``none``, or an explicit list).
+Several can be specified in the same run: different sets will then be produced.
+The parsed versions are available as the ``datadrivenScenarios`` attribute of
+the module (and the contributions as ``datadrivenContributions``).
+The third argument passed to the
+:py:staticmethod:`~bamboo.plots.SelectionWithDataDriven.create` method should
+correspond to one of the contribution names in the YAML file, e.g. (continuing
+the example above):
+
+.. code-block:: python
+
+ hasSameSignElEl = SelectionWithDataDriven.create(hasElElZ, "hasSSDiElZ", "chargeMisID",
+     cut=(diel[0].Charge == diel[1].Charge),
+     ddCut=(diel[0].Charge != diel[1].Charge),
+     ddWeight=p_chargeMisID(diel[0])+p_chargeMisID(diel[1]),
+     enable=any("chargeMisID" in self.datadrivenContributions and self.datadrivenContributions["chargeMisID"].usesSample(sample, sampleCfg))
+     )
+
+The generation of modified sample configuration dictionaries in the plotIt_
+YAML file can be customised by replacing the corresponding entry in the
+:py:attr:`~bamboo.analysismodules.DataDrivenBackgroundAnalysisModule.datadrivenContributions`
+dictionary with a variation of a :py:class:`~bamboo.analysismodules.DataDrivenContribution`
+instance.
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 

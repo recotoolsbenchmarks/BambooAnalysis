@@ -478,7 +478,10 @@ class CutFlowReport(Product):
     def __init__(self, name, selections=None, recursive=False, titles=None, autoSyst=False, cfres=None):
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
-        self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
+        if selections is None:
+            self.selections = []
+        else:
+            self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
         for sel in self.selections:
             if isinstance(sel, SelectionWithDataDriven):
                 for selDD in sel.dd.values():

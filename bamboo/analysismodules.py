@@ -648,7 +648,7 @@ class HistogramsModule(AnalysisModule):
         """
         return dict()
 
-    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None, workdir=None):
+    def getPlotList(self, fileHint=None, sampleHint=None, resultsdir=None):
         """
         Helper method for postprocessing: construct the plot list
 
@@ -690,7 +690,7 @@ class HistogramsModule(AnalysisModule):
         and then plotIt is executed
         """
         if not self.plotList:
-            self.plotList = self.getPlotList(resultsdir=resultsdir, workdir=workdir)
+            self.plotList = self.getPlotList(resultsdir=resultsdir)
         from bamboo.plots import Plot, DerivedPlot, CutFlowReport
         plotList_cutflowreport = [ ap for ap in self.plotList if isinstance(ap, CutFlowReport) ]
         plotList_plotIt = [ ap for ap in self.plotList if ( isinstance(ap, Plot) or isinstance(ap, DerivedPlot) ) and len(ap.binnings) == 1 ]

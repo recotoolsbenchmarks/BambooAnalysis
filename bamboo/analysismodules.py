@@ -88,9 +88,9 @@ def getBatchDefaults(backend):
     if backend == "slurm":
         return {
             "sbatch_time"     : "0-01:00",
-            "sbatch_mem"      : "2048",
+            "sbatch_memPerCPU": "2048",
             "stageoutFiles"   : ["*.root"],
-            "sbatch_workdir"  : os.getcwd(),
+            "sbatch_chdir"    : os.getcwd(),
             "sbatch_additionalOptions" : [ "--export=ALL" ],
             }
     elif backend == "htcondor":

@@ -194,6 +194,7 @@ def readEnvConfig(explName=None):
     from configparser import ConfigParser
     def readFromFile(name):
         cfgp = ConfigParser()
+        cfgp.optionxform = str
         cfgp.read(name)
         cfg = dict((sName, dict(cfgp[sName])) for sName in cfgp.sections())
         return cfg

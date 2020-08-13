@@ -393,9 +393,9 @@ class Construct(TupleOp):
 def guessReturnType(mp):
     from .root import gbl
     oneDecl = None
-    if isinstance(mp, gbl.MethodProxy) and hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
+    if hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
         oneDecl = mp.func_doc.split("\n")[0] # overloads should have the same return type
-    elif isinstance(mp, gbl.TemplateProxy):
+    elif hasattr(gbl, "TemplateProxy") and isinstance(mp, gbl.TemplateProxy):
         oneDecl = mp.__doc__.split("\n")[0]
     if oneDecl:
         toks = list(oneDecl.split())

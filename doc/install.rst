@@ -297,7 +297,7 @@ included in the bamboo source code respository, as
    work, but currently the virtual environment is only explicitly searched if
    they are not found otherwise.
    Therefore it is recommended to stick with the version provided by the LCG
-   distribution, or set up an isolated environment with conda |--| see the
+   distribution, or set up an isolated environment with conda |---| see the
    issues `#68`_ (for now) and `#65`_ for more information. When a stable
    solution is found it will be added here.
 

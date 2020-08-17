@@ -1,5 +1,6 @@
 import pytest
 import os.path
+import ROOT ## 6.22: enable getattr(TTree, branchname)
 
 testData = os.path.join(os.path.dirname(__file__), "data")
 
@@ -262,7 +263,7 @@ def isclose_float(a, b, tol=1.):
 def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_postvalues):
     for nanojetargsMC16, postValues in nanojetargsMC16_postvalues:
         res = jmesystcalcMC16_jesunc.produce(*nanojetargsMC16)
-        names = list(jmesystcalcMC16_jesunc.available())
+        names = [ str(nm) for nm in jmesystcalcMC16_jesunc.available() ]
         for ky,(post_pt, post_mass) in postValues.items():
             idx = names.index(ky)
             print(ky, res.pt(idx), post_pt)
@@ -272,7 +273,7 @@ def test_jmesystcalc_nanopost_jesunc(jmesystcalcMC16_jesunc, nanojetargsMC16_pos
 def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postvalues):
     for nanoMETargsMC16, postValues in nanoMETargsMC16_postvalues:
         res = metvarcalcMC16_jesunc.produce(*nanoMETargsMC16)
-        names = list(metvarcalcMC16_jesunc.available())
+        names = [ str(nm) for nm in metvarcalcMC16_jesunc.available() ]
         for ky,(post_pt, post_phi) in postValues.items():
             idx = names.index(ky)
             print(ky, res.pt(idx), post_pt)
@@ -282,7 +283,7 @@ def test_metvarcalc_nanopost_jesunc(metvarcalcMC16_jesunc, nanoMETargsMC16_postv
 def test_metvarcalc_nanopost_jesunc_MCFixEE2017(metvarcalcMC17_FixEE, nanoMETFixEE2017argsMC17_postvalues):
     for nanoMETargsMC17FixEE, postValues in nanoMETFixEE2017argsMC17_postvalues:
         res = metvarcalcMC17_FixEE.produce(*nanoMETargsMC17FixEE)
-        names = list(metvarcalcMC17_FixEE.available())
+        names = [ str(nm) for nm in metvarcalcMC17_FixEE.available() ]
         for ky,(post_pt, post_phi) in postValues.items():
             idx = names.index(ky)
             print(ky, res.pt(idx), post_pt)

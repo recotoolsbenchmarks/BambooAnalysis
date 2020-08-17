@@ -31,15 +31,16 @@ class FactoryBackend(object):
 
 class Product:
     """ Interface for output products (plots, counters etc.) """
-    __slots__ = ("name",)
-    def __init__(self, name):
+    def __init__(self, name, key=None):
         self.name = name
-    def produceResults(self, bareResults, fbe):
+        self.key = key if key is not None else name
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Main interface method, called by the backend
 
         :param bareResults: iterable of histograms for this plot produced by the backend
         :param fbe: reference to the backend
+        :param key: key under which the backend stores the results (if any)
 
         :returns: an iterable with ROOT objects to save to the output file
         """
@@ -98,8 +99,7 @@ class Plot(Product):
         to define DataFrame columns with readable names.
         The constructor will raise an exception if an existing name is used.
     """
-    __slots__ = ("__weakref__", "name", "variables", "selection", "binnings", "title", "axisTitles", "axisBinLabels", "plotopts", "df")
-    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None, autoSyst=True):
+    def __init__(self, name, variables, selection, binnings, title="", axisTitles=tuple(), axisBinLabels=tuple(), plotopts=None, autoSyst=True, key=None):
         """ Generic constructor. Please use the static :py:meth:`~bamboo.plots.Plot.make1D`,
         :py:meth:`~bamboo.plots.Plot.make2D` and :py:meth:`~bamboo.plots.Plot.make3D` methods,
         which provide a more convenient interface to construct histograms
@@ -107,7 +107,7 @@ class Plot(Product):
         """
         if len(variables) != len(binnings):
             raise ValueError("Unequal number of variables ({0:d}) and binnings ({1:d})".format(len(variables), len(binnings)))
-        super(Plot, self).__init__(name)
+        super(Plot, self).__init__(name, key=key)
         self.variables = variables
         self.selection = selection
         self.binnings = binnings
@@ -116,9 +116,9 @@ class Plot(Product):
         self.axisBinLabels = axisBinLabels
         self.plotopts = plotopts if plotopts else dict()
         ## register with backend
-        selection._fbe.addPlot(self, autoSyst=autoSyst)
+        selection.registerPlot(self, autoSyst=autoSyst)
 
-    def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None):
+    def clone(self, name=None, variables=None, selection=None, binnings=None, title=None, axisTitles=None, axisBinLabels=None, plotopts=None, autoSyst=True, key=None):
         """ Helper method: create a copy with optional re-setting of attributes """
         return Plot( (name if name is not None else self.name)
                    , (variables if variables is not None else self.variables)
@@ -128,9 +128,11 @@ class Plot(Product):
                    , axisTitles=(axisTitles if axisTitles is not None else self.axisTitles)
                    , axisBinLabels=(axisBinLabels if axisBinLabels is not None else self.axisBinLabels)
                    , plotopts=(plotopts if plotopts is not None else self.plotopts)
+                   , autoSyst=autoSyst
+                   , key=key ## default is name
                    )
 
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Trivial implementation of :py:meth:`~bamboo.plots.Product.produceResults`, return ``bareResults``
 
@@ -138,6 +140,7 @@ class Plot(Product):
 
         :param bareResults: list of nominal and systematic variation histograms for this :py:class:`~bamboo.plots.Plot`
         :param fbe: reference to the backend
+        :param key: key under which the backend stores the results (if any)
 
         :returns: ``bareResults``
         """
@@ -251,8 +254,8 @@ class Selection:
         """
         self.name      = name
         self.parent   = None
-        self._cuts     = [ adaptArg(cut, "Bool_t") for cut in cuts ] if cuts else []
-        self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in weights ] if weights else []
+        self._cuts     = [ adaptArg(cut, typeHint="Bool_t") for cut in Selection._optionalToIterable(cuts) ]
+        self._weights  = [ adaptArg(wgt, typeHint="Float_t") for wgt in Selection._optionalToIterable(weights) ]
         self._cSysts = top.collectSystVars(self._cuts)
         self._wSysts = top.collectSystVars(self._weights)
 
@@ -266,6 +269,23 @@ class Selection:
             assert isinstance(parent, FactoryBackend)
             self._fbe = parent
         self._fbe.addSelection(self)
+    def registerPlot(self, plot, **kwargs):
+        self._fbe.addPlot(plot, **kwargs)
+    def registerDerived(self, product, **kwargs):
+        self._fbe.addDerived(product, **kwargs)
+    def registerCutFlowReport(self, product, **kwargs):
+        self._fbe.addCutFlowReport(product, **kwargs)
+
+    ## helper: convert None, single item, or iterable arg to iterable
+    @staticmethod
+    def _optionalToIterable(arg):
+        if arg is None:
+            return []
+        else:
+            if hasattr(arg, "__iter__"):
+                return arg
+            else:
+                return [arg]
 
     @property
     def cuts(self):
@@ -318,11 +338,7 @@ class Selection:
 
         :returns: the new :py:class:`~bamboo.plots.Selection`
         """
-        return Selection(self, name,
-                cuts   =( ( adaptArg(ct, "Bool_t") for ct in (cut    if hasattr(cut   , "__len__") else [cut   ]) ) if cut    else None ),
-                weights=( ( adaptArg(wt, "Bool_t") for wt in (weight if hasattr(weight, "__len__") else [weight]) ) if weight else None ),
-                autoSyst=autoSyst
-                )
+        return Selection(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)
 
     @staticmethod
     def _makeExprAnd(listOfReqs):
@@ -367,6 +383,8 @@ class DerivedPlot(Product):
     """
     def __init__(self, name, dependencies, **kwargs):
         super(DerivedPlot, self).__init__(name)
+        if "__" in name:
+            raise RuntimeError("No '__' should be present in the name of a derived plot: it is reserved for separating the name from systematic variations")
         self.dependencies = dependencies
         self.binnings = kwargs.get("binnings", dependencies[0].binnings)
         self.axisTitles = kwargs.get("axisTitles",
@@ -377,21 +395,22 @@ class DerivedPlot(Product):
                     for i,ax in enumerate("xyzuvw"[:len(self.variables)]) ]))
         self.plotopts = kwargs.get("plotopts", dict())
         # register with backend
-        dependencies[0].selection._fbe.addDerived(self)
+        dependencies[0].selection.registerDerived(self)
     @property
     def variables(self):
         return [ None for x in self.binnings ]
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         """
         Main interface method, called by the backend
 
         :param bareResults: iterable of histograms for this plot produced by the backend (none)
         :param fbe: reference to the backend, can be used to retrieve the histograms for the dependencies, e.g. with :py:meth:`~bamboo.plots.DerivedPlot.collectDependencyResults`
+        :param key: key under which the backend stores the results (if any)
 
         :returns: an iterable with ROOT objects to save to the output file
         """
         return []
-    def collectDependencyResults(self, fbe):
+    def collectDependencyResults(self, fbe, key=None):
         """ helper method: collect all results of the dependencies
 
         :returns: ``[ (nominalResult, {"variation" : variationResult}) ]``
@@ -400,23 +419,27 @@ class DerivedPlot(Product):
         for dep in self.dependencies:
             resNom = None
             resPerVar = {}
-            for res in fbe.getResults(dep):
-                if "__" not in res.GetName():
-                    assert resNom is None
-                    resNom = res
-                else:
-                    resVar = res.GetName().split("__")[1]
-                    resPerVar[resVar] = res
-            res_dep.append((resNom, resPerVar))
+            depResults = fbe.getResults(dep, key=((dep.name, key[1]) if key is not None and len(key) == 2 else None))
+            if depResults:
+                for res in depResults:
+                    if "__" not in res.GetName():
+                        assert resNom is None
+                        resNom = res
+                    else:
+                        resVar = res.GetName().split("__")[1]
+                        resPerVar[resVar] = res
+                res_dep.append((resNom, resPerVar))
         return res_dep
 
 class SummedPlot(DerivedPlot):
     """ A :py:class:`~bamboo.plots.DerivedPlot` implementation that sums histograms """
     def __init__(self, name, termPlots, **kwargs):
         super(SummedPlot, self).__init__(name, termPlots, **kwargs)
-    def produceResults(self, bareResults, fbe):
+    def produceResults(self, bareResults, fbe, key=None):
         from .root import gbl
-        res_dep = self.collectDependencyResults(fbe)
+        res_dep = self.collectDependencyResults(fbe, key=key)
+        if not res_dep:
+            return []
         # list all variations (some may not be there for all)
         allVars = set()
         for _,resVar in res_dep:
@@ -455,10 +478,15 @@ class CutFlowReport(Product):
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
         self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
+        for sel in self.selections:
+            if isinstance(sel, SelectionWithDataDriven):
+                for selDD in sel.dd.values():
+                    if selDD is not None:
+                        self.selections.append(selDD)
         self.cfres = cfres
-        if selections and cfres is None:
-            self.selections[0]._fbe.addCutFlowReport(self, autoSyst=autoSyst)
-    def produceResults(self, bareResults, fbe):
+        if self.selections and cfres is None:
+            self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
+    def produceResults(self, bareResults, fbe, key=None):
         self.cfres = fbe.results[self.name]
         entries = list()
         for stat in self.cfres:
@@ -525,3 +553,45 @@ class CutFlowReport(Product):
                     elif cnt > 1:
                         logger.warning("Key {ky.GetName()!r} contains '__' more than once, this will break assumptions")
         return CutFlowReport(self.name, self.selections, recursive=self.recursive, cfres=cfres)
+
+class SelectionWithDataDriven(Selection):
+    """ A main :py:class:`~bamboo.plots.Selection` with the corresponding "shadow" :py:class:`~bamboo.plots.Selection` instances for evaluating data-driven backgrounds (alternative cuts and/or weights) """
+    def __init__(self, parent, name, dd=None, cuts=None, weights=None, autoSyst=True):
+        super(SelectionWithDataDriven, self).__init__(parent, name, cuts=cuts, weights=weights, autoSyst=autoSyst)
+        self.dd = dd if dd is not None else dict()
+    @staticmethod
+    def create(parent, name, ddSuffix, cut=None, weight=None, autoSyst=True, ddCut=None, ddWeight=None, ddAutoSyst=True, enable=True):
+        """
+        Create a selection with a data-driven shadow selection
+
+        Drop-in replacement for a :py:meth:`bamboo.plots.Selection.refine` call:
+        the main selection is made from the parent with ``cut`` and ``weight``,
+        the shadow selection is made from the parent with ``ddCut`` and ``ddWeight``.
+        With ``enable=False`` no shadow selection is made (this may help to avoid
+        duplication in the calling code).
+        """
+        ddName = "".join((name, ddSuffix))
+        ddSel = None
+        if isinstance(parent, SelectionWithDataDriven):
+            main = parent.refine(name, cut=cut, weight=weight, autoSyst=autoSyst)
+            if enable:
+                ddSel = super(SelectionWithDataDriven, parent).refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=ddAutoSyst)
+        else: ## create from regular Selection
+            main = SelectionWithDataDriven(parent, name, cuts=cut, weights=weight, autoSyst=autoSyst)
+            if enable:
+                ddSel = parent.refine(ddName, cut=ddCut, weight=ddWeight, autoSyst=ddAutoSyst)
+        if ddSel is not None:
+            logger.debug(f"Adding the data-driven counterpart of {name} for the {ddSuffix} contribution")
+        main.dd[ddSuffix] = ddSel
+        return main
+    def refine(self, name, cut=None, weight=None, autoSyst=True):
+        main = SelectionWithDataDriven(self, name, cuts=cut, weights=weight, autoSyst=autoSyst)
+        main.dd = { ddSuff: (ddParent.refine("".join((name, ddSuff)), cut=cut, weight=weight, autoSyst=autoSyst) if ddParent is not None else None) for ddSuff, ddParent in self.dd.items() }
+        return main
+    def registerPlot(self, plot, **kwargs):
+        super(SelectionWithDataDriven, self).registerPlot(plot, **kwargs)
+        for ddSuffix, ddSel in self.dd.items():
+            if ddSel is not None:
+                ## will register and go out of scope (the module has all necessary information to retrieve and process the results; everything by reference, so cheap)
+                plot.clone(selection=ddSel, key=(plot.name, ddSuffix), **kwargs)
+    ## NOTE registerDerived not overridden, since none of the current backends need it

@@ -1,5 +1,6 @@
 import pytest
 import os.path
+import ROOT ## 6.22: enable getattr(TTree, branchname)
 
 testData = os.path.join(os.path.dirname(__file__), "data")
 

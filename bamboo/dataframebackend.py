@@ -118,7 +118,7 @@ _giFun = 0
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
         from .root import gbl
-        self.rootDF = gbl.RDataFrame(tree).Define("_zero_for_stats", "0")
+        self.rootDF = gbl.ROOT.RDataFrame(tree).Define("_zero_for_stats", "0")
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.results = dict()     ## product name -> list of result pointers
@@ -258,8 +258,8 @@ class DataframeBackend(FactoryBackend):
 
     def addPlot(self, plot, autoSyst=True):
         """ Define ROOT::RDataFrame objects needed for this plot (and keep track of the result pointer) """
-        if plot.name in self.results:
-            raise ValueError(f"A Plot with the name '{plot.name}' already exists")
+        if plot.key in self.results:
+            raise ValueError(f"A Plot with key '{plot.key}' has already been added")
 
         nomNd = self.selDFs[plot.selection.name]
         plotRes = []
@@ -309,17 +309,23 @@ class DataframeBackend(FactoryBackend):
                         if not wN: ## no weight
                             raise RuntimeError("Systematic {0} (variation {1}) affects cuts, variables, nor weight of plot {2}... this should not happen".format(systN, varn, plot.name))
 
-        self.results[plot.name] = plotRes
+        self.results[plot.key] = plotRes
 
     @staticmethod
     def makePlotModel(plot, variation="nominal"):
         from .root import gbl
-        modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(plot.binnings)))
+        binnings = plot.binnings
+        modCls = getattr(gbl.ROOT.RDF, "TH{0:d}DModel".format(len(binnings)))
         name = plot.name
         if variation != "nominal":
             name = "__".join((name, variation))
+        if len(binnings) > 1: # high-dimensional histo models require either all or none of the binnings to be uniform
+            from .plots import EquidistantBinning, VariableBinning
+            if any((isinstance(b, VariableBinning) for b in binnings)):
+                import numpy as np
+                binnings = [VariableBinning(np.linspace(b.minimum, b.maximum, b.N + 1)) if isinstance(b, EquidistantBinning) else b for b in binnings]
         return modCls(name, plot.title, *chain.from_iterable(
-            DataframeBackend.makeBinArgs(binning) for binning in plot.binnings))
+            DataframeBackend.makeBinArgs(binning) for binning in binnings))
     @staticmethod
     def makeBinArgs(binning):
         from .plots import EquidistantBinning, VariableBinning
@@ -349,7 +355,7 @@ class DataframeBackend(FactoryBackend):
     @staticmethod
     def makeHistoND(nd, plotModel, axVars, weightName=None, plotName=None):
         nVars = len(axVars)
-        axTypes = tuple(nd.df.GetColumnType(cNm) for cNm in axVars)
+        axTypes = [ nd.df.GetColumnType(cNm) for cNm in axVars ]
         useExplicit = True
         from .root import gbl
         for axTp in axTypes:
@@ -366,17 +372,18 @@ class DataframeBackend(FactoryBackend):
             allVars = axVars
             logger.debug("Adding plot {0} with variables {1}", plotName, ", ".join(axVars))
         if useExplicit and nVars < 3: ## only have templates for those
+            ndCppName = nd.df.__class__.__cpp_name__
             if weightName:
                 wType = nd.df.GetColumnType(weightName)
-                templTypes = tuple(chain([nd.df.__cppname__], axTypes, [ wType ]))
-                kyTypes = (nd.df.__cppname__, axTypes, wType)
+                templTypes = [ndCppName] + axTypes + [ wType ]
+                kyTypes = (ndCppName, tuple(axTypes), wType)
             else:
-                templTypes = [nd.df.__cppname__] + list(axTypes)
-                kyTypes = (nd.df.__cppname__, axTypes)
+                templTypes = [ndCppName] + axTypes
+                kyTypes = (ndCppName, tuple(axTypes))
             _RDFHistoNDStats[kyTypes] += 1
             if kyTypes not in _RDFHistoND_methods:
                 logger.debug(f"Declaring Histo{nVars:d}D helper for types {templTypes}")
-                _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")(*templTypes)
+                _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")[tuple(templTypes)]
             plotFun = partial(_RDFHistoND_methods[kyTypes], nd.df)
         else:
             logger.debug(f"Using Histo{nVars:d}D with type inference")
@@ -384,8 +391,8 @@ class DataframeBackend(FactoryBackend):
         _RDFNodeStats[f"Histo{nVars:d}D"] += 1
         return plotFun(plotModel, *allVars)
 
-    def getResults(self, plot):
-        return plot.produceResults(self.results.get(plot.name), self)
+    def getResults(self, plot, key=None):
+        return plot.produceResults(self.results.get(key if key is not None else plot.key), self)
 
     def writeSkim(self, sele, outputFile, treeName, definedBranches=None, origBranchesToKeep=None, maxSelected=-1):
         selND = self.selDFs[sele.name]
@@ -460,14 +467,14 @@ class DataframeBackend(FactoryBackend):
         selND = self.selDFs[selection.name]
         nomWName = selND.wName["nominal"]
         nomName = f"{prefix}_{selection.name}"
-        mod = gbl.RDF.TH1DModel(nomName, f"CutFlowReport {prefix} nominal counter for {selection.name}", 1, 0., 1.)
+        mod = gbl.ROOT.RDF.TH1DModel(nomName, f"CutFlowReport {prefix} nominal counter for {selection.name}", 1, 0., 1.)
         cfrNom = DataframeBackend.makeHistoND(selND, mod, ["_zero_for_stats"], weightName=nomWName, plotName=nomName)
         cfrSys = {}
         if autoSyst:
             for varNm in selection.systematics:
                 if varNm in selND.var or selND.wName[varNm] != nomWName:
                     name = f"{prefix}_{selection.name}__{varNm}"
-                    mod = gbl.RDF.TH1DModel(name, f"CutFlowReport {prefix} {varNm} counter for {selection.name}", 1, 0., 1.)
+                    mod = gbl.ROOT.RDF.TH1DModel(name, f"CutFlowReport {prefix} {varNm} counter for {selection.name}", 1, 0., 1.)
                     cfrSys[varNm] = DataframeBackend.makeHistoND(selND.var.get(varNm, selND), mod,
                             ["_zero_for_stats"], weightName=selND.wName[varNm], plotName=title)
         return makeEntry(selection.name, cfrNom, cfrSys)
@@ -499,8 +506,8 @@ class LazyDataframeBackend(DataframeBackend):
         self.plotsPerSelection[selection.name] = []
     def addPlot(self, plot, autoSyst=True):
         ## keep track and do nothing
-        if any((ap.name == plot.name) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
-            raise RuntimeError(f"A Plot with the name '{plot.name}' already exists")
+        if any((ap.key == plot.key) for selPlots in self.plotsPerSelection.values() for (ap, aSyst) in selPlots):
+            raise RuntimeError(f"A Plot with key '{plot.key}' already exists")
         self.plotsPerSelection[plot.selection.name].append((plot, autoSyst))
     def addCutFlowReport(self, report, autoSyst=True):
         self.cutFlowReports.append((report, autoSyst))

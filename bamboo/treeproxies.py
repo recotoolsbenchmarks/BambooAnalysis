@@ -17,7 +17,7 @@ import functools
 boolType = "bool"
 _boolTypes = set(("bool", "Bool_t"))
 intType = "Int_t"
-_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
+_integerTypes = set(("Int_t", "UInt_t", "Char_t", "UChar_t", "ULong64_t", "int", "unsigned", "unsigned short", "char", "signed char", "unsigned char", "long", "Short_t", "size_t", "std::size_t", "unsigned short", "unsigned long"))
 floatType = "Double_t"
 _floatTypes = set(("Float_t", "Double_t", "float", "double"))
 ## TODO lists are probably not complete
@@ -234,28 +234,37 @@ class ListBase(object):
     def idxs(self):
         return Construct("rdfhelpers::IndexRange<{0}>".format(SizeType), (adaptArg(self.__len__()),)).result ## FIXME uint->int narrowing
 
-class ContainerGroupItemProxy(TupleBaseProxy):
-    """ Proxy for an item in a structure of arrays """
-    def __init__(self, parent, idx):
-        self._idx = adaptArg(idx, typeHint=SizeType)
-        super(ContainerGroupItemProxy, self).__init__("struct", parent=parent)
-    def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._idx)
-    @property
-    def isValid(self):
-        return self._idx.result != -1
+class ItemProxyBase(TupleBaseProxy):
+    """ Proxy for an item in some container """
+    def __init__(self, parent):
+        ## NOTE subclasses should define _idx and _base
+        super(ItemProxyBase, self).__init__("struct", parent=parent)
     @property
     def idx(self):
         return self._idx.result
+    @property
+    def isValid(self):
+        return self.idx != -1
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             raise RuntimeError("Cannot compare proxies of different types: {0} and {1}".format(other.__class__.__name__, self.__class__.__name__))
-        if self._parent._base != other._parent._base:
+        if self._base != other._base:
             raise RuntimeError("Cannot compare elements from different containers")
-        return self._idx.result == other._idx.result
+        return self.idx == other.idx
     def __ne__(self, other):
         from bamboo.treefunctions import NOT
         return NOT(self == other)
+
+class ContainerGroupItemProxy(ItemProxyBase):
+    """ Proxy for an item in a structure of arrays """
+    def __init__(self, parent, idx):
+        self._idx = adaptArg(idx, typeHint=SizeType)
+        super(ContainerGroupItemProxy, self).__init__(parent)
+    @property
+    def _base(self):
+        return self._parent._base
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._idx)
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """
@@ -337,8 +346,8 @@ class VectorProxy(ObjectProxy,ListBase):
             vecClass = getattr(gbl, typeName)
             if hasattr(vecClass, "value_type"):
                 value = getattr(vecClass, "value_type")
-                if hasattr(value, "__cppname__"):
-                    self.valueType = value.__cppname__
+                if hasattr(value, "__cpp_name__"):
+                    self.valueType = value.__cpp_name__
                 elif str(value) == value:
                     self.valueType = value
                 else:
@@ -386,12 +395,14 @@ class SliceProxy(TupleBaseProxy,ListBase):
     """ Proxy for part of an iterable (ContainerGroup/selection etc.) """
     def __init__(self, parent, begin, end, valueType=None): ## 'parent' is another proxy (ListBase, will become _base of this one)
         ListBase.__init__(self)
-        self._base = parent if parent is not None else None
+        self.parent = parent ## parent proxy (slices are always created with a proxy)
+        self._base = parent._base if parent is not None else None
         self._begin = makeProxy(SizeType, adaptArg(begin, SizeType)) if begin is not None else None ## None signals 0
         self._end = makeProxy(SizeType, adaptArg(end, SizeType)) if end is not None else makeConst(parent.__len__(), SizeType)
         self.valueType = valueType if valueType else parent.valueType
         super(SliceProxy, self).__init__(self.valueType, parent=(adaptArg(parent) if parent is not None else None))
     def _offset(self, idx):
+        ## from index in slice to index in slice's parent
         if self._begin is not None:
             return self._begin+idx
         else:
@@ -408,18 +419,23 @@ class SliceProxy(TupleBaseProxy,ListBase):
             adaptArg(self.begin), adaptArg(self._end))).result ## FIXME uint->int narrowing
     def __getitem__(self, key):
         if isinstance(key, slice):
+            ## slice of a slice: just adjust the range
             if key.step and key.step != 1:
                 raise RuntimeError("Slices with non-unit step are not implemented")
-            return SliceProxy(self._base,
+            return SliceProxy(self.parent,
                     (self._offset(key.start) if key.start is not None else self._begin),
                     (self._offset(key.stop ) if key.stop  is not None else self._end  ),
                     valueType=self.valueType)
         else:
-            return self._getItem(self._offset(key))
-    def _getItem(self, baseIndex):
-        itm = self._base[baseIndex]
-        if self.valueType and self.valueType != self._base.valueType:
-            return self.valueType(itm._parent, itm._idx)
+            ## item of a slice -> ask parent
+            itm = self.parent[self._offset(key)]
+            if self.valueType and self.valueType != self.parent.valueType:
+                itm = self.valueType(itm._parent, itm._idx)
+            return itm
+    def _getItem(self, baseIndex): ## correct but not used by __getitem__ (finding base index depends on self.parent, could be anything)
+        itm = self.parent._getItem(baseIndex)
+        if self.valueType and self.valueType != self.parent.valueType:
+            itm = self.valueType(itm._parent, itm._idx)
         return itm
     def __len__(self):
         return self._end-self.begin
@@ -506,8 +522,10 @@ class CalcVariationsBase:
     def _initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produce(*args)
+    def _available(self):
+        return list(str(iav) for iav in self.calc.available())
     def _initFromCalc(self):
-        avail = list(self.calc.available())
+        avail = self._available()
         for i,nm in enumerate(avail):
             self.brMapMap[nm] = dict((attN,
                 adaptArg(getattr(self.calcProd, attN)(makeConst(i, SizeType))))
@@ -531,17 +549,19 @@ class CalcCollectionVariations(AltCollectionVariations, CalcVariationsBase):
         super(CalcCollectionVariations, self).__init__(parent, orig, brMapMap, altItemType=altItemType)
         CalcVariationsBase.__init__(self, withSystName=withSystName)
 
-class CombinationProxy(TupleBaseProxy):
-    ## NOTE decorated rdfhelpers::Combination
+class CombinationProxy(ItemProxyBase):
+    """ Decorated combinations item """
     def __init__(self, cont, parent):
         self.cont = cont
-        super(CombinationProxy, self).__init__("struct", parent=parent) ## parent=ObjectProxy for a combination (indices)
+        super(CombinationProxy, self).__init__(parent) ## parent is a GetItem
     @property
     def _idx(self):
         return self._parent._index
     @property
-    def index(self):
-        return self._parent.index
+    def _base(self):
+        return self.cont._parent
+    def __repr__(self):
+        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
     def __getitem__(self, i):
         if isinstance(i, slice):
             if i.step and i.step != 1:
@@ -550,13 +570,9 @@ class CombinationProxy(TupleBaseProxy):
         else:
             idx = makeConst(i, SizeType)
             return self.cont.base(i)[self._parent.result.get(idx)]
-    ## TODO add more (maybe simply defer to rdfhelpers::Combination object
-    def __repr__(self):
-        return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self.cont, self._parent)
 
 class CombinationListProxy(TupleBaseProxy,ListBase):
     ## NOTE list of decorated rdfhelpers::Combination
-    ## TODO check if this works with selection (it should...)
     def __init__(self, ranges, parent):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
         self.ranges = ranges

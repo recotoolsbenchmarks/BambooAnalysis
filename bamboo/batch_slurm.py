@@ -14,6 +14,7 @@ from .batch import TasksMonitor
 
 try:
     from CP3SlurmUtils.Configuration import Configuration as CP3SlurmConfiguration
+    from CP3SlurmUtils.ConfigurationUtils import validConfigParams as CP3SlurmConfigValidParams
     from CP3SlurmUtils.SubmitWorker import SubmitWorker as slurmSubmitWorker
 except ImportError as ex:
     logger.info("Could not import Configuration and slurmSubmitWorker from CP3SlurmUtils.SubmitUtils. Please run 'module load slurm/slurm_utils'")
@@ -42,7 +43,7 @@ class CommandListJob(CommandListJobBase):
         ##
         self.cfg = CP3SlurmConfiguration()
 
-        self.cfg.sbatch_workdir = self.workDir
+        self.cfg.sbatch_chdir = self.workDir
         self.cfg.inputSandboxDir = self.workDirs["in"]
         self.cfg.batchScriptsDir = self.workDir
         self.cfg.stageoutDir = os.path.join(self.workDirs["out"], "${SLURM_ARRAY_TASK_ID}")
@@ -53,7 +54,22 @@ class CommandListJob(CommandListJobBase):
         if configOpts:
             cfg_opts.update(configOpts)
         for k, v in cfg_opts.items():
-            setattr(self.cfg, k, v)
+            if k not in CP3SlurmConfigValidParams:
+                raise RuntimeError(f"Parameter {k} is not a valid parameter for the slurm configuration")
+            try:
+                if type(v) == str and CP3SlurmConfigValidParams[k]["type"] == int:
+                    setattr(self.cfg, k, int(v))
+                elif type(v) == str and CP3SlurmConfigValidParams[k]["type"] == bool:
+                    if v.lower() in ['0', 'false', 'no']:
+                        setattr(self.cfg, k, False)
+                    elif v.lower() in ['1', 'true', 'yes']:
+                        setattr(self.cfg, k, True)
+                    else:
+                        raise ValueError()
+                else:
+                    setattr(self.cfg, k, v)
+            except ValueError:
+                raise RuntimeError(f"Could not convert '{v}' to expected type for parameter {k}: {CP3SlurmConfigValidParams[k]}")
 
         self.slurmScript = os.path.join(self.cfg.batchScriptsDir, self.cfg.batchScriptsFilename)
         self.clusterId = None ## will be set by submit
@@ -101,10 +117,7 @@ class CommandListJob(CommandListJobBase):
 
     def submit(self):
         """ Submit the job to slurm """
-        sbatchOpts = [
-              "--partition={}".format(self.cfg.sbatch_partition)
-            , "--qos={}".format(self.cfg.sbatch_qos)
-            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        sbatchOpts = []
         logger.info("Submitting an array of {0:d} jobs to slurm".format(len(self.commandList)))
         logger.debug("sbatch {0} {1}".format(" ".join(sbatchOpts), self.slurmScript))
         result = subprocess.check_output(["sbatch"]+sbatchOpts+[self.slurmScript]).decode()
@@ -158,6 +171,7 @@ class CommandListJob(CommandListJobBase):
                     if "\n" in ret:
                         raise AssertionError("More than one line in sacct... there's something wrong")
                     if len(ret) != 0:
+                        ret = ret.split(" ")[0]
                         if "CANCELLED+" in ret:
                             # Can happen if scancel command did not have time to propagate
                             status = "CANCELLED"
@@ -184,9 +198,7 @@ class CommandListJob(CommandListJobBase):
     def getResubmitCommand(self, failedCommands):
         sbatchOpts = [
               "--array={}".format(",".join(str(self._arrayIndex(cmd)) for cmd in failedCommands))
-            , "--partition={}".format(self.cfg.sbatch_partition)
-            , "--qos={}".format(self.cfg.sbatch_qos)
-            ]+(list(self.cfg.sbatch_additionalOptions) if hasattr(self.cfg, "sbatch_additionalOptions") and self.cfg.sbatch_additionalOptions else [])
+        ]
         return ["sbatch"]+sbatchOpts+[self.slurmScript]
 
     def getRuntime(self, command):
@@ -211,13 +223,13 @@ def jobsFromTasks(taskList, workdir=None, batchConfig=None, configOpts=None):
             configOpts = dict(configOpts)
         bc_c = dict(batchConfig)
         for k,cov in configOpts.items():
-            if k.lower() in bc_c:
+            if k in bc_c:
                 if isinstance(cov, list):
-                    cov += bc_c[k.lower()].split(", ")
-                    del bc_c[k.lower()]
+                    cov += bc_c[k].split(", ")
+                    del bc_c[k]
                 else: # ini file takes preference
-                    configOpts[k] = bc_c[k.lower()]
-                    del bc_c[k.lower()]
+                    configOpts[k] = bc_c[k]
+                    del bc_c[k]
         configOpts.update(bc_c)
     slurmJob = CommandListJob(list(chain.from_iterable(task.commandList for task in taskList)), workDir=workdir, configOpts=configOpts)
     for task in taskList:

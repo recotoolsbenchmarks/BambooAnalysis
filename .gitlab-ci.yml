@@ -19,3 +19,16 @@ test_pip:
     - pip install .
     - cd tests
     - pytest
+
+test_pip_622:
+  tags:
+    - cvmfs
+  before_script:
+    - yum install -y libgfortran make atlas
+    - source /cvmfs/sft.cern.ch/lcg/views/LCG_98python3/x86_64-centos7-gcc9-opt/setup.sh
+    - python -m venv venv622
+    - source venv622/bin/activate
+  script:
+    - pip install .
+    - cd tests
+    - pytest

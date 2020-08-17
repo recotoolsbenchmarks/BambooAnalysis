@@ -352,7 +352,7 @@ Some of the ``rng_...`` methods are extremely powerful, e.g.
 
 .. tip:: In addition to the branches read from the input tree, all elements of
     collections have an ``idx`` attribute which contains their index in the
-    *original* collection, also in case they are obtained from a subset
+    *original* collection (``base``), also in case they are obtained from a subset
     (with :py:func:`~bamboo.treefunctions.select` or a slice), differently
     ordered version (with :py:func:`~bamboo.treefunctions.sort`), or systematic
     variation (e.g. for :ref:`jets<recipejetsystematics>`) of the collection.
@@ -360,6 +360,12 @@ Some of the ``rng_...`` methods are extremely powerful, e.g.
     identical, or when directly comparing systematic variations.
     Similarly, all collections, selections, slices etc. have an ``idxs`` attribute,
     with the list of indices in the original collection.
+
+    This can also be exploited to precalculate an expensive quantity for a
+    collection of objects (with :py:func:`~bamboo.treefunctions.map`), or even
+    to evaluate a quantity for items passing different selections (e.g. the
+    passing and failing selections), something like
+    ``fun(passing.base[op.switch(op.rng_len(passing) > 0, passing[0].idx, failing[0].idx)])``.
 
 The proxy classes are generated on the fly with all branches as attributes, so
 tab-completion can be used to have a look at what's there:

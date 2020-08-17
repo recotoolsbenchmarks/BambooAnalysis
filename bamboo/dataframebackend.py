@@ -118,7 +118,7 @@ _giFun = 0
 class DataframeBackend(FactoryBackend):
     def __init__(self, tree, outFileName=None):
         from .root import gbl
-        self.rootDF = gbl.RDataFrame(tree).Define("_zero_for_stats", "0")
+        self.rootDF = gbl.ROOT.RDataFrame(tree).Define("_zero_for_stats", "0")
         self.outFile = gbl.TFile.Open(outFileName, "CREATE") if outFileName else None
         self.selDFs = dict()      ## (selection name, variation) -> SelWithDefines
         self.results = dict()     ## product name -> list of result pointers
@@ -315,7 +315,7 @@ class DataframeBackend(FactoryBackend):
     def makePlotModel(plot, variation="nominal"):
         from .root import gbl
         binnings = plot.binnings
-        modCls = getattr(gbl.RDF, "TH{0:d}DModel".format(len(binnings)))
+        modCls = getattr(gbl.ROOT.RDF, "TH{0:d}DModel".format(len(binnings)))
         name = plot.name
         if variation != "nominal":
             name = "__".join((name, variation))
@@ -355,7 +355,7 @@ class DataframeBackend(FactoryBackend):
     @staticmethod
     def makeHistoND(nd, plotModel, axVars, weightName=None, plotName=None):
         nVars = len(axVars)
-        axTypes = tuple(nd.df.GetColumnType(cNm) for cNm in axVars)
+        axTypes = [ nd.df.GetColumnType(cNm) for cNm in axVars ]
         useExplicit = True
         from .root import gbl
         for axTp in axTypes:
@@ -372,17 +372,18 @@ class DataframeBackend(FactoryBackend):
             allVars = axVars
             logger.debug("Adding plot {0} with variables {1}", plotName, ", ".join(axVars))
         if useExplicit and nVars < 3: ## only have templates for those
+            ndCppName = nd.df.__class__.__cpp_name__
             if weightName:
                 wType = nd.df.GetColumnType(weightName)
-                templTypes = tuple(chain([nd.df.__cppname__], axTypes, [ wType ]))
-                kyTypes = (nd.df.__cppname__, axTypes, wType)
+                templTypes = [ndCppName] + axTypes + [ wType ]
+                kyTypes = (ndCppName, tuple(axTypes), wType)
             else:
-                templTypes = [nd.df.__cppname__] + list(axTypes)
-                kyTypes = (nd.df.__cppname__, axTypes)
+                templTypes = [ndCppName] + axTypes
+                kyTypes = (ndCppName, tuple(axTypes))
             _RDFHistoNDStats[kyTypes] += 1
             if kyTypes not in _RDFHistoND_methods:
                 logger.debug(f"Declaring Histo{nVars:d}D helper for types {templTypes}")
-                _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")(*templTypes)
+                _RDFHistoND_methods[kyTypes] = getattr(gbl.rdfhelpers.rdfhistofactory, f"Histo{nVars:d}D")[tuple(templTypes)]
             plotFun = partial(_RDFHistoND_methods[kyTypes], nd.df)
         else:
             logger.debug(f"Using Histo{nVars:d}D with type inference")
@@ -466,14 +467,14 @@ class DataframeBackend(FactoryBackend):
         selND = self.selDFs[selection.name]
         nomWName = selND.wName["nominal"]
         nomName = f"{prefix}_{selection.name}"
-        mod = gbl.RDF.TH1DModel(nomName, f"CutFlowReport {prefix} nominal counter for {selection.name}", 1, 0., 1.)
+        mod = gbl.ROOT.RDF.TH1DModel(nomName, f"CutFlowReport {prefix} nominal counter for {selection.name}", 1, 0., 1.)
         cfrNom = DataframeBackend.makeHistoND(selND, mod, ["_zero_for_stats"], weightName=nomWName, plotName=nomName)
         cfrSys = {}
         if autoSyst:
             for varNm in selection.systematics:
                 if varNm in selND.var or selND.wName[varNm] != nomWName:
                     name = f"{prefix}_{selection.name}__{varNm}"
-                    mod = gbl.RDF.TH1DModel(name, f"CutFlowReport {prefix} {varNm} counter for {selection.name}", 1, 0., 1.)
+                    mod = gbl.ROOT.RDF.TH1DModel(name, f"CutFlowReport {prefix} {varNm} counter for {selection.name}", 1, 0., 1.)
                     cfrSys[varNm] = DataframeBackend.makeHistoND(selND.var.get(varNm, selND), mod,
                             ["_zero_for_stats"], weightName=selND.wName[varNm], plotName=title)
         return makeEntry(selection.name, cfrNom, cfrSys)

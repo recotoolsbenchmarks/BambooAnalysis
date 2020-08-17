@@ -296,7 +296,7 @@ class ObjectProxy(NumberProxy):
         if name not in dir(typ):
             raise AttributeError("Type {0} has no member {1}".format(self._typeName, name))
         from .root import gbl
-        if hasattr(typ, name) and isinstance(getattr(typ, name), gbl.MethodProxy):
+        if hasattr(typ, name) and (isinstance(getattr(typ, name), gbl.MethodProxy) if hasattr(gbl, "MethodProxy") else getattr(typ, name).__class__.__name__ == "CPPOverload"):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result
@@ -345,8 +345,8 @@ class VectorProxy(ObjectProxy,ListBase):
             vecClass = getattr(gbl, typeName)
             if hasattr(vecClass, "value_type"):
                 value = getattr(vecClass, "value_type")
-                if hasattr(value, "__cppname__"):
-                    self.valueType = value.__cppname__
+                if hasattr(value, "__cpp_name__"):
+                    self.valueType = value.__cpp_name__
                 elif str(value) == value:
                     self.valueType = value
                 else:
@@ -521,8 +521,10 @@ class CalcVariationsBase:
     def _initCalc(self, calcProxy, calcHandle=None, args=None):
         self.calc = calcHandle ## handle to the actual module object
         self.calcProd = calcProxy.produce(*args)
+    def _available(self):
+        return list(str(iav) for iav in self.calc.available())
     def _initFromCalc(self):
-        avail = list(self.calc.available())
+        avail = self._available()
         for i,nm in enumerate(avail):
             self.brMapMap[nm] = dict((attN,
                 adaptArg(getattr(self.calcProd, attN)(makeConst(i, SizeType))))

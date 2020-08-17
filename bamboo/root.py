@@ -115,5 +115,10 @@ def loadTensorflowC():
 @once
 def loadlwtnn():
     loadBambooExtensions()
+    lwtnnLib = findLibrary("liblwtnn")
+    import os
+    if ( not lwtnnLib ) and "VIRTUAL_ENV" in os.environ:
+        addDynamicPath(os.path.join(os.environ["VIRTUAL_ENV"], "lib"))
+    loadLibrary("liblwtnn")
     loadLibrary("libBambooLwtnn")
     loadHeader("bamboolwtnn.h")

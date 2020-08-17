@@ -4,6 +4,11 @@ from helpers import isclose_float
 # check if lwtnn is found (the bridge library should be available then)
 from bamboo.root  import findLibrary
 lwtnn_found = findLibrary("liblwtnn")
+if not lwtnn_found:
+    if "VIRTUAL_ENV" in os.environ:
+        lwtnnlib_guessed_path = os.path.join(os.environ["VIRTUAL_ENV"], "lib", "liblwtnn.so")
+        if os.path.exists(lwtnnlib_guessed_path):
+            lwtnn_found = lwtnnlib_guessed_path
 pytestmark = pytest.mark.skipif(not lwtnn_found, reason="lwtnn library not found")
 
 testData = os.path.join(os.path.dirname(__file__), "data")

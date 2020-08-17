@@ -467,7 +467,7 @@ Several external libraries can be used to evaluate the response of MVA
 classifiers inside expressions.
 For convenience, a uniform interface is defined that uses a vector of floats
 as input and output, with implementations available for `PyTorch`_,
-`Tensorflow`_, and `lwtnn`_.
+`Tensorflow`_, `lwtnn`_, and `TMVA`_.
 When going through this interface, an evaluator object (see
 :ref:`this section<ugcppmodules>` for an explanation) can be obtained through
 the :py:meth:`bamboo.treefunctions.mvaEvaluator` method (see its documentation
@@ -481,8 +481,14 @@ for a detailed description of the necessary arguments).
 
 Instructions to obtain a file with the neural network structure and weights for
 the different tools can be found in `this TorchScript tutorial`_,
-`the Tensorflow SavedModel documentation`_, and on `the lwtnn wiki`_,
-respectively.
+`the Tensorflow SavedModel documentation`_, on `the lwtnn wiki`_, and in the
+TMVA_ documentation, respectively.
+
+.. warning:: Especially for PyTorch_ and Tensorflow_, setting up an
+   installation where the necessary C(++) libraries are correctly identified,
+   and compatible with the CPU capabilities, is not always trivial, see
+   :ref:`this section<installmachinelearning>` in the installation guide for
+   more information.
 
 .. _recipemergedcategoryplots:
 
@@ -680,6 +686,8 @@ instance.
 .. _Tensorflow: https://www.tensorflow.org/
 
 .. _lwtnn: https://github.com/lwtnn/lwtnn
+
+.. _TMVA: https://root.cern/manual/tmva/
 
 .. _this TorchScript tutorial: https://pytorch.org/tutorials/advanced/cpp_export.html#step-1-converting-your-pytorch-model-to-torch-script
 

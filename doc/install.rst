@@ -5,8 +5,8 @@ Dependencies and environment
 ----------------------------
 
 Bamboo_ only depends on python3 (with pip/setuptools to install PyYAML and
-numpy if needed) and a recent version of ROOT (6.16.00 is recommended because
-it brings some changes to RDataFrame with respect to 6.14.06).
+numpy if needed) and a recent version of ROOT (6.20/00 is the minimum
+supported version, for compatible with the `new PyROOT`_ in 6.22/00).
 On ingrid and lxplus (or any machine with cvmfs), an easy way to get such
 a recent version of ROOT is through a CMSSW release that depends on it (``10_4``
 has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
@@ -23,7 +23,7 @@ other commands, to pick up the correct base system and then the installed
 packages).
 
 Some features bring in additional dependencies. Bamboo_ should detect if these
-are relied on and missing, and print a clear error message.
+are relied on and missing, and print a clear error message in that case.
 Currently, they include:
 
 - the dasgoclient executable (and a valid grid proxy) for retrieving the list
@@ -38,6 +38,8 @@ Currently, they include:
 - the ``makePUReWeightJSON`` script can make a plot of the PU distributions
   and weights if the ``--makePlot`` option is given, but it needs matplotlib_
   for that
+- machine learning libraries (libtorch_, Tensorflow-C_, lwtnn_): see
+  :ref:`this section<installmachinelearning>` for more information
 
 Installation
 ------------
@@ -270,6 +272,8 @@ If the builtin functionality is not sufficient, some hints on extending or
 modifying bamboo can be found in the :doc:`advanced topics<advanced>` and the
 :doc:`hacking guide<hacking>`.
 
+.. _installmachinelearning:
+
 Machine learning packages
 -------------------------
 
@@ -294,14 +298,14 @@ included in the bamboo source code respository, as
    they are not found otherwise.
    Therefore it is recommended to stick with the version provided by the LCG
    distribution, or set up an isolated environment with conda |--| see the
-   issues `#68`_ (for now) and `#65`_ (eventually) for more information.
+   issues `#68`_ (for now) and `#65`_ for more information. When a stable
+   solution is found it will be added here.
 
 .. warning:: the libtorch_ and Tensorflow-C_ builds in LCG_98python3 contain
    AVX2 instructions (so one of
    `these <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX2>`_
    CPU generations).
-   See issue `#68`_ for more a more detailed discussion, and a possible
-   workaround.
+   See issue `#68`_ for more a more detailed discussion, and a possible workaround.
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
@@ -318,13 +322,15 @@ included in the bamboo source code respository, as
 
 .. _libtorch: https://pytorch.org/cppdocs/
 
-.. _tensorflow-c: https://www.tensorflow.org/install/lang_c
+.. _Tensorflow-C: https://www.tensorflow.org/install/lang_c
 
 .. _lwtnn: https://github.com/lwtnn/lwtnn
 
 .. _#68: https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/68
 
 .. _#65: https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/65
+
+.. _new PyROOT: https://root.cern/blog/new-pyroot-622/
 
 .. |---| unicode:: U+2014
    :trim:

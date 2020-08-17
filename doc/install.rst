@@ -277,24 +277,31 @@ In order to evaluate machine learning classifiers, bamboo_ needs to find the
 necessary C(++) libraries, both when the extension libraries are compiled and
 at runtime (so they need to be installed before (re)installing bamboo_).
 For libtorch_ this is done by searching for the ``torch`` package
-using ``pkg_resources``, which should work whenever it is installed with pip.
-For Tensorflow-C_ there is currently no pip-installable package, so it will be
-searched for (by cmake and the dynamic library loader) in the default locations,
-supplemented with the currently active `virtual environment`_ (a script to
-install it directly there is bundled with the bamboo_ source distribution, in
-``ext/install_tensorflow-c.sh``).
+using ``pkg_resources``, which should work whenever it is installed with pip
+or conda.
+Tensorflow-C_ and lwtnn_ will be searched for (by cmake and the dynamic library
+loader) in the default locations, supplemented with the currently active
+`virtual environment`_, if any (scripts to install them there directly are
+included in the bamboo source code respository, as
+``ext/install_tensorflow-c.sh`` and ``ext/install_lwtnn.sh``).
 
-.. note:: Installing a newer version of a package in a virtualenv if it is
+.. note:: Installing a newer version of libtorch_ in a virtualenv if it is
    also available through the ``PYTHONPATH`` (e.g. in the LCG distribution)
    generally does not work, since virtualenv uses ``PYTHONHOME``, which has
    lower precedence.
-   For pure C(++) libraries it is possible to work around this, but for
-   e.g. libtorch_ (which has the C libraries inside the python packages
-   that is quite tricky.
-   Therefore it is recommended to either stick with the version provided by
-   the LCG distribution.
-   Fully isolated environments, e.g. with conda, may provide more flexibility
-   |---| contributions to support this are particularly welcome.
+   For the pure C(++) libraries Tensorflow-C_ and lwtnn_ this could be made to
+   work, but currently the virtual environment is only explicitly searched if
+   they are not found otherwise.
+   Therefore it is recommended to stick with the version provided by the LCG
+   distribution, or set up an isolated environment with conda |--| see the
+   issues `#68`_ (for now) and `#65`_ (eventually) for more information.
+
+.. warning:: the libtorch_ and Tensorflow-C_ builds in LCG_98python3 contain
+   AVX2 instructions (so one of
+   `these <https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#CPUs_with_AVX2>`_
+   CPU generations).
+   See issue `#68`_ for more a more detailed discussion, and a possible
+   workaround.
 
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
@@ -312,6 +319,12 @@ install it directly there is bundled with the bamboo_ source distribution, in
 .. _libtorch: https://pytorch.org/cppdocs/
 
 .. _tensorflow-c: https://www.tensorflow.org/install/lang_c
+
+.. _lwtnn: https://github.com/lwtnn/lwtnn
+
+.. _#68: https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/68
+
+.. _#65: https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/65
 
 .. |---| unicode:: U+2014
    :trim:

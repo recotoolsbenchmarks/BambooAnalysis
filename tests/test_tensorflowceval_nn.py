@@ -17,7 +17,7 @@ testData = os.path.join(os.path.dirname(__file__), "data")
 def tfc_nn1():
     from bamboo.root import gbl, loadTensorflowC
     loadTensorflowC()
-    yield gbl.bamboo.TensorflowCEvaluator(os.path.join(testData, "nn1.pb"), "dense_1_input", "dense_3/Softmax", 5, 2)
+    yield gbl.bamboo.TensorflowCEvaluator(os.path.join(testData, "nn1.pb"), "dense_1_input", "dense_3/Softmax")
 
 def test_tfc_load(tfc_nn1):
     assert tfc_nn1

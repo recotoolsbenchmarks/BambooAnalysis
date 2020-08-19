@@ -639,8 +639,13 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
     * .xml (``mvaType='TMVA'``) TMVA weights file, evaluated with a ``TMVA::Experimental::RReader``
     * .pt (``mvaType='Torch'``) pytorch script files (loaded with ``torch::jit::load``).
     * .pb (``mvaType='Tensorflow'``) tensorflow graph definition (loaded with Tensorflow-C).
-       The ``otherArgs`` keyword argument should be passed the names of the input and output nodes,
-       and the number of values for each.
+       The ``otherArgs`` keyword argument should be ``(inputNodeNames, outputNodeNames)``, where each
+       of the two can be a single string, or an iterable of them.
+       In the case of multiple (or multi-dimensional) input nodes,
+       the values in the input to the evaluate method should be flattened
+       (row-order per node, and then the different nodes).
+       The output will be flattened in the same way if there are multiple
+       output nodes, or if they have more than one dimension.
     * .json (``mvaType='lwtnn'``) lwtnn json. The ``otherArgs`` keyword argument should be passed
       the lists of input and output nodes/values, as C++ initializer list strings, e.g.
       ``'{ { "node_0", "variable_0" }, { "node_0", "variable_1" } ... }'`` and
@@ -676,7 +681,15 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         from bamboo.root import loadTensorflowC
         loadTensorflowC()
         cppType = "bamboo::TensorflowCEvaluator"
-        argStr = '"{0}", {1}'.format(fileName, (", ".join(repr(arg) for arg in otherArgs) if str(otherArgs) != otherArgs else otherArgs))
+        if isinstance(otherArgs, str):
+            otherArgStr = otherArgs
+        else:
+            inNodeNames, outNodeNames = otherArgs
+            otherArgStr = ", ".join(
+                f'"{ndNameList}"' if isinstance(ndNameList, str)
+                else "{{ {0} }}".format(", ".join(f'"{nd}"' for nd in ndNameList))
+                for ndNameList in (inNodeNames, outNodeNames))
+        argStr = '"{0}", {1}'.format(fileName, otherArgStr)
     elif mvaType == "Torch":
         from bamboo.root import loadLibTorch
         loadLibTorch()

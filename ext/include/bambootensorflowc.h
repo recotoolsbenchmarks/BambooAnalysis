@@ -14,18 +14,6 @@ public:
   TensorflowCEvaluator(const std::string& modelFile,
       const std::vector<std::string>& inputNames,
       const std::vector<std::string>& outputNames);
-  TensorflowCEvaluator(const std::string& modelFile,
-      const std::vector<std::string>& inputNames,
-      const std::string& outputName)
-    : TensorflowCEvaluator(modelFile, inputNames, std::vector<std::string>({ outputName })) {}
-  TensorflowCEvaluator(const std::string& modelFile,
-      const std::string& inputName,
-      const std::vector<std::string>& outputNames)
-    : TensorflowCEvaluator(modelFile, std::vector<std::string>({ inputName }), outputNames) {}
-  TensorflowCEvaluator(const std::string& modelFile,
-      const std::string& inputName,
-      const std::string& outputName)
-    : TensorflowCEvaluator(modelFile, std::vector<std::string>({ inputName }), std::vector<std::string>({ outputName })) {}
   ~TensorflowCEvaluator();
 
   output_t evaluate( const input_t& input ) const;

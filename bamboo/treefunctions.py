@@ -686,7 +686,7 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         else:
             inNodeNames, outNodeNames = otherArgs
             otherArgStr = ", ".join(
-                f'"{ndNameList}"' if isinstance(ndNameList, str)
+                f'{{ "{ndNameList}" }}' if isinstance(ndNameList, str)
                 else "{{ {0} }}".format(", ".join(f'"{nd}"' for nd in ndNameList))
                 for ndNameList in (inNodeNames, outNodeNames))
         argStr = '"{0}", {1}'.format(fileName, otherArgStr)

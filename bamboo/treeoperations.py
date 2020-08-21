@@ -391,8 +391,14 @@ class Construct(TupleOp):
         return "{0}{{{1}}}".format(self.typeName, ", ".join(defCache(a) for a in self.args))
 
 def guessReturnType(mp):
+    from .root import gbl
+    oneDecl = None
     if hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
-        toks = list(mp.func_doc.split())
+        oneDecl = mp.func_doc.split("\n")[0] # overloads should have the same return type
+    elif hasattr(gbl, "TemplateProxy") and isinstance(mp, gbl.TemplateProxy):
+        oneDecl = mp.__doc__.split("\n")[0]
+    if oneDecl:
+        toks = list(oneDecl.split())
         ## left and right strip const * and &
         while toks[-1].rstrip("&") in ("", "const", "static"):
             toks = toks[:-1]
@@ -565,11 +571,11 @@ class ExtVar(TupleOp):
     def get_cppStr(self, defCache=None):
         return self.name
 
-class DefinedVar(TupleOp):
+class DefinedSymbol(TupleOp):
     """ Defined variable (used by name), first use will trigger definition """
     __slots__ = ("typeName", "definition", "_nameHint")
     def __init__(self, typeName, definition, nameHint=None):
-        super(DefinedVar, self).__init__()
+        super(DefinedSymbol, self).__init__()
         self.typeName = typeName
         self.definition = definition
         self._nameHint = nameHint

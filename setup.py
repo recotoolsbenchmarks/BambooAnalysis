@@ -2,6 +2,7 @@
 
 from setuptools import setup, find_packages
 import os, os.path
+import pkg_resources
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -24,16 +25,26 @@ class BuildClibCommand(setuptools.command.build_clib.build_clib):
                 self.build_cmake(lib_name, build_info.get("cmake"))
         super(BuildClibCommand, self).build_libraries([ (lib_name, build_info) for lib_name, build_info in libraries if not build_info.get("cmake") ])
 
-    def build_cmake(self, name, cmPath):
+    def build_cmake(self, name, cmConfig):
         import pathlib
         pathlib.Path(self.build_temp).mkdir(parents=True, exist_ok=True)
         install_prefix = os.path.dirname(os.path.abspath(self.build_clib))
         buildType = "Debug" if self.debug else "Release"
-        with chdirback(self.build_temp):
-            self.spawn(['cmake',
+        cmake_opts = [
                 "-DCMAKE_INSTALL_PREFIX={0}".format(install_prefix),
                 "-DCMAKE_BUILD_TYPE={0}".format(buildType),
-                os.path.join(here, cmPath)])
+                ]
+        # pick up packages installed directly in the virtual env (e.g. Tensorflow-C), if loaded
+        if "VIRTUAL_ENV" in os.environ:
+            cmake_opts.append("-DCMAKE_PREFIX_PATH={0}".format(os.environ["VIRTUAL_ENV"]))
+        try: # pick up libtorch, if torch is installed
+            torch_cmake_locPath = os.path.join("share", "cmake", "Torch")
+            if pkg_resources.resource_exists("torch", torch_cmake_locPath) and pkg_resources.get_distribution("torch").parsed_version >= pkg_resources.parse_version("1.2.0"):
+                cmake_opts.append("-DTorch_DIR={0}".format(pkg_resources.resource_filename("torch", torch_cmake_locPath)))
+        except ImportError as ex:
+            print("Warning: optional dependency torch (>=1.2.0) not found, please install to enable inference with libtorch")
+        with chdirback(self.build_temp):
+            self.spawn(['cmake']+cmake_opts+[os.path.join(here, cmConfig["source_dir"])])
             if not self.dry_run:
                 self.spawn(["cmake", "--build", ".", "--target", "install", "--config", buildType])
 
@@ -48,7 +59,7 @@ try:
     from sphinx.setup_command import BuildDoc
 except ImportError as ex:
     BuildDoc = None
-    print("Could not import sphinx, so documentation will not be built")
+    print("Warning: optional dependency sphinx not found, please install to build the documentation")
 
 # Get the long description from the relevant file
 from io import open
@@ -106,7 +117,7 @@ setup(
             ]
         },
 
-    libraries=[("BambooExt", { "cmake" : "ext", "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
+    libraries=[("BambooExt", { "cmake" : {"source_dir": "ext"}, "sources" : [ os.path.join(root, item) for root, subFolder, files in os.walk("ext") for item in files ] })],
     cmdclass={
         "build_clib" : BuildClibCommand,
         "install" : InstallCommand,

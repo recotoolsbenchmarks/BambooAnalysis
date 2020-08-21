@@ -463,7 +463,32 @@ Below is an example of how this works:
 Evaluate an MVA classifier
 --------------------------
 
-This feature is still under development, a recipe will be added here shortly
+Several external libraries can be used to evaluate the response of MVA
+classifiers inside expressions.
+For convenience, a uniform interface is defined that uses a vector of floats
+as input and output, with implementations available for `PyTorch`_,
+`Tensorflow`_, `lwtnn`_, and `TMVA`_.
+When going through this interface, an evaluator object (see
+:ref:`this section<ugcppmodules>` for an explanation) can be obtained through
+the :py:meth:`bamboo.treefunctions.mvaEvaluator` method (see its documentation
+for a detailed description of the necessary arguments).
+
+.. code-block:: python
+
+    mu = tree.Muon[0]
+    nn1 = mvaEvaluator("nn1.pt")
+    Plot.make1D("mu_nn1", nn1(mu.pt, mu.eta, mu.phi), hasMu)
+
+Instructions to obtain a file with the neural network structure and weights for
+the different tools can be found in `this TorchScript tutorial`_,
+`the Tensorflow SavedModel documentation`_, on `the lwtnn wiki`_, and in the
+TMVA_ documentation, respectively.
+
+.. warning:: Especially for PyTorch_ and Tensorflow_, setting up an
+   installation where the necessary C(++) libraries are correctly identified,
+   and compatible with the CPU capabilities, is not always trivial. See
+   :ref:`this section<installmachinelearning>` in the installation guide for
+   more information.
 
 .. _recipemergedcategoryplots:
 
@@ -544,8 +569,8 @@ implementation.
 It is also possible to skip the writing of a plotIt_ YAML file, and directly
 load the configuration as it would be parsed by the plotIt-inspired python
 library under development
-`here <https://github.com/pieterdavid/mplbplot/pull/5>`_, to transparently
-access the scaled grouped and stacked histograms.
+`in pieterdavid/mplbplot#5 <https://github.com/pieterdavid/mplbplot/pull/5>`_,
+to transparently access the scaled grouped and stacked histograms.
 
 As an example, a simple visualisation of 2D histograms could be obtained with
 
@@ -583,7 +608,7 @@ This can be largely automatised: besides the main
 cuts (the control region instead of the signal region) and weights (the
 mis-ID, fake, or transfer factors). That is exactly what is done by the
 :py:class:`~bamboo.plots.SelectionWithDataDriven` class: its
-:py:staticmethod:`~bamboo.plots.SelectionWithDataDriven.create` method is like
+:py:meth:`~bamboo.plots.SelectionWithDataDriven.create` method is like
 :py:meth:`bamboo.plots.Selection.refine`, but with alternative cuts and weights
 to construct the correctly reweighted control region besides the signal region.
 Since it supports the same interface as :py:class:`~bamboo.plots.Selection`,
@@ -617,7 +642,7 @@ Several can be specified in the same run: different sets will then be produced.
 The parsed versions are available as the ``datadrivenScenarios`` attribute of
 the module (and the contributions as ``datadrivenContributions``).
 The third argument passed to the
-:py:staticmethod:`~bamboo.plots.SelectionWithDataDriven.create` method should
+:py:meth:`~bamboo.plots.SelectionWithDataDriven.create` method should
 correspond to one of the contribution names in the YAML file, e.g. (continuing
 the example above):
 
@@ -655,6 +680,20 @@ instance.
 .. _RDataFrame: https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html
 
 .. _plotIt: https://github.com/cp3-llbb/plotIt
+
+.. _PyTorch: https://pytorch.org/
+
+.. _Tensorflow: https://www.tensorflow.org/
+
+.. _lwtnn: https://github.com/lwtnn/lwtnn
+
+.. _TMVA: https://root.cern/manual/tmva/
+
+.. _this TorchScript tutorial: https://pytorch.org/tutorials/advanced/cpp_export.html#step-1-converting-your-pytorch-model-to-torch-script
+
+.. _the Tensorflow SavedModel documentation: https://www.tensorflow.org/guide/saved_model
+
+.. _the lwtnn wiki: https://github.com/lwtnn/lwtnn/wiki/Keras-Converter
 
 .. |---| unicode:: U+2014
    :trim:

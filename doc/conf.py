@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'bamboo'
-copyright = '2019, Université catholique de Louvain'
+copyright = '2019-2020, Université catholique de Louvain'
 author = 'Pieter David, the bamboo team'
 
 # The short X.Y version

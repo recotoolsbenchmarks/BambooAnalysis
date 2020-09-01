@@ -395,7 +395,7 @@ def guessReturnType(mp):
     oneDecl = None
     if hasattr(mp, "func_doc") and hasattr(mp, "func_name"):
         oneDecl = mp.func_doc.split("\n")[0] # overloads should have the same return type
-    elif hasattr(gbl, "TemplateProxy") and isinstance(mp, gbl.TemplateProxy):
+    elif ( hasattr(gbl, "TemplateProxy") and isinstance(mp, gbl.TemplateProxy) ) or (type(mp).__name__ == "TemplateProxy"):
         oneDecl = mp.__doc__.split("\n")[0]
     if oneDecl:
         toks = list(oneDecl.split())

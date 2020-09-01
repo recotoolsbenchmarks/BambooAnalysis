@@ -1,34 +1,119 @@
 image: gitlab-registry.cern.ch/ci-tools/ci-worker:cc7
 
-before_script:
-  - yum install -y libgfortran make atlas
-  - source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
-  - python -m venv venv
-  - source venv/bin/activate
+stages:
+  - build
+  - test
+  - deploy
 
-test_setup:
-  tags:
-    - cvmfs
+variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+cache:
+  paths:
+    - .cache/pip
+
+before_script: &default_env
+  - source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+
+build_setup:
+  tags: [cvmfs]
+  stage: build
+  before_script:
+    - yum install -y libgfortran make atlas
+    - *default_env
   script:
     - python setup.py build
+  artifacts:
+    paths: [build]
+    expire_in: 30min
+test_setup:
+  tags: [cvmfs]
+  stage: test
+  needs: [build_setup]
+  script:
     - python setup.py test
-test_pip:
-  tags:
-    - cvmfs
+
+build_pip:
+  tags: [cvmfs]
+  stage: build
+  before_script:
+    - yum install -y libgfortran make atlas
+    - *default_env
+    - python -m venv venv
+    - source venv/bin/activate
+  artifacts:
+    paths: [venv]
+    expire_in: 30min
   script:
     - pip install .
+test_pip:
+  tags: [cvmfs]
+  stage: test
+  needs: [build_pip]
+  before_script:
+    - *default_env
+    - source venv/bin/activate
+  script:
     - cd tests
-    - pytest
+    - pytest --junitxml=report.xml
+  artifacts:
+    paths: [tests/report.xml]
+    reports:
+      junit: tests/report.xml
+builddoc:
+  tags: [cvmfs]
+  stage: test
+  needs: [build_pip]
+  before_script:
+    - *default_env
+    - source venv/bin/activate
+    - pip install sphinx
+  script:
+    - python setup.py build_sphinx
+  artifacts:
+    paths: [doc/build/html]
+    expose_as: "documentation"
+deploydoc:
+  stage: deploy
+  needs: [builddoc, test_pip]
+  only:
+    refs:
+      - master
+      - schedules
+  before_script:
+    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - rsync -r "doc/build/html/" "pdavid@server02.fynu.ucl.ac.be:~/public_html/bamboo"
 
-test_pip_622:
-  tags:
-    - cvmfs
+build_pip_622:
+  tags: [cvmfs]
+  stage: build
   before_script:
     - yum install -y libgfortran make atlas
     - source /cvmfs/sft.cern.ch/lcg/views/LCG_98python3/x86_64-centos7-gcc9-opt/setup.sh
     - python -m venv venv622
     - source venv622/bin/activate
+  artifacts:
+    paths: [venv622]
+    expire_in: 30min
   script:
     - pip install .
+test_pip_622:
+  tags: [cvmfs]
+  stage: test
+  needs: [build_pip_622]
+  before_script:
+    - source /cvmfs/sft.cern.ch/lcg/views/LCG_98python3/x86_64-centos7-gcc9-opt/setup.sh
+    - source venv622/bin/activate
+  script:
     - cd tests
-    - pytest
+    - pytest --junitxml=report_622.xml
+  artifacts:
+    paths: [tests/report_622.xml]
+    reports:
+      junit: tests/report_622.xml

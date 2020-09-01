@@ -7,9 +7,10 @@ Dependencies and environment
 Bamboo_ only depends on python3 (with pip/setuptools to install PyYAML and
 numpy if needed) and a recent version of ROOT (6.20/00 is the minimum
 supported version, for compatible with the `new PyROOT`_ in 6.22/00).
+
 On ingrid and lxplus (or any machine with cvmfs), an easy way to get such
-a recent version of ROOT is through a CMSSW release that depends on it (``10_4``
-has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
+a recent version of ROOT is through a CMSSW release that depends on it (a recent
+ROOT is possible, but no python3 yet), or from the `SPI LCG distribution`_, e.g.
 
 .. code-block:: sh
 
@@ -21,6 +22,29 @@ has a recent ROOT, but no python3 yet), or from the lcgsoft distribution, e.g.
 to install python packages in, after installation it is sufficient to run two
 other commands, to pick up the correct base system and then the installed
 packages).
+
+Alternatively, a `conda environment`_ (e.g. with `Miniconda`_) can be created
+with
+
+.. code-block:: sh
+
+   conda config --add channels conda-forge # if not already present
+   conda create -n test_bamboo root pyyaml numpy cmake boost
+   conda activate test_bamboo
+
+and bamboo_ installed directly there with pip, or in a `virtual environment`_
+inside the `conda environment`_ (make sure to pass ``--system-site-packages``
+to ``venv`` then); `conda-build`_ recipes are
+`in the plans <https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/65>`_.
+
+A `docker image <https://hub.docker.com/r/pieterdavid/bamboo-docker>`_
+(based on `repo2docker <https://repo2docker.readthedocs.io/en/latest/>`_,
+`configuration <https://github.com/pieterdavid/bamboo-docker>`_) with an
+up-to-date version of bamboo_ and plotIt_ is also available.
+It is compatible with `binder <https://mybinder.readthedocs.io/en/latest/>`_,
+which can be used to run some
+`examples <https://github.com/pieterdavid/bamboo-opendata-examples>`_ without
+installing anything locally.
 
 Some features bring in additional dependencies. Bamboo_ should detect if these
 are relied on and missing, and print a clear error message in that case.
@@ -45,7 +69,8 @@ Installation
 ------------
 
 Bamboo_ can (and should, in most cases) be installed in a
-`virtual environment`_ (see above) with pip, minimally either one of
+`virtual environment`_ or conda environment (see above) with pip,
+minimally either one of
 
 .. code-block:: sh
 
@@ -331,6 +356,14 @@ included in the bamboo source code respository, as
 .. _#65: https://gitlab.cern.ch/cp3-cms/bamboo/-/issues/65
 
 .. _new PyROOT: https://root.cern/blog/new-pyroot-622/
+
+.. _SPI LCG distribution: http://spi.web.cern.ch
+
+.. _conda environment: https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html#managing-envs
+
+.. _Miniconda: https://docs.conda.io/en/latest/miniconda.html
+
+.. _conda-build: https://docs.conda.io/projects/conda-build/en/latest/
 
 .. |---| unicode:: U+2014
    :trim:

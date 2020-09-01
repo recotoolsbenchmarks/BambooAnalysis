@@ -315,7 +315,7 @@ class AnalysisModule:
                                         logger.debug("Merging outputs for sample {0} with {1}".format(tsk.name, " ".join(haddCmd)))
                                         subprocess.check_call(haddCmd, stdout=subprocess.DEVNULL)
                                     except subprocess.CalledProcessError:
-                                        loger.error("Failed to run {0}".format(" ".join(haddCmd)))
+                                        logger.error("Failed to run {0}".format(" ".join(haddCmd)))
                                         aProblem = True
                         if aProblem:
                             logger.error("Could not finalize all tasks so no post-processing will be run (rerun in verbose mode for the full list of directories and commands)")

@@ -430,6 +430,23 @@ In addition to the branches present in the NanoAOD, the following attributes are
 - ``idx`` for elements of containers
 - for ``GenPart``: ``parent``, which refers to the parent or mother particle (the presence can be tested by comparing its ``idx`` to ``-1``), and ``ancestors``, the range of all ancestors |---| this does check the validity, so it may be empty.
 
+.. _uganalysisexamples:
+
+Examples
+--------
+
+Some more complete examples, based on open data
+`RDataFrame tutorials <https://root.cern/doc/master/group__tutorial__dataframe.html>`_,
+are available in
+`this repository <https://github.com/pieterdavid/bamboo-opendata-examples>`_
+(they can be run on `binder <https://mybinder.readthedocs.io/en/latest/>`_
+without installing anything locally).
+
+The :doc:`recipes page<recipes>` has a collection of common analysis tasks,
+with a recommended implementation, and pointers to the relevant helper functions;
+it may good to skim through to get an idea of what a typical analysis
+implementation will look like.
+
 
 .. _bamboo: https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html
 

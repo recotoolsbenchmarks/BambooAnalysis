@@ -673,10 +673,12 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         except StopIteration:
             raise ValueError("Unknown extension {0!r}, please pass mvaType explicitly".format(ext))
     methodName = "evaluate" ## default, used for wrappers
+    isConst = True
     if mvaType == "TMVA":
         cppType = "TMVA::Experimental::RReader"
         argStr = f'"{fileName}"'
         methodName = "Compute"
+        isConst = False
     elif mvaType == "Tensorflow":
         from bamboo.root import loadTensorflowC
         loadTensorflowC()
@@ -702,5 +704,5 @@ def mvaEvaluator(fileName, mvaType=None, otherArgs=None, nameHint=None):
         argStr = '"{0}", {1}'.format(fileName, (", ".join(repr(arg) for arg in otherArgs) if str(otherArgs) != otherArgs else otherArgs))
     else:
         raise ValueError("Unknown MVA type: {0!r}".format(ext))
-    evaluator = define(cppType, 'const auto <<name>> = {0}({1});'.format(cppType, argStr), nameHint=nameHint)
+    evaluator = define(cppType, '{const}auto <<name>> = {0}({1});'.format(cppType, argStr, const=("const " if isConst else "")), nameHint=nameHint)
     return MVAEvaluator(getattr(evaluator, methodName))

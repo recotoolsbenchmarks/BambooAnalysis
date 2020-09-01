@@ -504,7 +504,7 @@ class CallMemberMethod(TupleOp):
     def _eq(self, other):
         return self.this == other.this and self.name == other.name and self._retType == other._retType and self.args == other.args
     def get_cppStr(self, defCache=cppNoRedir):
-        return "{0}.{1}({2})".format(defCache(self.this), self.name, ", ".join(defCache(arg) for arg in self.args))
+        return "{0}{1}({2})".format(defCache(self.this), (f".{self.name}" if self.name != "__call__" else ""), ", ".join(defCache(arg) for arg in self.args))
 
 class GetDataMember(TupleOp):
     """ Get a data member """

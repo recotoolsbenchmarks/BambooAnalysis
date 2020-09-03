@@ -301,6 +301,11 @@ class ObjectProxy(NumberProxy):
             return ObjectMethodProxy(self, name)
         else:
             return GetDataMember(self, name).result
+    def __call__(self, *args):
+        if hasattr(self._typ, "__call__"):
+            return CallMemberMethod(self, "__call__", args).result
+        else:
+            raise RuntimeError(f"No operator() for type {self._typeName}")
     def __repr__(self):
         return "ObjectProxy({0!r}, {1!r})".format(self._parent, self._typeName)
 

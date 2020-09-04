@@ -11,8 +11,8 @@ for modules that output stack histograms, and
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
 
 .. note:: When defining a base class that should also be usable
-   for other things than making plots (e.g. skims),
-   it should not inherit from
+   for other things than only making plots or only making skims
+   (e.g. both of these) it should not inherit from
    :py:class:`~bamboo.analysismodules.HistogramsModule` or
    :py:class:`~bamboo.analysismodules.SkimmerModule`
    (but the concrete classes should); otherwise a concrete class

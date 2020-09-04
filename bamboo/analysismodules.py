@@ -747,7 +747,27 @@ class NanoAODModule(AnalysisModule):
         return sums
 
 class NanoAODHistoModule(NanoAODModule, HistogramsModule):
-    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
+    """
+    A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD
+
+    with decorations and merging of counters from :py:class:`~bamboo.analysismodules.NanoAODModule`.
+
+    .. note:: When defining a base class that should also be usable
+       for other things than making plots (e.g. skims),
+       it should inherit from
+       :py:class:`~bamboo.analysismodules.NanoAODModule` rather than
+       from this class, and concrete classes from the base and
+       :py:class:`~bamboo.analysismodules.HistogramsModule` and
+       :py:class:`~bamboo.analysismodules.SkimmerModule`, as needed, e.g.
+       .. code-block:: python
+          class MyBaseClass(NanoAODModule):
+              ... ## define addArgs, prepareTree etc.
+          class MyPlotter(MyBaseClass, HistogramsModule):
+              ...
+          class MySkimmer(MyBaseClass, SkimmerModule):
+              ...
+
+    """
     def __init__(self, args):
         super(NanoAODHistoModule, self).__init__(args)
 

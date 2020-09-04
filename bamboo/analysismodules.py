@@ -9,6 +9,28 @@ the common functionality for loading samples and distributing worker tasks.
 for modules that output stack histograms, and
 :py:class:`~bamboo.analysismodules.NanoAODHistoModule` supplements this
 with loading the decorations for NanoAOD, and merging of the counters for generator weights etc.
+
+.. note:: When defining a base class that should also be usable
+   for other things than only making plots or only making skims
+   (e.g. both of these) it should not inherit from
+   :py:class:`~bamboo.analysismodules.HistogramsModule` or
+   :py:class:`~bamboo.analysismodules.SkimmerModule`
+   (but the concrete classes should); otherwise a concrete class
+   may end up inheriting from both (at which point the method
+   resolution order will decide whether it behaves as a skimmer
+   or a plotter, and the result may not be obvious).
+
+   A typical case should look like this:
+
+   .. code-block:: python
+
+      class MyBaseClass(NanoAODModule):
+          ... ## define addArgs, prepareTree etc.
+      class MyPlotter(MyBaseClass, HistogramsModule):
+          ...
+      class MySkimmer(MyBaseClass, SkimmerModule):
+          ...
+
 """
 import argparse
 from collections import defaultdict
@@ -747,7 +769,7 @@ class NanoAODModule(AnalysisModule):
         return sums
 
 class NanoAODHistoModule(NanoAODModule, HistogramsModule):
-    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` implementation for NanoAOD, adding decorations and merging of the counters """
+    """ A :py:class:`~bamboo.analysismodules.HistogramsModule` for NanoAOD, with decorations and merging of counters from :py:class:`~bamboo.analysismodules.NanoAODModule` """
     def __init__(self, args):
         super(NanoAODHistoModule, self).__init__(args)
 
@@ -840,7 +862,7 @@ class SkimmerModule(AnalysisModule):
         pass ## TODO implement
 
 class NanoAODSkimmerModule(NanoAODModule, SkimmerModule):
-    """ A :py:class:`~bamboo.analysismodules.SkimmerModule` implementation for NanoAOD, adding decorations and merging of the counters """
+    """ A :py:class:`~bamboo.analysismodules.SkimmerModule` for NanoAOD, with decorations and merging of counters from :py:class:`~bamboo.analysismodules.NanoAODModule` """
     def __init__(self, args):
         super(NanoAODSkimmerModule, self).__init__(args)
 

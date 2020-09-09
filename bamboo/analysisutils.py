@@ -235,73 +235,113 @@ Use the following if building a CMS document
 \newcommand{\bottomrule}{\noalign{\vskip.4ex}\thickhline\noalign{\vskip0pt}}
 """.split("\n"))
 
-def _makeYieldsTexTable(report, samples, entryPlots):
-    ## TODO column headers for MC and signal
+def _texProcName(procName):
+    if "$" in procName:
+        procName = procName.replace("_", "\\_")
+    if "#" in procName: # assume ROOT LaTeX
+        procName = "${0}$".format(procName.replace("#", "\\"))
+    return procName
+
+def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v", align="c", yieldPrecision=1, ratioPrecision=2):
+    if orientation not in ("v", "h"):
+        raise RuntimeError(f"Unsupported table orientation: {orientation} (valid: 'h' and 'v')")
+    import plotit.plotit
     from plotit.plotit import Stack
     import numpy as np
-    def colEntriesFromCFREntryHists(report, entryHists):
+    from itertools import repeat, count
+    def colEntriesFromCFREntryHists(report, entryHists, precision=1):
         stacks_t = [ (entryHists[entries[0]] if len(entries) == 1 else
             Stack(entries=[entryHists[eName] for eName in entries]))
             for entries in report.titles.values() ]
-        return stacks_t, [ "${0:.1f} \pm {1:.1f}$".format(
+        return stacks_t, [ "${{0:.{0:d}f}} \pm {{1:.{0:d}f}}$".format(precision).format(
             st_t.contents[1], np.sqrt(st_t.sumw2+st_t.syst2)[1]
             ) for st_t in stacks_t ]
 
     smp_signal = [smp for smp in samples if smp.cfg.type == "SIGNAL"]
     smp_mc = [smp for smp in samples if smp.cfg.type == "MC"]
     smp_data = [smp for smp in samples if smp.cfg.type == "DATA"]
-    sepStr = "|l|"
+    sepStr_v = "|l|"
     hdrs = ["Cat."]
-    entries_col = [ [tName for tName in report.titles.keys()] ]
+    entries_smp = [ [tName for tName in report.titles.keys()] ]
     stTotMC, stTotData = None, None
     if smp_signal:
-        sepStr += "|"
+        sepStr_v += "|"
         for sigSmp in smp_signal:
             _, colEntries = colEntriesFromCFREntryHists(report,
-                { eName : sigSmp.getHist(p) for eName, p in entryPlots.items() })
-            sepStr += "c|"
-            hdrs.append(f"{sigSmp.cfg.legend} {sigSmp.cfg.cross_section:f}pb")
-            entries_col.append(colEntries)
+                { eName : sigSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            sepStr_v += f"{align}|"
+            hdrs.append(f"{_texProcName(sigSmp.cfg.yields_group)} {sigSmp.cfg.cross_section:f}pb")
+            entries_smp.append(colEntries)
     if smp_mc:
-        sepStr += "|"
+        sepStr_v += "|"
         for mcSmp in smp_mc:
-            _, colEntries = colEntriesFromCFREntryHists(report,
-                { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() })
-            sepStr += "c|"
-            hdrs.append(mcSmp.cfg.legend)
-            entries_col.append(colEntries)
+            stTotMC, colEntries = colEntriesFromCFREntryHists(report,
+                { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            sepStr_v += f"{align}|"
+            if isinstance(mcSmp, plotit.plotit.Group):
+                hdrs.append(_texProcName(mcSmp.name))
+            else:
+                hdrs.append(_texProcName(mcSmp.cfg.yields_group))
+            entries_smp.append(colEntries)
         if len(smp_mc) > 1:
-            sepStr += "|c|"
+            sepStr_v += f"|{align}|"
             hdrs.append("Tot. MC")
-            stTotMC, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_mc]) for eName, p in entryPlots.items() })
-            entries_col.append(colEntries)
+            stTotMC, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_mc]) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            entries_smp.append(colEntries)
     if smp_data:
-        sepStr += "|c|"
+        sepStr_v += f"|{align}|"
         hdrs.append("Data")
-        stTotData, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_data]) for eName, p in entryPlots.items() })
-        entries_col.append(colEntries)
+        stTotData, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_data]) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+        entries_smp.append(colEntries)
     if smp_data and smp_mc:
-        sepStr += "|c|"
+        sepStr_v += f"|{align}|"
         hdrs.append("Data/MC")
         colEntries = []
         for stData,stMC in zip(stTotData, stTotMC):
             ratio = stData.contents/stMC.contents
-            ratioErr = np.sqrt(stData.sumw2)/stMC.contents ## FIXME data stat only
-            colEntries.append(f"${ratio[1]:.1f} \pm {ratioErr[1]:.1f}$")
+            ratioErr = np.sqrt(stMC.contents**2*stData.sumw2 + stData.contents**2*(stMC.sumw2+stMC.syst2))/stMC.contents**2
+            colEntries.append("${{0:.{0}f}} \pm {{1:.{0}f}}$".format(ratioPrecision).format( ratio[1], ratioErr[1]))
+        entries_smp.append(colEntries)
     if len(colEntries) < 2:
         logger.warning("No samples, so no yields.tex")
     return "\n".join([
-        f"\\begin{{tabular}}{{ {sepStr} }}",
+        f"\\renewcommand{{\\arraystretch}}{{{stretch}}}"]+(([
+        ## vertical
+        f"\\begin{{tabular}}{{ {sepStr_v} }}",
         "    \\hline",
         "    {0} \\\\".format(" & ".join(hdrs)),
         "    \\hline"]+[
-            "    {0} \\\\".format(" & ".join(colEntries[i] for colEntries in entries_col))
-            for i in range(len(report.titles)) ]+[
+            "    {0} \\\\".format(" & ".join(smpEntries[i] for smpEntries in entries_smp))
+            for i in range(len(report.titles)) ]) if orientation == "v" else (
+        ## horizontal
+        ["\\begin{{tabular}}{{ |l|{0}| }}".format("|".join(repeat(align, len(report.titles)))),
+        "    \\hline",
+        "    {0} \\\\".format(" & ".join([hdrs[0]]+entries_smp[0])),
+        "    \\hline"]+[
+            "    {0} \\\\".format(" & ".join([hdrs[i]]+smpEntries)) for i,smpEntries in zip(count(1), entries_smp[1:])
+        ]))+[
         "    \\hline",
         "\\end{tabular}"
         ])
 
 def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+    """
+    Print yields to the log file, and write a LaTeX yields table for each
+
+    Samples can be grouped (only for the LaTeX table) by specifying the
+    ``yields-group`` key (overriding the regular ``groups`` used for plots).
+    The sample (or group) name to use in this table should be specified
+    through the ``yields-title`` sample key.
+
+    In addition, the following options in the ``plotIt`` section of
+    the YAML configuration file influence the layout of the LaTeX yields table:
+
+    - ``yields-table-stretch``: ``\\arraystretch`` value, 1.15 by default
+    - ``yields-table-align``: orientation, ``h`` (default), samples in rows, or ``v``, samples in columns
+    - ``yields-table-text-align``: alignment of text in table cells (default: ``c``)
+    - ``yields-table-numerical-precision-yields``: number of digits after the decimal point for yields (default: 1)
+    - ``yields-table-numerical-precision-ratio``: number of digits after the decimal point for ratios (default: 2)
+    """
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
@@ -363,12 +403,18 @@ def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCou
                 out_eras = []
                 if len(eras) > 1 and eraMode in ("all", "combined"):
                     out_eras.append((f"{report.name}.tex", eras))
-                if len(eras) == 1 and eraMode in ("split", "all"):
+                if len(eras) == 1 or eraMode in ("split", "all"):
                     for era in eras:
                         out_eras.append((f"{report.name}_{era}.tex", [era]))
                 for outName, iEras in out_eras:
-                    _, samples, plots, _, _ = loadPlotIt(config, yield_plots, eras=iEras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters)
-                    tabBlock = _makeYieldsTexTable(report, samples, { p.name[len(report.name)+1:]: p for p in plots })
+                    pConfig, samples, plots, _, _ = loadPlotIt(config, yield_plots, eras=iEras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters)
+                    tabBlock = _makeYieldsTexTable(report, samples,
+                            { p.name[len(report.name)+1:]: p for p in plots },
+                            stretch=pConfig.yields_table_stretch,
+                            orientation=pConfig.yields_table_align,
+                            align=pConfig.yields_table_text_align,
+                            yieldPrecision=pConfig.yields_table_numerical_precision_yields,
+                            ratioPrecision=pConfig.yields_table_numerical_precision_ratio)
                     with open(os.path.join(workdir, outName), "w") as ytf:
                         ytf.write("\n".join((_yieldsTexPreface, tabBlock)))
                     logger.info("Yields table for era(s) {0} was written to {1}".format(",".join(eras), os.path.join(workdir, outName)))

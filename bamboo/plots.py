@@ -464,6 +464,38 @@ class SummedPlot(DerivedPlot):
         return results
 
 class CutFlowReport(Product):
+    """
+    Collect and print yields at different selection stages, and cut efficiencies
+
+    The simplest way to use this, just to get an overview of the number of events
+    passing each selection stage in the log file, is by adding a
+    ``CutFlowReport("yields", selections=<list of selections>, recursive=True)``
+    to the list of plots.
+    ``recursive=True`` will add all parent selections recursively,
+    so only the final selection categories need to be passed to the ``selections``
+    keyword argument.
+
+    It is also possible to output a LaTeX yields table, and specify exactly which
+    selections and row or column headers are used.
+    Then the :py:class:`~bamboo.plots.CutFlowReport` should be constructed like this:
+
+    .. code-block:: python
+
+       yields = CutFlowReport("yields")
+       plots.append(yields)
+       yields.add(title1, <selection1-or-list-of-selections1>)
+       yields.add(title2, <selection2-or-list-of-selections2>)
+       ...
+
+    Each ``yields.add`` call will then add one entry in the yields table,
+    with the yield the one of the corresponding selection, or the sum over
+    the list (e.g. different categories that should be taken together);
+    the other dimension are the samples (or sample groups).
+    The sample (group) titles and formatting of the table can be
+    customised in the same way as in plotIt, see
+    :py:func:`~bamboo.analysisutils.printCutFlowReports`
+    for a detailed description of the different options.
+    """
     class Entry:
         def __init__(self, name, nominal=None, systVars=None, parent=None, children=None):
             self.name = name

@@ -456,6 +456,11 @@ _ndpv[("v5", "2017", False)] = _ndpv[("v5", "2016", False)].clone(addGroups=["ME
 _ndpv[("v5", "2017", True )] = _ndpv[("v5", "2016", True )].clone(addGroups=["METFixEE2017_"])
 _ndpv[("v5", "2018", False)] = _ndpv[("v5", "2016", False)]
 _ndpv[("v5", "2018", True )] = _ndpv[("v5", "2016", True )]
+## v6 and v7 have the same structure as v5
+for nano_v in ("v6", "v7"):
+    for year in ("2016", "2017", "2018"):
+        for isMC in (True, False):
+            _ndpv[(nano_v, year, isMC)] = _ndpv[("v5", year, isMC)]
 
 def decorateNanoAOD(aTree, description=None):
     """ Decorate a CMS NanoAOD Events tree

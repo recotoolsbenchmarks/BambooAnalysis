@@ -514,11 +514,6 @@ class CutFlowReport(Product):
             self.selections = []
         else:
             self.selections = list(selections) if hasattr(selections, "__iter__") else [selections]
-        for sel in self.selections:
-            if isinstance(sel, SelectionWithDataDriven):
-                for selDD in sel.dd.values():
-                    if selDD is not None:
-                        self.selections.append(selDD)
         self.titles = defaultdict(list)
         if titles is not None:
             self.titles = titles

@@ -189,7 +189,14 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
             )
 
 def findOutputsForCommands(batchDir, commandMatchers):
-    """ Look for outputs of matching commands inside batch submission directory """
+    """
+    Look for outputs of matching commands inside batch submission directory
+
+    :param batchDir: batch submission directory (with an ``input/condor.cmd`` file)
+    :param commandMatchers: a dictionary with matcher objects (return ``True`` when passed matching commands)
+
+    :returns: tuple of a matches dictionary (same keys as commandMatchers, a list of output files from matching commands) and a list of IDs for subjobs without output
+    """
     with open(os.path.join(batchDir, "input", "condor.cmd")) as cmdFile:
         nJobs = int(next(ln for ln in cmdFile if ln.startswith("queue ")).split()[1])
     cmds = []
@@ -198,6 +205,7 @@ def findOutputsForCommands(batchDir, commandMatchers):
             cmdLine = next(ln for ln in jobShFile if ln.strip().endswith(" && move_files"))
             cmds.append(cmdLine.split(" && ")[0])
     matches = dict()
+    id_noOut = []
     for mName, matcher in commandMatchers.items():
         ids_matched = [ (i, cmd) for i, cmd in zip(count(), cmds) if matcher(cmd) ]
         files_found = []
@@ -208,10 +216,12 @@ def findOutputsForCommands(batchDir, commandMatchers):
                 outdir = os.path.join(batchDir, "output", str(sjId))
                 if not os.path.exists(outdir):
                     logger.debug(f"Output directory for {mName} not found: {outdir} (command: {cmd})")
+                    id_noOut.append(sjId)
                 else:
                     sjOut = [ os.path.join(outdir, fn) for fn in os.listdir(outdir) ]
                     if not sjOut:
                         logger.debug(f"No output files for {mName} found in {outdir} (command: {cmd})")
+                        id_noOut.append(sjId)
                     files_found += sjOut
         matches[mName] = len(ids_matched), files_found
-    return matches
+    return matches, sorted(id_noOut)

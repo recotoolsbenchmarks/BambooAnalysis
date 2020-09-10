@@ -571,7 +571,7 @@ class CombinationProxy(ItemProxyBase):
         if isinstance(i, slice):
             if i.step and i.step != 1:
                 raise RuntimeError("Slices with non-unit step are not implemented")
-            return SliceProxy(self, i.start, i.stop, valueType="struct")
+            return SliceProxy(self, i.start, i.stop, valueType=self.cont.valueType)
         else:
             idx = makeConst(i, SizeType)
             return self.cont.base(i)[self._parent.result.get(idx)]

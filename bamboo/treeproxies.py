@@ -580,6 +580,7 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
     ## NOTE list of decorated rdfhelpers::Combination
     def __init__(self, ranges, parent):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
+        self.valueType = CombinationProxy
         self.ranges = ranges
         super(CombinationListProxy, self).__init__(parent.resultType, parent=parent)
     def _getItem(self, idx):

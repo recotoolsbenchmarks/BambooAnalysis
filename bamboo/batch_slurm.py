@@ -291,4 +291,4 @@ def getResubmitCommand(submissionScript, idsToResubmit):
         submissionScript = os.path.join(submissionScript, "slurmSubmission.sh")
     if not os.path.isfile(submissionScript):
         raise FileNotFoundError(submissionScript)
-    return ["sbatch", "--array={}".format(",".join(str(sjId for sjId in idsToResubmit))), submissionScript ]
+    return ["sbatch", "--array={}".format(",".join(str(sjId) for sjId in idsToResubmit)), submissionScript ]

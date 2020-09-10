@@ -438,11 +438,10 @@ def rng_min(rng, fun=lambda x : x):
 def _idxGetter(itemType):
     if itemType is None or itemType == "struct":
         raise RuntimeError(f"Invalid item type: {itemType!s}")
-    # helper function: make a getter for the index of a collection or array element
     if ( not isinstance(itemType, str) ) and issubclass(itemType, _tp.ItemProxyBase): ## collection
-        return lambda elm : elm.idx
+        return True, (lambda elm : elm.idx)
     else: ## not a collection, so no need to go back to "base" container
-        return lambda elm : elm.op.index
+        return False, (lambda elm : elm.op.index)
 
 def rng_max_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is maximal
@@ -450,14 +449,21 @@ def rng_max_element_by(rng, fun=lambda elm : elm):
     :param rng: input range
     :param fun: function whose value should be used (a callable that takes an element of the range and returns a number)
 
+    :returns: (a proxy for) the maximal element if rng is a collection, otherwise (e.g. if rng is a vector or array proxy) the index of the maximal element
+
     :Example:
 
     >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
-    return rng._getItem(_to.Reduce.fromRngFun(rng,
+    fromColl, getIdx = _idxGetter(rng.valueType)
+    idx = _to.Reduce.fromRngFun(rng,
         construct(pairType, (c_int(-1), c_float(float("-inf")))),
-        ( lambda fn,tp,gi : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond", returnType=tp)(ibest, gi(elm), fn(elm)) ) )(fun, pairType, _idxGetter(rng.valueType))).first)
+        ( lambda fn,tp,gi : ( lambda ibest, elm : extMethod("rdfhelpers::maxPairBySecond", returnType=tp)(ibest, gi(elm), fn(elm)) ) )(fun, pairType, getIdx)).first
+    if fromColl:
+        return rng._getItem(idx)
+    else:
+        return idx
 
 def rng_min_element_by(rng, fun=lambda elm : elm):
     """ Find the element for which the value of a function is minimal
@@ -465,14 +471,21 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
     :param rng: input range
     :param fun: function whose value should be used (a callable that takes an element of the range and returns a number)
 
+    :returns: (a proxy for) the minimal element if rng is a collection, otherwise (e.g. if rng is a vector or array proxy) the index of the minimal element
+
     :Example:
 
     >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
-    return rng._getItem(_to.Reduce.fromRngFun(rng,
+    fromColl, getIdx = _idxGetter(rng.valueType)
+    idx = _to.Reduce.fromRngFun(rng,
         construct(pairType, (c_int(-1), c_float(float("+inf")))),
-        ( lambda fn,tp,gi : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond", returnType=tp)(ibest, gi(elm), fn(elm)) ) )(fun, pairType, _idxGetter(rng.valueType))).first)
+        ( lambda fn,tp,gi : ( lambda ibest, elm : extMethod("rdfhelpers::minPairBySecond", returnType=tp)(ibest, gi(elm), fn(elm)) ) )(fun, pairType, getIdx)).first
+    if fromColl:
+        return rng._getItem(idx)
+    else:
+        return idx
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):
@@ -485,7 +498,8 @@ def rng_any(rng, pred=lambda elm : elm):
 
     >>> hasCentralMu = op.rng_any(t.Muon. lambda mu : op.abs(mu.p4.Eta()) < 2.4)
     """
-    return  _tp.makeConst(-1, _to.SizeType) != _idxGetter(rng.valueType)(_to.Next.fromRngFun(rng, pred))
+    _, getIdx = _idxGetter(rng.valueType)
+    return  _tp.makeConst(-1, _to.SizeType) != getIdx(_to.Next.fromRngFun(rng, pred))
 def rng_find(rng, pred=lambda elm : _tp.makeConst("true", _tp.boolType)):
     """ Find the first item in a range that passes a selection
 

@@ -2,7 +2,7 @@
 The :py:mod:`bamboo.plots` module provides high-level classes to represent
 and manipulate selections and plots.
 """
-__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "DerivedPlot", "SummedPlot")
+__all__ = ("Plot", "EquidistantBinning", "VariableBinning", "Selection", "Product", "DerivedPlot", "SummedPlot", "CutFlowReport", "SelectionWithDataDriven", "FactoryBackend")
 
 import logging
 logger = logging.getLogger(__name__)
@@ -508,6 +508,14 @@ class CutFlowReport(Product):
             if self not in parent.children:
                 parent.children.append(self)
     def __init__(self, name, selections=None, recursive=False, titles=None, autoSyst=False, cfres=None):
+        """
+        Constructor. ``name`` is mandatory, all other are optional; for full control
+        the :py:meth:`~bamboo.plots.CutFlowReport.add` should be used to add entries.
+
+        Using the constructor with a list of :py:class:`~bamboo.plots.Selection`
+        instances passed to the ``selections`` keyword argument, and ``recursive=True``
+        is the easiest way to get debugging printout of the numbers of passing events.
+        """
         super(CutFlowReport, self).__init__(name)
         self.recursive = recursive
         if selections is None:
@@ -524,6 +532,7 @@ class CutFlowReport(Product):
         if self.selections and cfres is None:
             self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
     def add(self, selections, title=None):
+        """ Add an entry to the yields table, with a title (optional) """
         if not hasattr(selections, "__iter__"):
             selections = [ selections ]
         self.selections += [ sel for sel in selections if sel not in self.selections ]
@@ -549,6 +558,7 @@ class CutFlowReport(Product):
         return set(next(en for en in travUp(res) if en.parent is None) for res in self.cfres)
 
     def readFromResults(self, resultsFile):
+        """ Reconstruct the :py:class:`~bamboo.plots.CutFlowReport`, reading counters from a results file """
         cfres = []
         entries = dict() # by selection name
         for sel in self.selections:

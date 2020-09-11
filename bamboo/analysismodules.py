@@ -315,8 +315,15 @@ class AnalysisModule:
                             return f" --sample={smpNm} " in ln or ln.endswith(f" --sample={smpNm}")
                         from .batch import getBackend
                         batchBackend = getBackend(self.envConfig["batch"]["backend"])
-                        outputs = batchBackend.findOutputsForCommands(os.path.join(workdir, "batch"),
+                        batchDir = os.path.join(workdir, "batch")
+                        outputs, id_noOut = batchBackend.findOutputsForCommands(batchDir,
                                 { tsk.name: partial(cmdMatch, smpNm=tsk.name) for tsk in tasks_notfinalized })
+                        if id_noOut:
+                            logger.error("Missing outputs for subjobs {0}, so no postprocessing will be run".format(", ".join(str(sjId) for sjId in id_noOut)))
+                            if hasattr(batchBackend, "getResubmitCommand"):
+                                resubCommand = " ".join(batchBackend.getResubmitCommand(batchDir, id_noOut))
+                                logger.info(f"Resubmit with '{resubCommand}' (and possibly additional options)")
+                            return
                         aProblem = False
                         for tsk in tasks_notfinalized:
                             nExpected, tskOut = outputs[tsk.name]

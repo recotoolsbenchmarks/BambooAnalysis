@@ -117,10 +117,9 @@ class CommandListJob(CommandListJobBase):
 
     def submit(self):
         """ Submit the job to slurm """
-        sbatchOpts = []
         logger.info("Submitting an array of {0:d} jobs to slurm".format(len(self.commandList)))
-        logger.debug("sbatch {0} {1}".format(" ".join(sbatchOpts), self.slurmScript))
-        result = subprocess.check_output(["sbatch"]+sbatchOpts+[self.slurmScript]).decode()
+        logger.debug("sbatch {0}".format(self.slurmScript))
+        result = subprocess.check_output(["sbatch", self.slurmScript]).decode()
 
         self.clusterId = next(tok for tok in reversed(result.split()) if tok.isdigit())
         
@@ -196,10 +195,7 @@ class CommandListJob(CommandListJobBase):
         return os.path.join(self.workDirs["log"], "slurm-{}_{}.out".format(self.clusterId, self._arrayIndex(command)))
 
     def getResubmitCommand(self, failedCommands):
-        sbatchOpts = [
-              "--array={}".format(",".join(str(self._arrayIndex(cmd)) for cmd in failedCommands))
-        ]
-        return ["sbatch"]+sbatchOpts+[self.slurmScript]
+        return getResubmitCommand(self.slurmScript, [ self._arrayIndex(cmd) for cmd in failedCommands ])
 
     def getRuntime(self, command):
         sacctCmdArgs = ["sacct", "-n", "--format", "Elapsed", "-j", "{0}_{1:d}".format(self.clusterId, self._arrayIndex(command))]
@@ -247,7 +243,14 @@ def makeTasksMonitor(jobs=[], tasks=[], interval=120):
 
 
 def findOutputsForCommands(batchDir, commandMatchers):
-    """ Look for outputs of matching commands inside batch submission directory """
+    """
+    Look for outputs of matching commands inside batch submission directory
+
+    :param batchDir: batch submission directory (with a ``slurmSubmission.sh`` file)
+    :param commandMatchers: a dictionary with matcher objects (return ``True`` when passed matching commands)
+
+    :returns: tuple of a matches dictionary (same keys as commandMatchers, a list of output files from matching commands) and a list of IDs for subjobs without output
+    """
     with open(os.path.join(batchDir, "slurmSubmission.sh")) as slurmFile:
         cmds = []
         finished, readingCmds = False, False
@@ -262,6 +265,7 @@ def findOutputsForCommands(batchDir, commandMatchers):
                     cmds.append(ln.strip().strip('"'))
             ln = next(slurmFile)
     matches = dict()
+    id_noOut = []
     for mName, matcher in commandMatchers.items():
         ids_matched = [ (i, cmd) for i, cmd in zip(count(1), cmds) if matcher(cmd) ]
         files_found = []
@@ -272,10 +276,19 @@ def findOutputsForCommands(batchDir, commandMatchers):
                 outdir = os.path.join(batchDir, "output", str(sjId))
                 if not os.path.exists(outdir):
                     logger.debug(f"Output directory for {mName} not found: {outdir} (command: {cmd})")
+                    id_noOut.append(sjId)
                 else:
                     sjOut = [ os.path.join(outdir, fn) for fn in os.listdir(outdir) ]
                     if not sjOut:
                         logger.debug(f"No output files for {mName} found in {outdir} (command: {cmd})")
+                        id_noOut.append(sjId)
                     files_found += sjOut
         matches[mName] = len(ids_matched), files_found
-    return matches
+    return matches, sorted(id_noOut)
+
+def getResubmitCommand(submissionScript, idsToResubmit):
+    if os.path.isdir(submissionScript):
+        submissionScript = os.path.join(submissionScript, "slurmSubmission.sh")
+    if not os.path.isfile(submissionScript):
+        raise FileNotFoundError(submissionScript)
+    return ["sbatch", "--array={}".format(",".join(str(sjId) for sjId in idsToResubmit)), submissionScript ]

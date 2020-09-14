@@ -453,7 +453,7 @@ def rng_max_element_index(rng, fun=lambda elm : elm):
 
     :Example:
 
-    >>> mostForwardMu = op.rng_max_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
+    >>> i_mostForwardMu = op.rng_max_element_index(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
     fromColl, getIdx = _idxGetter(rng.valueType)
@@ -483,7 +483,7 @@ def rng_min_element_index(rng, fun=lambda elm : elm):
 
     :Example:
 
-    >>> mostCentralMu = op.rng_min_element_by(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
+    >>> i_mostCentralMu = op.rng_min_element_index(t.Muon. lambda mu : op.abs(mu.p4.Eta()))
     """
     pairType = "std::pair<{0},{1}>".format(_tp.SizeType,_tp.floatType)
     fromColl, getIdx = _idxGetter(rng.valueType)

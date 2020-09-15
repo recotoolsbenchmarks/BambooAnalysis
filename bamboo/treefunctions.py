@@ -503,6 +503,9 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
     """
     return rng._getItem(rng_min_element_index(rng, fun=fun))
 
+def rng_rms(rng):
+    return extMethod("rdfhelpers::RMS", returnType="Double_t")(rng)
+
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):
     """ Test if any item in a range passes a selection

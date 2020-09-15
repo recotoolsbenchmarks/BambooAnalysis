@@ -7,8 +7,17 @@
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <ROOT/RVec.hxx>
+#include <TMath.h>
 
 namespace rdfhelpers {
+
+template<typename RANGE>
+Double_t RMS(const RANGE& range)
+{
+    return TMath::RMS(range.begin(), range.end());
+}
+
+
 template<typename RANGE,typename PREDICATE>
 ROOT::VecOps::RVec<typename RANGE::value_type> select(const RANGE& range, PREDICATE&& pred)
 {

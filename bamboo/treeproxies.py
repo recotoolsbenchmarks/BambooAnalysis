@@ -268,15 +268,15 @@ class ContainerGroupItemProxy(ItemProxyBase):
 
 class ContainerGroupProxy(LeafGroupProxy,ListBase):
     """ Proxy for a structure of arrays """
-    def __init__(self, prefix, parent, size, valuetype):
+    def __init__(self, prefix, parent, size, valueType):
         ListBase.__init__(self)
         self._size = size
-        self.valuetype = valuetype
+        self.valueType = valueType
         super(ContainerGroupProxy, self).__init__(prefix, parent)
     def __len__(self):
         return self._size.result
     def _getItem(self, baseIndex):
-        return self.valuetype(self, baseIndex)
+        return self.valueType(self, baseIndex)
     def __repr__(self):
         return "{0}({1!r}, {2!r})".format(self.__class__.__name__, self._parent, self._size)
 
@@ -488,7 +488,7 @@ class AltCollectionVariations(TupleBaseProxy):
     def __init__(self, parent, orig, brMapMap, altItemType=None):
         self.orig = orig
         self.brMapMap = brMapMap
-        self.altItemType = altItemType if altItemType else orig.valuetype
+        self.altItemType = altItemType if altItemType else orig.valueType
         super(AltCollectionVariations, self).__init__("AltCollectionVariations", parent=parent)
     def __getitem__(self, key):
         if not isinstance(key, str):
@@ -571,7 +571,7 @@ class CombinationProxy(ItemProxyBase):
         if isinstance(i, slice):
             if i.step and i.step != 1:
                 raise RuntimeError("Slices with non-unit step are not implemented")
-            return SliceProxy(self, i.start, i.stop, valueType="struct")
+            return SliceProxy(self, i.start, i.stop, valueType=self.cont.valueType)
         else:
             idx = makeConst(i, SizeType)
             return self.cont.base(i)[self._parent.result.get(idx)]
@@ -580,6 +580,7 @@ class CombinationListProxy(TupleBaseProxy,ListBase):
     ## NOTE list of decorated rdfhelpers::Combination
     def __init__(self, ranges, parent):
         ListBase.__init__(self) ## FIXME check above how to do this correctly...
+        self.valueType = CombinationProxy
         self.ranges = ranges
         super(CombinationListProxy, self).__init__(parent.resultType, parent=parent)
     def _getItem(self, idx):

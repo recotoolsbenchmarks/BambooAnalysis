@@ -503,8 +503,27 @@ def rng_min_element_by(rng, fun=lambda elm : elm):
     """
     return rng._getItem(rng_min_element_index(rng, fun=fun))
 
-def rng_rms(rng):
-    return extMethod("rdfhelpers::RMS", returnType="Double_t")(rng)
+def rng_mean(rng):
+    """ Return the mean of a range
+
+    :param rng: input range
+
+    :Example:
+
+    >>> pdf_mean = op.rng_mean(t.LHEPdfWeight)
+    """
+    return extMethod("rdfhelpers::Mean", returnType="Double_t")(rng)
+
+def rng_stddev(rng):
+    """ Return the (sample) standard deviation of a range
+
+    :param rng: input range
+
+    :Example:
+
+    >>> pdf_uncertainty = op.rng_stddev(t.LHEPdfWeight)
+    """
+    return extMethod("rdfhelpers::StdDev", returnType="Double_t")(rng)
 
 ## early-exit algorithms
 def rng_any(rng, pred=lambda elm : elm):

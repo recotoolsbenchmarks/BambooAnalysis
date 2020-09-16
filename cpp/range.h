@@ -12,11 +12,16 @@
 namespace rdfhelpers {
 
 template<typename RANGE>
-Double_t RMS(RANGE&& range)
+Double_t StdDev(RANGE&& range)
 {
-    return TMath::RMS(range.begin(), range.end());
+    return TMath::StdDev(range.begin(), range.end());
 }
 
+template<typename RANGE>
+Double_t Mean(RANGE&& range)
+{
+    return TMath::Mean(range.begin(), range.end());
+}
 
 template<typename RANGE,typename PREDICATE>
 ROOT::VecOps::RVec<typename RANGE::value_type> select(const RANGE& range, PREDICATE&& pred)

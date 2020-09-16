@@ -7,8 +7,22 @@
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <ROOT/RVec.hxx>
+#include <TMath.h>
 
 namespace rdfhelpers {
+
+template<typename RANGE>
+Double_t StdDev(RANGE&& range)
+{
+    return TMath::StdDev(range.begin(), range.end());
+}
+
+template<typename RANGE>
+Double_t Mean(RANGE&& range)
+{
+    return TMath::Mean(range.begin(), range.end());
+}
+
 template<typename RANGE,typename PREDICATE>
 ROOT::VecOps::RVec<typename RANGE::value_type> select(const RANGE& range, PREDICATE&& pred)
 {

@@ -12,7 +12,7 @@
 namespace rdfhelpers {
 
 template<typename RANGE>
-Double_t RMS(const RANGE& range)
+Double_t RMS(RANGE&& range)
 {
     return TMath::RMS(range.begin(), range.end());
 }

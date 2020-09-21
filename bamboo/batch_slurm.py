@@ -1,7 +1,7 @@
 """
 Slurm tools (based on previous condorhelpers and cp3-llbb/CommonTools condorSubmitter and slurmSubmitter)
 """
-__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
+__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor", "findOutputsForCommands")
 
 from itertools import chain, count
 import logging

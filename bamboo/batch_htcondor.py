@@ -1,7 +1,7 @@
 """
 HTCondor tools (based on cp3-llbb/CommonTools condorSubmitter)
 """
-__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor")
+__all__ = ("CommandListJob", "jobsFromTasks", "makeTasksMonitor", "findOutputsForCommands")
 
 from itertools import chain, count
 import logging

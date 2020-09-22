@@ -213,7 +213,137 @@ def readEnvConfig(explName=None):
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
-def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+_yieldsTexPreface = "\n".join(f"% {ln}" for ln in
+r"""Yields table generated automatically by bamboo (same as plotIt).
+Needed packages:
+   \usepackage{booktabs}
+
+Use the following if building a CMS document
+
+\makeatletter
+\newcommand{\thickhline}{%
+    \noalign {\ifnum 0=`}\fi \hrule height .08em
+    \futurelet \reserved@a \@xhline
+}
+\newcommand{\thinhline}{%
+    \noalign {\ifnum 0=`}\fi \hrule height .05em
+    \futurelet \reserved@a \@xhline
+}
+\makeatother
+\newcommand{\toprule}{\noalign{\vskip0pt}\thickhline\noalign{\vskip.65ex}}
+\newcommand{\midrule}{\noalign{\vskip.4ex}\thinhline\noalign{\vskip.65ex}}
+\newcommand{\bottomrule}{\noalign{\vskip.4ex}\thickhline\noalign{\vskip0pt}}
+""".split("\n"))
+
+def _texProcName(procName):
+    if "$" in procName:
+        procName = procName.replace("_", "\\_")
+    if "#" in procName: # assume ROOT LaTeX
+        procName = "${0}$".format(procName.replace("#", "\\"))
+    return procName
+
+def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v", align="c", yieldPrecision=1, ratioPrecision=2):
+    if orientation not in ("v", "h"):
+        raise RuntimeError(f"Unsupported table orientation: {orientation} (valid: 'h' and 'v')")
+    import plotit.plotit
+    from plotit.plotit import Stack
+    import numpy as np
+    from itertools import repeat, count
+    def colEntriesFromCFREntryHists(report, entryHists, precision=1):
+        stacks_t = [ (entryHists[entries[0]] if len(entries) == 1 else
+            Stack(entries=[entryHists[eName] for eName in entries]))
+            for entries in report.titles.values() ]
+        return stacks_t, [ "${{0:.{0:d}f}} \pm {{1:.{0:d}f}}$".format(precision).format(
+            st_t.contents[1], np.sqrt(st_t.sumw2+st_t.syst2)[1]
+            ) for st_t in stacks_t ]
+
+    smp_signal = [smp for smp in samples if smp.cfg.type == "SIGNAL"]
+    smp_mc = [smp for smp in samples if smp.cfg.type == "MC"]
+    smp_data = [smp for smp in samples if smp.cfg.type == "DATA"]
+    sepStr_v = "|l|"
+    hdrs = ["Cat."]
+    entries_smp = [ [tName for tName in report.titles.keys()] ]
+    stTotMC, stTotData = None, None
+    if smp_signal:
+        sepStr_v += "|"
+        for sigSmp in smp_signal:
+            _, colEntries = colEntriesFromCFREntryHists(report,
+                { eName : sigSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            sepStr_v += f"{align}|"
+            hdrs.append(f"{_texProcName(sigSmp.cfg.yields_group)} {sigSmp.cfg.cross_section:f}pb")
+            entries_smp.append(colEntries)
+    if smp_mc:
+        sepStr_v += "|"
+        for mcSmp in smp_mc:
+            stTotMC, colEntries = colEntriesFromCFREntryHists(report,
+                { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            sepStr_v += f"{align}|"
+            if isinstance(mcSmp, plotit.plotit.Group):
+                hdrs.append(_texProcName(mcSmp.name))
+            else:
+                hdrs.append(_texProcName(mcSmp.cfg.yields_group))
+            entries_smp.append(colEntries)
+        if len(smp_mc) > 1:
+            sepStr_v += f"|{align}|"
+            hdrs.append("Tot. MC")
+            stTotMC, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_mc]) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            entries_smp.append(colEntries)
+    if smp_data:
+        sepStr_v += f"|{align}|"
+        hdrs.append("Data")
+        stTotData, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_data]) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+        entries_smp.append(colEntries)
+    if smp_data and smp_mc:
+        sepStr_v += f"|{align}|"
+        hdrs.append("Data/MC")
+        colEntries = []
+        for stData,stMC in zip(stTotData, stTotMC):
+            dtCont = stData.contents
+            mcCont = stMC.contents
+            ratio = np.where(mcCont != 0., dtCont/mcCont, np.zeros(dtCont.shape))
+            ratioErr = np.where(mcCont != 0., np.sqrt(mcCont**2*stData.sumw2 + dtCont**2*(stMC.sumw2+stMC.syst2))/mcCont**2, np.zeros(dtCont.shape))
+            colEntries.append("${{0:.{0}f}} \pm {{1:.{0}f}}$".format(ratioPrecision).format( ratio[1], ratioErr[1]))
+        entries_smp.append(colEntries)
+    if len(colEntries) < 2:
+        logger.warning("No samples, so no yields.tex")
+    return "\n".join([
+        f"\\renewcommand{{\\arraystretch}}{{{stretch}}}"]+(([
+        ## vertical
+        f"\\begin{{tabular}}{{ {sepStr_v} }}",
+        "    \\hline",
+        "    {0} \\\\".format(" & ".join(hdrs)),
+        "    \\hline"]+[
+            "    {0} \\\\".format(" & ".join(smpEntries[i] for smpEntries in entries_smp))
+            for i in range(len(report.titles)) ]) if orientation == "v" else (
+        ## horizontal
+        ["\\begin{{tabular}}{{ |l|{0}| }}".format("|".join(repeat(align, len(report.titles)))),
+        "    \\hline",
+        "    {0} \\\\".format(" & ".join([hdrs[0]]+entries_smp[0])),
+        "    \\hline"]+[
+            "    {0} \\\\".format(" & ".join([hdrs[i]]+smpEntries)) for i,smpEntries in zip(count(1), entries_smp[1:])
+        ]))+[
+        "    \\hline",
+        "\\end{tabular}"
+        ])
+
+def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):
+    """
+    Print yields to the log file, and write a LaTeX yields table for each
+
+    Samples can be grouped (only for the LaTeX table) by specifying the
+    ``yields-group`` key (overriding the regular ``groups`` used for plots).
+    The sample (or group) name to use in this table should be specified
+    through the ``yields-title`` sample key.
+
+    In addition, the following options in the ``plotIt`` section of
+    the YAML configuration file influence the layout of the LaTeX yields table:
+
+    - ``yields-table-stretch``: ``\\arraystretch`` value, 1.15 by default
+    - ``yields-table-align``: orientation, ``h`` (default), samples in rows, or ``v``, samples in columns
+    - ``yields-table-text-align``: alignment of text in table cells (default: ``c``)
+    - ``yields-table-numerical-precision-yields``: number of digits after the decimal point for yields (default: 1)
+    - ``yields-table-numerical-precision-ratio``: number of digits after the decimal point for ratios (default: 2)
+    """
     eraMode, eras = eras
     if not eras: ## from config if not specified
         eras = list(config["eras"].keys())
@@ -231,23 +361,66 @@ def printCutFlowReports(config, reportList, resultsdir=".", readCounters=lambda 
         if recursive:
             for c in entry.children:
                 printEntry(c, printFun=printFun, recursive=recursive, genEvents=genEvents)
-    ## retrieve results files
+    ## retrieve results files, get generated events for each sample
     from .root import gbl
-    resultsFiles = dict((smp, gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))) for smp, smpCfg in config["samples"].items() if smpCfg.get("era") in eras)
-    for report in reportList:
-        for smp, resultsFile in resultsFiles.items():
-            smpCfg = config["samples"][smp]
-            logger.info(f"Cutflow report {report.name} for sample {smp}")
-            generated_events = None
+    resultsFiles = dict()
+    generated_events = dict()
+    for smp, smpCfg in config["samples"].items():
+        if "era" not in smpCfg or smpCfg["era"] in eras:
+            resF = gbl.TFile.Open(os.path.join(resultsdir, f"{smp}.root"))
+            resultsFiles[smp] = resF
+            genEvts = None
             if "generated-events" in smpCfg:
                 if isinstance(smpCfg["generated-events"], str):
-                    generated_events = readCounters(resultsFile)[smpCfg["generated-events"]]
+                    genEvts = readCounters(resF)[smpCfg["generated-events"]]
                 else:
-                    generated_events = smpCfg["generated-events"]
-                logger.info(f"Sum of event weights for processed files: {generated_events:e}")
-            smpReport = report.readFromResults(resultsFile)
-            for root in smpReport.rootEntries():
-                printEntry(root, genEvents=generated_events)
+                    genEvts = smpCfg["generated-events"]
+            generated_events[smp] = genEvts
+    has_plotit = None
+    try:
+        import plotit.plotit
+        has_plotit = True
+    except ImportError:
+        has_plotit = False
+    from bamboo.plots import EquidistantBinning as EqB
+    class YieldPlot:
+        def __init__(self, name):
+            self.name = name
+            self.plotopts = dict()
+            self.axisTitles = ("Yield",)
+            self.binnings = [EqB(1, 0.,1.)]
+    for report in reportList:
+        smpReports = { smp: report.readFromResults(resF) for smp, resF in resultsFiles.items() }
+        ## debug print
+        for smp, smpRep in smpReports.items():
+            if smpRep.printInLog:
+                logger.info(f"Cutflow report {report.name} for sample {smp}")
+                for root in smpRep.rootEntries():
+                    printEntry(root, genEvents=generated_events[smp])
+        ## save yields.tex (if needed)
+        if any(len(cb) > 1 or tt != cb[0] for tt,cb in report.titles.items()):
+            if not has_plotit:
+                logger.error(f"Could not load plotit python library, no TeX yields tables for {report.name}")
+            else:
+                yield_plots = [ YieldPlot(f"{report.name}_{eName}") for tEntries in report.titles.values() for eName in tEntries ]
+                out_eras = []
+                if len(eras) > 1 and eraMode in ("all", "combined"):
+                    out_eras.append((f"{report.name}.tex", eras))
+                if len(eras) == 1 or eraMode in ("split", "all"):
+                    for era in eras:
+                        out_eras.append((f"{report.name}_{era}.tex", [era]))
+                for outName, iEras in out_eras:
+                    pConfig, samples, plots, _, _ = loadPlotIt(config, yield_plots, eras=iEras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters)
+                    tabBlock = _makeYieldsTexTable(report, samples,
+                            { p.name[len(report.name)+1:]: p for p in plots },
+                            stretch=pConfig.yields_table_stretch,
+                            orientation=pConfig.yields_table_align,
+                            align=pConfig.yields_table_text_align,
+                            yieldPrecision=pConfig.yields_table_numerical_precision_yields,
+                            ratioPrecision=pConfig.yields_table_numerical_precision_ratio)
+                    with open(os.path.join(workdir, outName), "w") as ytf:
+                        ytf.write("\n".join((_yieldsTexPreface, tabBlock)))
+                    logger.info("Yields table for era(s) {0} was written to {1}".format(",".join(eras), os.path.join(workdir, outName)))
 
 def plotIt_files(samplesDict, resultsdir=".", eras=None, readCounters=lambda f : -1., vetoAttributes=None):
     files = dict()
@@ -318,7 +491,7 @@ def _plotIt_configFilesAndPlots(config, plotList, eras=None, workdir=".", result
     plotsCfg = plotIt_plots(plotList, plotDefaults=plotDefaults_cmb)
     return plotitCfg, filesCfg, plotsCfg
 
-def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+def writePlotIt(config, plotList, outName, eras=None, workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
     """
     Combine creation and saving of a plotIt config file
 
@@ -334,14 +507,13 @@ def writePlotIt(config, plotList, outName, eras=("all", None), workdir=".", resu
     :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
     :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
     """
-    eraMode, eras = eras
     if eras is None:
         eras = list(config["eras"].keys())
     plotitCfg, filesCfg, plotsCfg = _plotIt_configFilesAndPlots(config, plotList, eras=eras, workdir=workdir, resultsdir=resultsdir, readCounters=readCounters, vetoFileAttributes=vetoFileAttributes, plotDefaults=plotDefaults)
     ## write
     savePlotItConfig(outName, plotitCfg, filesCfg, plotsCfg)
 
-def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
+def loadPlotIt(config, plotList, eras=None, workdir=".", resultsdir=".", readCounters=lambda f : -1., vetoFileAttributes=None, plotDefaults=None):
     """
     Load the plotit configuration with the plotIt python library
 
@@ -349,14 +521,13 @@ def loadPlotIt(config, plotList, eras=("all", None), workdir=".", resultsdir="."
 
     :param config: parsed analysis configuration. Only the ``configuration`` (if present) and ``eras`` sections (to get the luminosities) are read.
     :param plotList: list of plots to convert (``name`` and ``plotopts``, combined with the default style)
-    :param eras: tuple of era mode and valid era list (parsed ``--eras`` argument)
+    :param eras: list of eras to consider (``None`` for all that are in the config)
     :param workdir: output directory
     :param resultsdir: directory with output ROOT files with histograms
     :param readCounters: method to read the sum of event weights from an output file
     :param vetoFileAttributes: list of per-sample keys that should be ignored (those specific to the bamboo part, e.g. job splitting and DAS paths)
     :param plotDefaults: plot defaults to add (added to those from ``config["plotIt"]["plotdefaults"]``, with higher precedence if present in both)
     """
-    eraMode, eras = eras
     if eras is None:
         eras = list(config["eras"].keys())
     try:

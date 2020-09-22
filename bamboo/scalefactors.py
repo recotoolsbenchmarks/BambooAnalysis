@@ -11,7 +11,7 @@ There two basic types are
 Different values (depending on the data-taking period)
 can be taken into account by weighting or by randomly sampling.
 """
-__all__ = ("get_scalefactor", "lumiPerPeriod")
+__all__ = ("get_scalefactor", "lumiPerPeriod_default", "binningVariables_nano", "BtagSF")
 
 from itertools import chain
 from functools import partial
@@ -238,6 +238,7 @@ def get_scalefactor(objType, key, combine=None, additionalVariables=dict(), sfLi
         raise ValueError("Unknown object type: {0}".format(objType))
 
 class BtagSF:
+    """ Helper for b- and c-tagging scalefactors using the BTV POG reader """
     def _nano_getPt(jet):
         import bamboo.treeproxies as _tp
         if isinstance(jet._parent, _tp.AltCollectionProxy):
@@ -273,7 +274,7 @@ class BtagSF:
         :param sysType: nominal value systematic type (``"central"``, by default)
         :param otherSysTypes: other systematic types to load in the reader
         :param systName: name of the systematic ("jet", by default, to coordinate the JEC variations)
-        :param measurementType: dictionary with measurement type per true flavour, or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
+        :param measurementType: dictionary with measurement type per true flavour (B, C, and UDSG), or a string if the same for all (if not specified, ``"comb"`` will be used for b- and c-jets, and ``incl`` for light-flavour jets)
         :param getters: dictionary of methods to get the kinematics and classifier for a jet (the keys ``Pt``, ``Eta``, ``JetFlavour``, and ``Discri`` are used. For the former three, the defaults are for NanoAOD)
         :param jesTranslate: translation function for JEC systematic variations, from the names in the CSV file to those used for the jets (the default default should work for on-the-fly corrections)
         :param sel: a selection in the current graph

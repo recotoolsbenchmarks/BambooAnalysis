@@ -469,7 +469,7 @@ class CutFlowReport(Product):
 
     The simplest way to use this, just to get an overview of the number of events
     passing each selection stage in the log file, is by adding a
-    ``CutFlowReport("yields", selections=<list of selections>, recursive=True)``
+    ``CutFlowReport("yields", selections=<list of selections>, recursive=True, printInLog=True)``
     to the list of plots.
     ``recursive=True`` will add all parent selections recursively,
     so only the final selection categories need to be passed to the ``selections``
@@ -507,13 +507,13 @@ class CutFlowReport(Product):
             self.parent = parent
             if self not in parent.children:
                 parent.children.append(self)
-    def __init__(self, name, selections=None, recursive=False, titles=None, autoSyst=False, cfres=None):
+    def __init__(self, name, selections=None, recursive=False, titles=None, autoSyst=False, cfres=None, printInLog=False):
         """
         Constructor. ``name`` is mandatory, all other are optional; for full control
         the :py:meth:`~bamboo.plots.CutFlowReport.add` should be used to add entries.
 
         Using the constructor with a list of :py:class:`~bamboo.plots.Selection`
-        instances passed to the ``selections`` keyword argument, and ``recursive=True``
+        instances passed to the ``selections`` keyword argument, and ``recursive=True, printInLog=True``
         is the easiest way to get debugging printout of the numbers of passing events.
         """
         super(CutFlowReport, self).__init__(name)
@@ -531,6 +531,7 @@ class CutFlowReport(Product):
         self.cfres = cfres
         if self.selections and cfres is None:
             self.selections[0].registerCutFlowReport(self, autoSyst=autoSyst)
+        self.printInLog = printInLog
     def add(self, selections, title=None):
         """ Add an entry to the yields table, with a title (optional) """
         if not hasattr(selections, "__iter__"):

@@ -391,9 +391,10 @@ def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCou
         smpReports = { smp: report.readFromResults(resF) for smp, resF in resultsFiles.items() }
         ## debug print
         for smp, smpRep in smpReports.items():
-            logger.info(f"Cutflow report {report.name} for sample {smp}")
-            for root in smpRep.rootEntries():
-                printEntry(root, genEvents=generated_events[smp])
+            if smpRep.printInLog:
+                logger.info(f"Cutflow report {report.name} for sample {smp}")
+                for root in smpRep.rootEntries():
+                    printEntry(root, genEvents=generated_events[smp])
         ## save yields.tex (if needed)
         if any(len(cb) > 1 or tt != cb[0] for tt,cb in report.titles.items()):
             if not has_plotit:

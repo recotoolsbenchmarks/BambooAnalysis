@@ -298,8 +298,10 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
         hdrs.append("Data/MC")
         colEntries = []
         for stData,stMC in zip(stTotData, stTotMC):
-            ratio = stData.contents/stMC.contents
-            ratioErr = np.sqrt(stMC.contents**2*stData.sumw2 + stData.contents**2*(stMC.sumw2+stMC.syst2))/stMC.contents**2
+            dtCont = stData.contents
+            mcCont = stMC.contents
+            ratio = np.where(mcCont != 0., dtCont/mcCont, np.zeros(dtCont.shape))
+            ratioErr = np.where(mcCont != 0., np.sqrt(mcCont**2*stData.sumw2 + dtCont**2*(stMC.sumw2+stMC.syst2))/mcCont**2, np.zeros(dtCont.shape))
             colEntries.append("${{0:.{0}f}} \pm {{1:.{0}f}}$".format(ratioPrecision).format( ratio[1], ratioErr[1]))
         entries_smp.append(colEntries)
     if len(colEntries) < 2:

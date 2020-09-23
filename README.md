@@ -45,6 +45,7 @@ git clone git@github.com:Oguz-Guzel/mplbplot.git
 cd mplbplot
 git checkout py3compat
 pip install -e .
+cd -
 ```
 
 ### Starting to use bamboo

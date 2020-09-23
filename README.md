@@ -74,15 +74,15 @@ In the analysis module, the physics objects are retreived from ROOT trees and de
 
 A YAML file is needed to specify the samples to be used in the analysis. In a configuration file, the luminosity, x-sec, sample groups and plot configurations (e.g. stacked plots, shape comparison etc.) are defined. Please check [documentation](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html) for further details. See an example in the /rtb.
 
-### Doing analysis
+### RTB analysis
 
 The usual command line for doing analysis is as following:
 
 ```
-bambooRun -m path/to/my-analsis.py path/to/configuration-file.yml -o path/to/output-directory
-
+bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS-Delphes.yml -o output-test
 ```
 
 ### Outputs
+
 
 See examples: [http://aguzel.web.cern.ch/aguzel/rtb/](http://aguzel.web.cern.ch/aguzel/rtb/)

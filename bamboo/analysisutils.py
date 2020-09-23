@@ -213,33 +213,19 @@ def readEnvConfig(explName=None):
                 logger.warning("Problem reading config file {0}: {1}".format(iniName, ex))
     logger.error("No valid environment config file found, please copy one from the .ini files from the examples directory to ~/.config/bamboorc, or pass the --envConfig option")
 
-_yieldsTexPreface = "\n".join(f"% {ln}" for ln in
-r"""Yields table generated automatically by bamboo (same as plotIt).
-Needed packages:
-   \usepackage{booktabs}
-
-Use the following if building a CMS document
-
-\makeatletter
-\newcommand{\thickhline}{%
-    \noalign {\ifnum 0=`}\fi \hrule height .08em
-    \futurelet \reserved@a \@xhline
-}
-\newcommand{\thinhline}{%
-    \noalign {\ifnum 0=`}\fi \hrule height .05em
-    \futurelet \reserved@a \@xhline
-}
-\makeatother
-\newcommand{\toprule}{\noalign{\vskip0pt}\thickhline\noalign{\vskip.65ex}}
-\newcommand{\midrule}{\noalign{\vskip.4ex}\thinhline\noalign{\vskip.65ex}}
-\newcommand{\bottomrule}{\noalign{\vskip.4ex}\thickhline\noalign{\vskip0pt}}
+_yieldsTexPreface = "\n".join(f"{ln}" for ln in
+r"""\documentclass[12pt, landscape]{article}
+\usepackage[margin=0.5in]{geometry}
+\begin{document}
 """.split("\n"))
 
 def _texProcName(procName):
-    if "$" in procName:
-        procName = procName.replace("_", "\\_")
-    if "#" in procName: # assume ROOT LaTeX
-        procName = "${0}$".format(procName.replace("#", "\\"))
+    if ">" in procName:
+        procName = procName.replace(">", "$ > $")
+    if "=" in procName:
+        procName = procName.replace("=", "$ = $")
+    if "_" in procName:
+        procName = procName.replace("_", "\_")
     return procName
 
 def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v", align="c", yieldPrecision=1, ratioPrecision=2):
@@ -253,16 +239,19 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
         stacks_t = [ (entryHists[entries[0]] if len(entries) == 1 else
             Stack(entries=[entryHists[eName] for eName in entries]))
             for entries in report.titles.values() ]
-        return stacks_t, [ "${{0:.{0:d}f}} \pm {{1:.{0:d}f}}$".format(precision).format(
-            st_t.contents[1], np.sqrt(st_t.sumw2+st_t.syst2)[1]
-            ) for st_t in stacks_t ]
+        return stacks_t, [ "& {0:.2e}".format(st_t.contents[1]) for st_t in stacks_t ]
+    def colEntriesFromCFREntryHists_forEff(report, entryHists, precision=1):
+        stacks_t = [ (entryHists[entries[0]] if len(entries) == 1 else
+            Stack(entries=[entryHists[eName] for eName in entries]))
+            for entries in report.titles.values() ]
+        return stacks_t, [ " {0} ".format(st_t.contents[1]) for st_t in stacks_t ]
 
     smp_signal = [smp for smp in samples if smp.cfg.type == "SIGNAL"]
     smp_mc = [smp for smp in samples if smp.cfg.type == "MC"]
     smp_data = [smp for smp in samples if smp.cfg.type == "DATA"]
     sepStr_v = "|l|"
-    hdrs = ["Cat."]
-    entries_smp = [ [tName for tName in report.titles.keys()] ]
+    hdrs = ["Selection"]
+    entries_smp = [ [_texProcName(tName) for tName in report.titles.keys()] ]
     stTotMC, stTotData = None, None
     if smp_signal:
         sepStr_v += "|"
@@ -275,19 +264,23 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
     if smp_mc:
         sepStr_v += "|"
         for mcSmp in smp_mc:
-            stTotMC, colEntries = colEntriesFromCFREntryHists(report,
+            _, colEntries = colEntriesFromCFREntryHists(report,
                 { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
             sepStr_v += f"{align}|"
             if isinstance(mcSmp, plotit.plotit.Group):
                 hdrs.append(_texProcName(mcSmp.name))
             else:
                 hdrs.append(_texProcName(mcSmp.cfg.yields_group))
-            entries_smp.append(colEntries)
-        if len(smp_mc) > 1:
-            sepStr_v += f"|{align}|"
-            hdrs.append("Tot. MC")
-            stTotMC, colEntries = colEntriesFromCFREntryHists(report, { eName : Stack(entries=[smp.getHist(p) for smp in smp_mc]) for eName, p in entryPlots.items() }, precision=yieldPrecision)
-            entries_smp.append(colEntries)
+            entries_smp.append(_texProcName(colEntries))
+            _, colEntries_forEff = colEntriesFromCFREntryHists_forEff(report,
+                { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
+            colEntries_matrix = np.matrix(colEntries_forEff).getH()
+            sel_eff = np.array([100])
+            for i in range(1, len(report.titles)):
+                sel_eff = np.append(sel_eff, [ float(colEntries_matrix[i]) / float(colEntries_matrix[i-1]) *100 ]).tolist()
+            for i in range(len(report.titles)):
+                sel_eff[i] = str(f"({sel_eff[i]:.2f}\%)")
+            entries_smp.append(sel_eff)            
     if smp_data:
         sepStr_v += f"|{align}|"
         hdrs.append("Data")
@@ -306,24 +299,16 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
         entries_smp.append(colEntries)
     if len(colEntries) < 2:
         logger.warning("No samples, so no yields.tex")
-    return "\n".join([
-        f"\\renewcommand{{\\arraystretch}}{{{stretch}}}"]+(([
-        ## vertical
+    return "\n".join(([
         f"\\begin{{tabular}}{{ {sepStr_v} }}",
         "    \\hline",
         "    {0} \\\\".format(" & ".join(hdrs)),
         "    \\hline"]+[
-            "    {0} \\\\".format(" & ".join(smpEntries[i] for smpEntries in entries_smp))
-            for i in range(len(report.titles)) ]) if orientation == "v" else (
-        ## horizontal
-        ["\\begin{{tabular}}{{ |l|{0}| }}".format("|".join(repeat(align, len(report.titles)))),
+            "    {0} \\\\".format(" ".join(smpEntries[i] for smpEntries in entries_smp))
+            for i in range(len(report.titles)) ] )+[
         "    \\hline",
-        "    {0} \\\\".format(" & ".join([hdrs[0]]+entries_smp[0])),
-        "    \\hline"]+[
-            "    {0} \\\\".format(" & ".join([hdrs[i]]+smpEntries)) for i,smpEntries in zip(count(1), entries_smp[1:])
-        ]))+[
-        "    \\hline",
-        "\\end{tabular}"
+        "\\end{tabular}",
+        "\\end{document}"
         ])
 
 def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCounters=lambda f : -1., eras=("all", None), verbose=False):

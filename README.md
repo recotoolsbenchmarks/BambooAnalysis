@@ -42,6 +42,7 @@ cd -
 For the .tex output, the plotit python module from [https://github.com/Oguz-Guzel/mplbplot/tree/py3compat](https://github.com/Oguz-Guzel/mplbplot/tree/py3compat) is required
 ```
 git clone git@github.com:Oguz-Guzel/mplbplot.git
+cd mplbplot
 git checkout py3compat
 pip install -e .
 ```

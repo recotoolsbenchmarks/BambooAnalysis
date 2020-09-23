@@ -54,6 +54,7 @@ You need to execute the following commands in the bamboo setup directory, every 
 
 ```
 source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+python -m venv bamboovenv
 source bamboovenv/bin/activate
 ```
 

@@ -1,0 +1,43 @@
+tree: myana/mytree
+eras:
+  HL-LHC:
+    luminosity: 3000000 # 1/pb
+samples:
+  DelphesFlat_343pre0-TT_TuneCP5_14TeV_200PU:
+    era: HL-LHC
+    type: MC
+    group: TT_DelphesFlat_343pre0
+    files:
+      - /eos/cms/store/group/upgrade/RTB/DelphesFlat_343pre01/TT_TuneCP5_14TeV_200PU.root
+    generated-events: nEvents
+    cross-section: 950
+
+  DelphesFlat_343pre0-DYToLL_M-50_TuneCP5_14TeV-pythia8_200PU:
+    era: HL-LHC
+    type: MC
+    group: DY_DelphesFlat_343pre0
+    files:
+      - /eos/cms/store/group/upgrade/RTB/DelphesFlat_343pre01/DYToLL_M-50_TuneCP5_14TeV-pythia8_200PU.root
+    generated-events: nEvents
+    cross-section: 5620
+
+plotIt:
+  configuration:
+    width: 700
+    height: 600
+    luminosity-label: '%1$.2f fb^{-1} (13 TeV)'
+    experiment: CMS
+    extra-label: HL-LHC
+    luminosity-error: 0.025
+    show-overflow: true
+  plotdefaults:
+    log-y: True
+  legend:
+    position: [0.7, 0.8, 0.91, 0.91]
+  groups:
+    TT_DelphesFlat_343pre0:
+      legend: TT DelphesFlat343pre01
+      fill-color: "#D489FF" # lightpurple
+    DY_DelphesFlat_343pre0:
+      legend: DY DelphesFlat343pre0
+      fill-color: "#F1FF3B" # lightyellow

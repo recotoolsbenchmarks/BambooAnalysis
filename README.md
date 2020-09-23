@@ -1,48 +1,84 @@
-# Bamboo: A high-level HEP analysis library for ROOT::RDataFrame
+# Bamboo
 
-The [`ROOT::RDataFrame`](https://root.cern.ch/doc/master/classROOT_1_1RDataFrame.html)
-class provides an efficient and flexible way to process per-event information
-(stored in a `TTree`) and e.g. aggregate it into histograms.
-With the typical pattern of storing object arrays as a structure of arrays
-(variable-sized branches with a common prefix in the names and length),
-the expressions that are typically needed for a complete analysis quickly become
-cumbersome to write, with indices to match, repeated sub-expressions etc. -
+Bamboo is a python framework for HEP analyses. In this page, its explanation is mostly intended to be used in specific analyses done in Reconstruction Tools & Benchmarks Group under UPSG-CMS. For the original repo please check [https://gitlab.cern.ch/cp3-cms/bamboo](https://gitlab.cern.ch/cp3-cms/bamboo)
 
-Bamboo attempts to solve this problem by automatically constructing
-lightweight python wrappers based on the structure of the `TTree`,
-which allow to construct such expression with high-level code, similar to the
-language that is commonly used to discuss and describe them. By constructing
-an object representation of the expression, a few powerful operations can be
-used to compose complex expressions.
+Documentation: [https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html)
 
-Building selections, plots etc. with such expressions is analysis-specific, but
-the mechanics of loading data samples, processing them locally or on a batch
-system, combining the outputs for different samples in an overview etc.
-is very similar over a broad range of use cases.
-Therefore a common implementation of these is provided, such that the analyst
-only needs to provide a subclass with their selection and plot definitions,
-and a configuration file with a list of samples, and instructions how to
-display them.
+### Setup instructions
 
-## Documentation
+The following set of commands would be sufficient to configure bamboo on lxplus.
 
-The HTML documentation (with a longer introduction, installation instructions,
-recipes for common tasks and an API reference of the classes and methdos) is
-available [here](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/)
-or can be generated from the source code repository with
-```sh
-python setup.py build
-python setup.py build_sphinx
 ```
-(the output will be placed in `doc/build/html`).
+mkdir bamboodev
+cd bamboodev
+```
 
-## Development
+Make a virtualenv:
 
-Bamboo is currently at the beta stage, which means that a first version of most
-of the planned features is there and it starts to be usable, but some things are
-missing, incomplete, or buggy - your feedback is essential for fixing those, so
-please watch out, check, feel free to add tests if something is not covered yet,
-and do not hesitate to
-[open an issue](https://gitlab.cern.ch/cp3-cms/bamboo/boards) or ask in
-[the mattermost channel](https://cp3-mm.irmp.ucl.ac.be/cp3-llbb/channels/bamboo)
-in case of doubt.
+```
+source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+python -m venv bamboovenv
+source bamboovenv/bin/activate
+```
+
+Clone and install bamboo:
+
+```
+git clone -o upstream https://gitlab.cern.ch/aguzel/bamboo.git
+python -m pip install ./bamboo
+```
+
+Clone and install plotIt:
+
+```
+git clone -o upstream https://github.com/cp3-llbb/plotIt.git
+mkdir build-plotit
+cd build-plotit
+cmake -DCMAKE_INSTALL_PREFIX=$VIRTUAL_ENV ../plotIt
+make -j4 install
+cd -
+```
+
+For the .tex output, the plotit python module from [https://github.com/pieterdavid/mplbplot/tree/py3compat](https://github.com/pieterdavid/mplbplot/tree/py3compat) is required
+```
+pip install -e .
+```
+
+### Starting to use bamboo
+
+You need to execute the following commands in the bamboo setup directory, every time logged in and want to work with bamboo:
+
+```
+source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.sh
+source bamboovenv/bin/activate
+```
+
+Testing bamboo quickly:
+
+```
+bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/test1.yml -o test1
+```
+
+If this command works well, you can continue to start with your analysis.
+
+### Analysis module
+
+The analysis module of the bamboo is a python file. Please see: [/rtb/phaseII-analysis.py](https://gitlab.cern.ch/aguzel/bamboo/-/blob/master/rtb/phaseII-analysis.py).
+In the analysis module, the physics objects are retreived from ROOT samples and defined via simple cuts. The selections are applied and finally the plots are defined. One can also add a cutflow report on demand which a report on selection efficiencies are printed out on terminal. 
+
+### Analysis configuration file (YAML)
+
+A YAML file is needed to specify the samples which are to be used in the analysis. In a configuration file, the luminosity, x-sec, sample groups and plot configurations (e.g. stacked plots, shape comparison etc.) are defined. Please check [documentation](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html) for further detail.s
+
+### Doing analysis
+
+The usual command line for doing analysis is as following:
+
+```
+bambooRun -m path/to/my-analsis.py path/to/configuration-file.yml -o path/to/output-directory
+
+```
+
+### Outputs
+
+See examples: [http://aguzel.web.cern.ch/aguzel/rtb/](http://aguzel.web.cern.ch/aguzel/rtb/)

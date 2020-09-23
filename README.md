@@ -81,6 +81,11 @@ The usual command line for doing analysis is as following:
 ```
 bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS-Delphes.yml -o output-FS-Delphes
 ```
+The pdf version of the cutflow report is obtained via:
+```
+cd output-FS-Delphes
+pdflatex yields_HL-LHC.tex
+```
 
 ### Outputs
 

@@ -47,6 +47,13 @@ git checkout py3compat
 pip install -e .
 cd -
 ```
+Testing bamboo quickly:
+
+```
+bambooRun -m BambooAnalysis/examples/nanozmumu.py:NanoZMuMu BambooAnalysis/examples/test1.yml -o test1
+```
+
+If this command works well, you can continue to start with your analysis.
 
 ### Starting to use bamboo
 
@@ -57,14 +64,6 @@ source /cvmfs/sft.cern.ch/lcg/views/LCG_97python3/x86_64-centos7-gcc9-opt/setup.
 python -m venv bamboovenv
 source bamboovenv/bin/activate
 ```
-
-Testing bamboo quickly:
-
-```
-bambooRun -m BambooAnalysis/examples/nanozmumu.py:NanoZMuMu BambooAnalysis/examples/test1.yml -o test1
-```
-
-If this command works well, you can continue to start with your analysis.
 
 ### Analysis module
 
@@ -80,8 +79,21 @@ A YAML file is needed to specify the samples to be used in the analysis. In a co
 The usual command line for doing analysis is as following:
 
 ```
+bambooRun -m path/to/myanalysis.py:MYCLASS path/to/myconfigFile.yml -o output-directory/
+```
+DelphesFlat
+```
+bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS-Delphes.yml -o output-Delphes
+```
+Fullsim
+```
+bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS.yml -o output-FS
+```
+Delphes vs. FS
+```
 bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS-Delphes.yml -o output-FS-Delphes
 ```
+
 The pdf version of the cutflow report is obtained via:
 ```
 cd output-FS-Delphes
@@ -89,6 +101,5 @@ pdflatex yields_HL-LHC.tex
 ```
 
 ### Outputs
-
 
 See examples: [http://aguzel.web.cern.ch/aguzel/rtb/](http://aguzel.web.cern.ch/aguzel/rtb/)

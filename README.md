@@ -61,7 +61,7 @@ source bamboovenv/bin/activate
 Testing bamboo quickly:
 
 ```
-bambooRun -m bamboo/examples/nanozmumu.py:NanoZMuMu bamboo/examples/test1.yml -o test1
+bambooRun -m BambooAnalysis/examples/nanozmumu.py:NanoZMuMu BambooAnalysis/examples/test1.yml -o test1
 ```
 
 If this command works well, you can continue to start with your analysis.

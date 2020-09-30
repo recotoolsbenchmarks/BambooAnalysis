@@ -9,8 +9,8 @@ Documentation: [https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html](https://cp
 The following set of commands would be sufficient to configure bamboo on lxplus.
 
 ```
-mkdir bamboodev
-cd bamboodev
+mkdir bamboo
+cd bamboo
 ```
 
 Make a virtualenv:
@@ -24,8 +24,8 @@ source bamboovenv/bin/activate
 Clone and install bamboo:
 
 ```
-git clone -o upstream https://gitlab.cern.ch/aguzel/bamboo.git
-python -m pip install ./bamboo
+git clone -o upstream git@github.com:recotoolsbenchmarks/BambooAnalysis.git
+pip install ./BambooAnalysis
 ```
 
 Clone and install plotIt:

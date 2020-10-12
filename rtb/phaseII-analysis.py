@@ -93,7 +93,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         
         #selections
                             
-        twoMuSel = noSel.refine("nmu", cut = [op.rng_len(identifiedMuons) > 1]) #muons number selection
+        twoMuSel = noSel.refine("nmu", cut = [op.rng_len(identifiedMuons) > 1]) #number of muons selection
             
         sel1 = twoMuSel.refine("mumu", cut = [op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ]) # Oppositely charged MuMu selection
 

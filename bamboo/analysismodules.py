@@ -507,7 +507,6 @@ class AnalysisModule:
                                 """
                     gbl.gInterpreter.ProcessLine(cpp_code)
                     logger.info("Plot for selection cutflow is available in {0}".format(workdir))
-                    logger.info(cpp_code)
                 try:
                     self.postProcess(tasks, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:

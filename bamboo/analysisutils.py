@@ -245,7 +245,6 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             Stack(entries=[entryHists[eName] for eName in entries]))
             for entries in report.titles.values() ]
         return stacks_t, [ " {0} ".format(st_t.contents[1]) for st_t in stacks_t ]
-
     smp_signal = [smp for smp in samples if smp.cfg.type == "SIGNAL"]
     smp_mc = [smp for smp in samples if smp.cfg.type == "MC"]
     smp_data = [smp for smp in samples if smp.cfg.type == "DATA"]
@@ -263,6 +262,7 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             entries_smp.append(colEntries)
     if smp_mc:
         sepStr_v += "|"
+        sel_list = []
         for mcSmp in smp_mc:
             _, colEntries = colEntriesFromCFREntryHists(report,
                 { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
@@ -274,13 +274,52 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             entries_smp.append(_texProcName(colEntries))
             _, colEntries_forEff = colEntriesFromCFREntryHists_forEff(report,
                 { eName : mcSmp.getHist(p) for eName, p in entryPlots.items() }, precision=yieldPrecision)
-            colEntries_matrix = np.matrix(colEntries_forEff).getH()
+            colEntries_matrix = np.array(colEntries_forEff)
             sel_eff = np.array([100])
             for i in range(1, len(report.titles)):
                 sel_eff = np.append(sel_eff, [ float(colEntries_matrix[i]) / float(colEntries_matrix[i-1]) *100 ]).tolist()
             for i in range(len(report.titles)):
                 sel_eff[i] = str(f"({sel_eff[i]:.2f}\%)")
-            entries_smp.append(sel_eff)            
+            entries_smp.append(sel_eff)
+            sel_list.append(colEntries_forEff)
+        from .root import gbl
+        sel_list_array = np.array(sel_list)
+        cpp_code = """
+            {
+            gStyle->SetPalette(1);
+            auto c1 = new TCanvas("c1","c1",600,400);
+            auto cutflow_histo_FS = new TH1F("cutflow_histo","Selection Cutflow",6,0,6);
+
+            cutflow_histo_FS->GetXaxis()->SetTitle("Selections");
+            cutflow_histo_FS->GetYaxis()->SetTitle("Nevents");  
+            auto cutflow_histo_Delphes = new TH1F("cutflow_histo","Delphes",6,0,6);
+            """
+        for i in range(len(colEntries_forEff)):
+            cpp_code += f"""
+            cutflow_histo_FS->Fill({i}.,{sel_list_array[0,i]});"""
+        cpp_code += """
+            cutflow_histo_FS->SetLineColor(4);
+            cutflow_histo_FS->SetLineWidth(3);
+            """
+        for i in range(len(colEntries_forEff)):
+            cpp_code += f"""
+            cutflow_histo_Delphes->Fill({i}.,{sel_list_array[1,i]});"""
+        cpp_code  += """
+            cutflow_histo_Delphes->SetLineColor(2);
+            cutflow_histo_Delphes->SetLineWidth(3);
+
+            cutflow_histo_FS->Draw("HIST");
+            cutflow_histo_Delphes->Draw("SAME HIST");
+            gPad->SetLogy();
+            auto leg = new TLegend(0.78,0.695,0.980,0.935); 
+            leg->AddEntry(cutflow_histo_Delphes,"Delphes","l");
+            leg->AddEntry(cutflow_histo_FS,"FS","l");
+            leg->Draw();
+            c1->SaveAs("histoimage.gif");
+            }
+            """
+        gbl.gInterpreter.ProcessLine(cpp_code)
+        logger.info("Plot for selection cutflow is available")
     if smp_data:
         sepStr_v += f"|{align}|"
         hdrs.append("Data")
@@ -406,7 +445,6 @@ def printCutFlowReports(config, reportList, workdir=".", resultsdir=".", readCou
                     with open(os.path.join(workdir, outName), "w") as ytf:
                         ytf.write("\n".join((_yieldsTexPreface, tabBlock)))
                     logger.info("Yields table for era(s) {0} was written to {1}".format(",".join(eras), os.path.join(workdir, outName)))
-
 def plotIt_files(samplesDict, resultsdir=".", eras=None, readCounters=lambda f : -1., vetoAttributes=None):
     files = dict()
     for smpName, smpCfg in samplesDict.items():
@@ -567,6 +605,83 @@ def runPlotIt(cfgName, workdir=".", plotsdir="plots", plotIt="plotIt", eras=("al
             logger.info("plotIt output is available in {0}".format(plotsdir))
         except subprocess.CalledProcessError as ex:
             logger.error("Command '{0}' failed with exit code {1}\n{2}".format(" ".join(ex.cmd), ex.returncode, ex.output))
+    # from bamboo.root import gbl
+    
+    # sample1 = "output-FS-Delphes/results/DelphesFlat_343pre0-TT_TuneCP5_14TeV_200PU.root"
+
+    # sample2 = "output-FS-Delphes/results/FullsimFlat_110X-TT_TuneCP5_14TeV_200PU.root"
+
+    # cpp_code = """
+    #     {
+    #     gStyle->SetPalette(1);
+        
+    #     auto c1 = new TCanvas("c1","c1",600,400);
+
+    #     TFile *_file[2];
+
+    #     auto cutflow_histo_Delphes = new TH1F("cutflow_histo","Selection Cutflow",6,0,6);
+    #     cutflow_histo_Delphes->GetXaxis()->SetTitle("Selections");
+    #     cutflow_histo_Delphes->GetYaxis()->SetTitle("Nevents");  
+
+    #     auto cutflow_histo_FS = new TH1F("cutflow_histo","Fullsim",6,0,6);
+
+    #     TString file[2] = {"""
+                           
+
+    # cpp_code += f"""
+    # "{sample1}", "{sample2}"
+    # """
+                           
+
+    # cpp_code += """};
+
+    #     _file[0] = TFile::Open(file[0]);
+    #     TH1F *h0     = (TH1F*)_file[0]->Get("nMuNoSel");
+    #     TH1F *h1     = (TH1F*)_file[0]->Get("nMuSel1");
+    #     TH1F *h2     = (TH1F*)_file[0]->Get("nMuSel2");
+    #     TH1F *h3     = (TH1F*)_file[0]->Get("nMuSel3");
+    #     TH1F *h4     = (TH1F*)_file[0]->Get("nMuSel4");
+    #     TH1F *h5     = (TH1F*)_file[0]->Get("nMuSel5");
+    #     cutflow_histo_Delphes->Fill(0.,h0->GetEntries());
+    #     cutflow_histo_Delphes->Fill(1,h1->GetEntries());
+    #     cutflow_histo_Delphes->Fill(2,h2->GetEntries());
+    #     cutflow_histo_Delphes->Fill(3,h3->GetEntries());
+    #     cutflow_histo_Delphes->Fill(4,h4->GetEntries());
+    #     cutflow_histo_Delphes->Fill(5,h5->GetEntries());
+    #     cutflow_histo_Delphes->SetLineColor(4);
+    #     cutflow_histo_Delphes->SetLineWidth(3);
+
+    #     _file[1] = TFile::Open(file[1]);
+    #     TH1F *h10     = (TH1F*)_file[1]->Get("nMuNoSel");
+    #     TH1F *h11     = (TH1F*)_file[1]->Get("nMuSel1");
+    #     TH1F *h12     = (TH1F*)_file[1]->Get("nMuSel2");
+    #     TH1F *h13     = (TH1F*)_file[1]->Get("nMuSel3");
+    #     TH1F *h14     = (TH1F*)_file[1]->Get("nMuSel4");
+    #     TH1F *h15     = (TH1F*)_file[1]->Get("nMuSel5");
+    #     cutflow_histo_FS->Fill(0.,h10->GetEntries());
+    #     cutflow_histo_FS->Fill(1,h11->GetEntries());
+    #     cutflow_histo_FS->Fill(2,h12->GetEntries());
+    #     cutflow_histo_FS->Fill(3,h13->GetEntries());
+    #     cutflow_histo_FS->Fill(4,h14->GetEntries());
+    #     cutflow_histo_FS->Fill(5,h15->GetEntries());
+    #     cutflow_histo_FS->SetLineColor(2);
+    #     cutflow_histo_FS->SetLineWidth(3);
+
+    #     cutflow_histo_Delphes->Draw("HIST");
+    #     cutflow_histo_FS->Draw("SAME HIST");
+
+    #     gPad->SetLogy();
+    #     auto leg = new TLegend(0.78,0.695,0.980,0.935); 
+    #     leg->AddEntry(cutflow_histo_Delphes,"Delphes","l");
+    #     leg->AddEntry(cutflow_histo_FS,"FS","l");
+    #     leg->Draw();
+
+    #     c1->SaveAs("histoimage.gif");
+    #     }
+    # """
+
+    # gbl.gInterpreter.ProcessLine(cpp_code)
+    # logger.info("Plot for selection cutflow is available in {0}".format(workdir))
 
 def configureJets(variProxy, jetType, jec=None, jecLevels="default", smear=None, useGenMatch=True, genMatchDR=0.2, genMatchDPt=3., jesUncertaintySources=None, cachedir=None, mayWriteCache=False, enableSystematics=None, isMC=False, backend=None, uName=""):
     """ Reapply JEC, set up jet smearing, or prepare JER/JES uncertainties collections

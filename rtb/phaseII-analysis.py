@@ -93,7 +93,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         
         #selections
                             
-        twoMuSel = noSel.refine("nmu", cut = [op.rng_len(identifiedMuons) > 1]) #two muons selection
+        twoMuSel = noSel.refine("nmu", cut = [op.rng_len(identifiedMuons) > 1]) #muons number selection
             
         sel1 = twoMuSel.refine("mumu", cut = [op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ]) # Oppositely charged MuMu selection
 
@@ -101,7 +101,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             
         sel3 = sel2.refine("njet", cut = [op.rng_len(cleanedGoodJets) > 1]) # two jets selection
             
-        sel4 = sel3.refine("btag", cut = [op.OR(cleanedGoodJets[0].btag & (1<<2), cleanedGoodJets[1].btag & (1<<2))]) # at least 1 among two leading jets is b-tagged, we are taking the second isopass to be on which is equal to medium b-tag working point.
+        sel4 = sel3.refine("btag", cut = [op.OR(cleanedGoodJets[0].btag & (1<<2), cleanedGoodJets[1].btag & (1<<2))]) # at least 1 among two leading jets is b-tagged, we are taking the second isopass to be on which is equal to the medium b-tag working point
             
         sel5 = sel4.refine("MET", cut = [t.metpf[0].pt > 40]) # MET > 40 GeV, here the met pt cut requires indexing and t.met[0].pt is equivalent to t.met.pt
                     
@@ -236,7 +236,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         
         plots.append(Plot.make1D("METptSel5", t.metpf[0].pt, sel5, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
 
-        #Efficiency Report on terminal. Adding " $ " to automatically publish pdf if math symbols exist in selection names.
+        # Efficiency Report on terminal and the .tex output
 
         cfr = CutFlowReport("yields")
         cfr.add(noSel, "No selection")

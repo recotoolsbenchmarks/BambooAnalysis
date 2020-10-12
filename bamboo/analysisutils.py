@@ -290,8 +290,8 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             auto c1 = new TCanvas("c1","c1",600,400);
             auto cutflow_histo_FS = new TH1F("cutflow_histo","Selection Cutflow",6,0,6);
 
-            cutflow_histo_FS->GetXaxis()->SetTitle("Selections");
-            cutflow_histo_FS->GetYaxis()->SetTitle("Nevents");  
+            cutflow_histo_FS->GetXaxis()->SetTitle("Selection");
+            cutflow_histo_FS->GetYaxis()->SetTitle("Nevent");  
             auto cutflow_histo_Delphes = new TH1F("cutflow_histo","Delphes",6,0,6);
             """
         for i in range(len(colEntries_forEff)):

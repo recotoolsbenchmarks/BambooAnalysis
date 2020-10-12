@@ -381,7 +381,6 @@ class AnalysisModule:
                             outf.Close()
                             logger.debug(f"Skeleton tree written to {outfName}")
                     ## run all tasks
-                    outputs = []
                     if not self.args.distributed: ## sequential mode
                         for task in tasks:
                             output = os.path.join(resultsdir, task.outputFile)
@@ -393,7 +392,6 @@ class AnalysisModule:
                                 logger.info(f"Enabling implicit MT for {self.args.threads} threads")
                                 gbl.ROOT.EnableImplicitMT(self.args.threads)
                             self.processTrees(task.inputFiles, output, sampleCfg=task.config, **task.kwargs)
-                            outputs.append(output)
                     elif self.args.distributed == "driver":
                         ## construct the list of tasks
                         from .batch import splitInChunks, writeFileList, SplitAggregationTask, HaddAction, format_runtime, getBackend
@@ -452,61 +450,6 @@ class AnalysisModule:
                             logger.error("Since there were failed jobs, I'm not doing the postprocessing step. "
                                     "After performing recovery actions (see above) you may run me again with the --distributed=finalize (to merge) or --onlypost (if merged manually) option instead.")
                             return
-                    cpp_code = """
-                                {
-                                    gStyle->SetPalette(1);
-                                    auto c1 = new TCanvas("c1","c1",600,400);
-                                    TFile *_file[2];
-                                    auto cutflow_histo_FS = new TH1F("cutflow_histo","Selection Cutflow",6,0,6);
-                                    cutflow_histo_FS->GetXaxis()->SetTitle("Selections");
-                                    cutflow_histo_FS->GetYaxis()->SetTitle("Nevents");  
-                                    auto cutflow_histo_Delphes = new TH1F("cutflow_histo","Delphes",6,0,6);
-                                    TString file[2] = {"""                
-                    cpp_code += f""""{outputs[0]}", "{outputs[1]}" """
-                    #add any plot name from the analysis module with the corresponding selection names in the next paragraph
-                    cpp_code += """};
-                                    _file[0] = TFile::Open(file[0]);
-                                    TH1F *h0     = (TH1F*)_file[0]->Get("nMuNoSel");
-                                    TH1F *h1     = (TH1F*)_file[0]->Get("nMuSel1");
-                                    TH1F *h2     = (TH1F*)_file[0]->Get("nMuSel2");
-                                    TH1F *h3     = (TH1F*)_file[0]->Get("nMuSel3");
-                                    TH1F *h4     = (TH1F*)_file[0]->Get("nMuSel4");
-                                    TH1F *h5     = (TH1F*)_file[0]->Get("nMuSel5");
-                                    cutflow_histo_FS->Fill(0.,h0->GetEntries());
-                                    cutflow_histo_FS->Fill(1,h1->GetEntries());
-                                    cutflow_histo_FS->Fill(2,h2->GetEntries());
-                                    cutflow_histo_FS->Fill(3,h3->GetEntries());
-                                    cutflow_histo_FS->Fill(4,h4->GetEntries());
-                                    cutflow_histo_FS->Fill(5,h5->GetEntries());
-                                    cutflow_histo_FS->SetLineColor(4);
-                                    cutflow_histo_FS->SetLineWidth(3);
-                                    _file[1] = TFile::Open(file[1]);
-                                    TH1F *h10     = (TH1F*)_file[1]->Get("nMuNoSel");
-                                    TH1F *h11     = (TH1F*)_file[1]->Get("nMuSel1");
-                                    TH1F *h12     = (TH1F*)_file[1]->Get("nMuSel2");
-                                    TH1F *h13     = (TH1F*)_file[1]->Get("nMuSel3");
-                                    TH1F *h14     = (TH1F*)_file[1]->Get("nMuSel4");
-                                    TH1F *h15     = (TH1F*)_file[1]->Get("nMuSel5");
-                                    cutflow_histo_Delphes->Fill(0.,h10->GetEntries());
-                                    cutflow_histo_Delphes->Fill(1,h11->GetEntries());
-                                    cutflow_histo_Delphes->Fill(2,h12->GetEntries());
-                                    cutflow_histo_Delphes->Fill(3,h13->GetEntries());
-                                    cutflow_histo_Delphes->Fill(4,h14->GetEntries());
-                                    cutflow_histo_Delphes->Fill(5,h15->GetEntries());
-                                    cutflow_histo_Delphes->SetLineColor(2);
-                                    cutflow_histo_Delphes->SetLineWidth(3);
-                                    cutflow_histo_FS->Draw("HIST");
-                                    cutflow_histo_Delphes->Draw("SAME HIST");
-                                    gPad->SetLogy();
-                                    auto leg = new TLegend(0.78,0.695,0.980,0.935); 
-                                    leg->AddEntry(cutflow_histo_Delphes,"Delphes","l");
-                                    leg->AddEntry(cutflow_histo_FS,"FS","l");
-                                    leg->Draw();
-                                    c1->SaveAs("histoimage.gif");
-                                    }
-                                """
-                    gbl.gInterpreter.ProcessLine(cpp_code)
-                    logger.info("Plot for selection cutflow is available in {0}".format(workdir))
                 try:
                     self.postProcess(tasks, config=analysisCfg, workdir=workdir, resultsdir=resultsdir)
                 except Exception as ex:

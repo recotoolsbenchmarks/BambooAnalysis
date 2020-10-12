@@ -68,7 +68,7 @@ source bamboovenv/bin/activate
 ### Analysis module
 
 The analysis module of the bamboo is a python file. Please see: [/rtb/phaseII-analysis.py](https://gitlab.cern.ch/aguzel/bamboo/-/blob/master/rtb/phaseII-analysis.py).
-In the analysis module, the physics objects are retreived from ROOT trees and defined via simple cuts. The selections are applied and finally the plots are defined. One can also add a cutflow report on demand which a report on selection efficiencies are printed out in a .tex file. 
+In the analysis module, the physics objects are retreived from ROOT trees and defined via simple cuts. The selections are applied and finally the plots are defined. One can also add a cutflow report on demand which prints selection efficiencies in a .tex file as well as in the terminal screen. This cutflow report comes along with a histogram in .png format available in the working directory.
 
 ### Analysis configuration file (YAML)
 

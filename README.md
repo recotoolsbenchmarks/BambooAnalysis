@@ -76,11 +76,11 @@ bambooRun -m path/to/myanalysis.py:MYCLASS path/to/myconfigFile.yml -o output-di
 ```
 DelphesFlat
 ```
-bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS-Delphes.yml -o output-Delphes
+bambooRun -m BambooAnalysis/rtb/phaseII-analysis.py:CMSPhase2SimTest BambooAnalysis/rtb/phaseII-analysis-FS-Delphes.yml -o output-Delphes
 ```
 Fullsim
 ```
-bambooRun -m bamboo/rtb/phaseII-analysis.py:CMSPhase2SimTest bamboo/rtb/phaseII-analysis-FS.yml -o output-FS
+bambooRun -m BambooAnalysis/rtb/phaseII-analysis.py:CMSPhase2SimTest BambooAnalysis/rtb/phaseII-analysis-FS.yml -o output-FS
 ```
 Delphes vs. FS
 ```

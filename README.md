@@ -69,11 +69,6 @@ A YAML file is needed to specify the samples to be used in the analysis. In a co
 
 ### RTB analysis
 
-The usual command line for doing analysis is as following:
-
-```
-bambooRun -m path/to/myanalysis.py:MYCLASS path/to/myconfigFile.yml -o output-directory/
-```
 DelphesFlat
 ```
 bambooRun -m BambooAnalysis/rtb/phaseII-analysis.py:CMSPhase2SimTest BambooAnalysis/rtb/phaseII-analysis-FS-Delphes.yml -o output-Delphes

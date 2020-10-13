@@ -60,12 +60,12 @@ source bamboovenv/bin/activate
 
 ### Analysis module
 
-The analysis module of the bamboo is a python file. Please see: [/rtb/phaseII-analysis.py](https://github.com/Oguz-Guzel/bamboo/-/blob/master/rtb/phaseII-analysis.py).
+The analysis module of the bamboo is a python file. See an example here: /rtb/phaseII-analysis.py.
 In the analysis module, the physics objects are retreived from ROOT trees and defined via simple cuts. The selections are applied and finally the plots are defined. One can also add a cutflow report on demand which prints selection efficiencies in a .tex file as well as in the terminal screen. This cutflow report comes along with a histogram in .png format available in the working directory.
 
 ### Analysis configuration file (YAML)
 
-A YAML file is needed to specify the samples to be used in the analysis. In a configuration file, the luminosity, x-sec, sample groups and plot configurations (e.g. stacked plots, shape comparison etc.) are defined. Please check [documentation](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html) for further details. See an example in the /rtb.
+A YAML file is needed to specify the samples to be used in the analysis. In a configuration file, the luminosity, x-sec, sample groups and plot configurations (e.g. stacked plots, shape comparison etc.) are defined. See examples in /rtb directory and check [documentation](https://cp3.irmp.ucl.ac.be/~pdavid/bamboo/index.html) for further details.
 
 ### RTB analysis
 

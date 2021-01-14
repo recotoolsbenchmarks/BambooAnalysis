@@ -315,7 +315,7 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             leg->AddEntry(cutflow_histo_Delphes,"Delphes","l");
             leg->AddEntry(cutflow_histo_FS,"FS","l");
             leg->Draw();
-            c1->SaveAs("histoimage.gif");
+            c1->SaveAs("cutflow.gif");
             }
             """
         gbl.gInterpreter.ProcessLine(cpp_code)

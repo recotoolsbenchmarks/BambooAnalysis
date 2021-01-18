@@ -92,10 +92,8 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         ))
         
         #selections
-                            
-        twoMuSel = noSel.refine("nmu", cut = [op.rng_len(identifiedMuons) > 1]) #number of muons selection
-            
-        sel1 = twoMuSel.refine("mumu", cut = [op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ]) # Oppositely charged MuMu selection
+
+        sel1 = noSel.refine("nmumu", cut = [op.AND((op.rng_len(identifiedMuons) > 1), (op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ))]) # Oppositely charged MuMu selection
 
         sel2 = sel1.refine("InvM", cut = [op.NOT(op.in_range(76, InvMassMuMU, 106))]) # Invariant mass selection
             
@@ -107,11 +105,11 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
                     
         #plots
             
-        #sel0
+        #noSel
             
         plots.append(Plot.make1D("nMuNoSel", op.rng_len(t.muon), noSel, EquidistantBinning(15, 0., 15.), title="nMuons"))
         
-        plots.append(Plot.make1D("nJetsNoSel", op.rng_len(cleanedGoodJets), noSel, EquidistantBinning(10, 0., 10.), title="nCleanedGoodJets"))
+        plots.append(Plot.make1D("nJetsNoSel", op.rng_len(cleanedGoodJets), noSel, EquidistantBinning(10, 0., 10.), title="nJets"))
         
         #plots.append(Plot.make1D("InvMassTwoMuonsNoSel", InvMassMuMU, noSel, EquidistantBinning(30, 0, 300), title="m(ll)")) # not worked
         
@@ -123,9 +121,9 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             
         plots.append(Plot.make1D("nMuSel1", op.rng_len(identifiedMuons), sel1, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))
                     
-        plots.append(Plot.make1D("LeadingMuonPTsel1", muons[0].pt, sel1, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
+        plots.append(Plot.make1D("LeadingMuonPTSel1", muons[0].pt, sel1, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
             
-        plots.append(Plot.make1D("SubLeadingMuonPTsel1", muons[1].pt, sel1, EquidistantBinning(30, 0., 250.), title="SubLeading Muon PT"))
+        plots.append(Plot.make1D("SubLeadingMuonPTSel1", muons[1].pt, sel1, EquidistantBinning(30, 0., 250.), title="SubLeading Muon PT"))
 
         plots.append(Plot.make1D("LeadingMuonEtaSel1", muons[0].eta, sel1, EquidistantBinning(30, -3, 3), title=" Leading Muon eta"))
             
@@ -133,51 +131,59 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             
         plots.append(Plot.make1D("InvMassTwoMuonsSel1", InvMassMuMU, sel1, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
         
-        plots.append(Plot.make1D("nJetsSel1", op.rng_len(cleanedGoodJets), sel1, EquidistantBinning(10, 0., 10.), title="nCleanedGoodJets"))
+        plots.append(Plot.make1D("nJetsSel1", op.rng_len(cleanedGoodJets), sel1, EquidistantBinning(10, 0., 10.), title="nJets"))
         
         plots.append(Plot.make1D("METptSel1", t.metpf[0].pt, sel1, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
 
                             
         #sel2
+
+        plots.append(Plot.make1D("nJetsSel2", op.rng_len(cleanedGoodJets), sel2, EquidistantBinning(10, 0., 10.), title="nJets"))
+
+        # plots.append(Plot.make1D("LeadingJetPTSel2", cleanedGoodJets[0].pt, sel2, EquidistantBinning(50, 0., 350.), title="Leading jet PT"))
+        
+        # plots.append(Plot.make1D("SubLeadingJetPTSel2", cleanedGoodJets[1].pt, sel2, EquidistantBinning(50, 0., 350.), title="SubLeading jet PT"))
+            
+        # plots.append(Plot.make1D("LeadingJetEtaSel2", cleanedGoodJets[0].eta, sel2, EquidistantBinning(30, -3, 3), title="Leading jet Eta"))
+            
+        # plots.append(Plot.make1D("SubLeadingJetEtaSel2", cleanedGoodJets[1].eta, sel2, EquidistantBinning(30, -3, 3), title="SubLeading jet Eta"))
             
         plots.append(Plot.make1D("InvMassTwoMuonsSel2", InvMassMuMU, sel2, EquidistantBinning(20, 20., 300.), title="m(ll) < 76 & m(ll) > 106 GeV"))
-                    
-        plots.append(Plot.make1D("LeadingMuonPTsel2", muons[0].pt, sel2, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
+        
+        plots.append(Plot.make1D("LeadingMuonPTSel2", muons[0].pt, sel2, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
 
-        plots.append(Plot.make1D("SubLeadingMuonPTsel2", muons[1].pt, sel2, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
+        plots.append(Plot.make1D("SubLeadingMuonPTSel2", muons[1].pt, sel2, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
 
         plots.append(Plot.make1D("LeadingMuonEtaSel2", muons[0].eta, sel2, EquidistantBinning(30, -3, 3), title=" Leading Muon Eta"))
             
         plots.append(Plot.make1D("SubLeadingMuonEtaSel2", muons[1].eta, sel2, EquidistantBinning(30, -3, 3), title=" SubLeading Muon Eta"))
             
         plots.append(Plot.make1D("nMuSel2", op.rng_len(identifiedMuons), sel2, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))
-        
-        plots.append(Plot.make1D("nJetsSel2", op.rng_len(cleanedGoodJets), sel2, EquidistantBinning(10, 0., 10.), title="nCleanedGoodJets"))
-        
+                
         plots.append(Plot.make1D("METptSel2", t.metpf[0].pt, sel2, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
             
         #sel3
             
-        plots.append(Plot.make1D("nJetsSel3", op.rng_len(cleanedGoodJets), sel3, EquidistantBinning(10, 0., 10.), title="nCleanedGoodJets > 2"))
+        plots.append(Plot.make1D("nJetsSel3", op.rng_len(cleanedGoodJets), sel3, EquidistantBinning(10, 0., 10.), title="nJets > 2"))
 
-        plots.append(Plot.make1D("LeadingJetPTsel3", cleanedGoodJets[0].pt, sel3, EquidistantBinning(50, 0., 350.), title="Leading jet PT"))
+        plots.append(Plot.make1D("LeadingJetPTSel3", cleanedGoodJets[0].pt, sel3, EquidistantBinning(50, 0., 350.), title="Leading jet PT"))
             
-        plots.append(Plot.make1D("SubLeadingJetPTsel3", cleanedGoodJets[1].pt, sel3, EquidistantBinning(50, 0., 350.), title="SubLeading jet PT"))
+        plots.append(Plot.make1D("SubLeadingJetPTSel3", cleanedGoodJets[1].pt, sel3, EquidistantBinning(50, 0., 350.), title="SubLeading jet PT"))
             
         plots.append(Plot.make1D("LeadingJetEtaSel3", cleanedGoodJets[0].eta, sel3, EquidistantBinning(30, -3, 3), title="Leading jet Eta"))
             
         plots.append(Plot.make1D("SubLeadingJetEtaSel3", cleanedGoodJets[1].eta, sel3, EquidistantBinning(30, -3, 3), title="SubLeading jet Eta"))
+
+        plots.append(Plot.make1D("nMuSel3", op.rng_len(identifiedMuons), sel3, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))    
+        
+        plots.append(Plot.make1D("LeadingMuonPTSel3", muons[0].pt, sel3, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
             
-        plots.append(Plot.make1D("LeadingMuonPTsel3", muons[0].pt, sel3, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
-            
-        plots.append(Plot.make1D("SubLeadingMuonPTsel3", muons[1].pt, sel3, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
+        plots.append(Plot.make1D("SubLeadingMuonPTSel3", muons[1].pt, sel3, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
 
         plots.append(Plot.make1D("LeadingMuonEtaSel3", muons[0].eta, sel3, EquidistantBinning(30, -3, 3), title=" Leading Muon Eta"))
             
         plots.append(Plot.make1D("SubLeadingMuonEtaSel3", muons[1].eta, sel3, EquidistantBinning(30, -3, 3), title=" SubLeading Muon Eta"))
-        
-        plots.append(Plot.make1D("nMuSel3", op.rng_len(identifiedMuons), sel3, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))
-        
+                
         plots.append(Plot.make1D("InvMassTwoMuonsSel3", InvMassMuMU, sel3, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
         
         plots.append(Plot.make1D("METptSel3", t.metpf[0].pt, sel3, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
@@ -186,54 +192,52 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
              
         plots.append(Plot.make1D("nJetsSel4", op.rng_len(cleanedGoodJets), sel4, EquidistantBinning(10, 0, 10), title="B-tagged jets"))
             
-        plots.append(Plot.make1D("LeadingJetPTsel4", cleanedGoodJets[0].pt, sel4, EquidistantBinning(50, 0., 250.), title="Leading b-tagged jet PT"))
+        plots.append(Plot.make1D("LeadingJetPTSel4", cleanedGoodJets[0].pt, sel4, EquidistantBinning(50, 0., 250.), title="Leading b-tagged jet PT"))
             
-        plots.append(Plot.make1D("SubLeadingJetPTsel4", cleanedGoodJets[1].pt, sel4, EquidistantBinning(50, 0., 250.), title="SubLeading b-tagged jet PT"))
+        plots.append(Plot.make1D("SubLeadingJetPTSel4", cleanedGoodJets[1].pt, sel4, EquidistantBinning(50, 0., 250.), title="SubLeading b-tagged jet PT"))
             
         plots.append(Plot.make1D("LeadingJetEtaSel4", cleanedGoodJets[0].eta, sel4, EquidistantBinning(30, -3, 3.), title="Leading b-tagged jet Eta"))
             
         plots.append(Plot.make1D("SubLeadingJetEtaSel4", cleanedGoodJets[1].eta, sel4, EquidistantBinning(30, -3, 3.), title="SubLeading b-tagged jet Eta"))
         
         plots.append(Plot.make1D("nMuSel4", op.rng_len(identifiedMuons), sel4, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))
+                
+        plots.append(Plot.make1D("LeadingMuonPTSel4", muons[0].pt, sel4, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
         
-        plots.append(Plot.make1D("InvMassTwoMuonsSel4", InvMassMuMU, sel4, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
-        
-        plots.append(Plot.make1D("LeadingMuonPTsel4", muons[0].pt, sel4, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
-        
-        plots.append(Plot.make1D("SubLeadingMuonPTsel4", muons[1].pt, sel4, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
+        plots.append(Plot.make1D("SubLeadingMuonPTSel4", muons[1].pt, sel4, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
         
         plots.append(Plot.make1D("LeadingMuonEtaSel4", muons[0].eta, sel4, EquidistantBinning(30, -3, 3), title=" Leading Muon Eta"))
         
         plots.append(Plot.make1D("SubLeadingMuonEtaSel4", muons[1].eta, sel4, EquidistantBinning(30, -3, 3), title=" SubLeading Muon Eta"))
+
+        plots.append(Plot.make1D("InvMassTwoMuonsSel4", InvMassMuMU, sel4, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
         
         plots.append(Plot.make1D("METptSel4", t.metpf[0].pt, sel4, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
 
         #sel5
-            
-        plots.append(Plot.make1D("METptsel5", t.metpf[0].pt, sel5, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
-        
+                
         plots.append(Plot.make1D("nJetsSel5", op.rng_len(cleanedGoodJets), sel5, EquidistantBinning(10, 0, 10), title="B-tagged jets"))
             
-        plots.append(Plot.make1D("LeadingJetPTsel5", cleanedGoodJets[0].pt, sel5, EquidistantBinning(50, 0., 250.), title="Leading b-tagged jet PT"))
+        plots.append(Plot.make1D("LeadingJetPTSel5", cleanedGoodJets[0].pt, sel5, EquidistantBinning(50, 0., 250.), title="Leading b-tagged jet PT"))
             
-        plots.append(Plot.make1D("SubLeadingJetPTsel5", cleanedGoodJets[1].pt, sel5, EquidistantBinning(50, 0., 250.), title="SubLeading b-tagged jet PT"))
+        plots.append(Plot.make1D("SubLeadingJetPTSel5", cleanedGoodJets[1].pt, sel5, EquidistantBinning(50, 0., 250.), title="SubLeading b-tagged jet PT"))
             
         plots.append(Plot.make1D("LeadingJetEtaSel5", cleanedGoodJets[0].eta, sel5, EquidistantBinning(30, -3, 3.), title="Leading b-tagged jet Eta"))
             
         plots.append(Plot.make1D("SubLeadingJetEtaSel5", cleanedGoodJets[1].eta, sel5, EquidistantBinning(30, -3, 3.), title="SubLeading b-tagged jet Eta"))
         
         plots.append(Plot.make1D("nMuSel5", op.rng_len(identifiedMuons), sel5, EquidistantBinning(10, 0., 10.), title="nMuMUbar PT > 20, |eta| < 2.5"))
+                
+        plots.append(Plot.make1D("LeadingMuonPTSel5", muons[0].pt, sel5, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
         
-        plots.append(Plot.make1D("InvMassTwoMuonsSel5", InvMassMuMU, sel5, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
-        
-        plots.append(Plot.make1D("LeadingMuonPTsel5", muons[0].pt, sel5, EquidistantBinning(30, 0., 250.), title=" Leading Muon PT"))
-        
-        plots.append(Plot.make1D("SubLeadingMuonPTsel5", muons[1].pt, sel5, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
+        plots.append(Plot.make1D("SubLeadingMuonPTSel5", muons[1].pt, sel5, EquidistantBinning(30, 0., 200.), title=" SubLeading Muon PT"))
         
         plots.append(Plot.make1D("LeadingMuonEtaSel5", muons[0].eta, sel5, EquidistantBinning(30, -3, 3), title=" Leading Muon Eta"))
         
         plots.append(Plot.make1D("SubLeadingMuonEtaSel5", muons[1].eta, sel5, EquidistantBinning(30, -3, 3), title=" SubLeading Muon Eta"))
-        
+
+        plots.append(Plot.make1D("InvMassTwoMuonsSel5", InvMassMuMU, sel5, EquidistantBinning(30, 0, 300), title="m(ll) < 76 & m(ll) > 106 GeV"))
+
         plots.append(Plot.make1D("METptSel5", t.metpf[0].pt, sel5, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
 
         # Efficiency Report on terminal and the .tex output

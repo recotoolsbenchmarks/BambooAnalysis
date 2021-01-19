@@ -298,14 +298,14 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
             cpp_code += f"""
             cutflow_histo_FS->Fill({i}.,{sel_list_array[0,i]});"""
         cpp_code += """
-            cutflow_histo_FS->SetLineColor(4);
+            cutflow_histo_FS->SetLineColor(2);
             cutflow_histo_FS->SetLineWidth(3);
             """
         for i in range(len(colEntries_forEff)):
             cpp_code += f"""
             cutflow_histo_Delphes->Fill({i}.,{sel_list_array[1,i]});"""
         cpp_code  += """
-            cutflow_histo_Delphes->SetLineColor(2);
+            cutflow_histo_Delphes->SetLineColor(4);
             cutflow_histo_Delphes->SetLineWidth(3);
 
             cutflow_histo_FS->Draw("HIST");

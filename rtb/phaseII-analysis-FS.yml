@@ -3,21 +3,21 @@ eras:
   HL-LHC:
     luminosity: 3000000 # 1/pb
 samples:
-  FullsimFlat_110X-TT_TuneCP5_14TeV_200PU:
+  FullsimFlat_111X-TT_TuneCP5_14TeV_200PU:
     era: HL-LHC
     type: MC
-    group: TT_FullsimFlat110X
+    group: TT_FullsimFlat111X
     files:
-      - /eos/cms/store/group/upgrade/RTB/FullsimFlat_110X/TT_TuneCP5_14TeV_200PU.root
+      - /eos/cms/store/group/upgrade/RTB/FullsimFlat_111X/TT_TuneCP5_14TeV-powheg-pythia8_HLTTDRSummer20_200PU.root
     generated-events: nEvents
     cross-section: 950
     
-  FullsimFlat_110X-DYToLL_M-50_14TeV_HLTTDRWinter20_200PU:
+  FullsimFlat_111X-DYToLL_M-50_14TeV_HLTTDRSummer20:
     era: HL-LHC
     type: MC
-    group: DY_FullsimFlat110X
+    group: DY_FullsimFlat111X
     files:
-      - /eos/cms/store/group/upgrade/RTB/FullsimFlat_110X/DYToLL_M-50_14TeV_HLTTDRWinter20_200PU.root
+      - /eos/cms/store/group/upgrade/RTB/FullsimFlat_111X/DYToLL_M-50_TuneCP5_14TeV-pythia8_HLTTDRSummer20_LMT012_hadd.root
     generated-events: nEvents
     cross-section: 5620
 
@@ -35,9 +35,9 @@ plotIt:
   legend:
     position: [0.7, 0.8, 0.91, 0.91]
   groups:
-    TT_FullsimFlat110X:
-      legend: TT FullsimFlat110X
+    TT_FullsimFlat111X:
+      legend: TT FullsimFlat111X
       fill-color: "#00A0B0" # greenblue
-    DY_FullsimFlat110X:
-      legend: DY FullsimFlat110X
+    DY_FullsimFlat111X:
+      legend: DY FullsimFlat111X
       fill-color: "#3DED42" # lightgreen

@@ -47,7 +47,7 @@ class CMSPhase2SimHistoModule(CMSPhase2SimModule, HistogramsModule):
 ################################
 
 class CMSPhase2SimTest(CMSPhase2SimHistoModule):
-    """ Example plotter module for Phase2 flat trees """
+    """ Plotter module for Phase2 flat trees """
     def definePlots(self, t, noSel, sample=None, sampleCfg=None):
         from bamboo.plots import Plot, CutFlowReport, EquidistantBinning, VariableBinning
         from bamboo import treefunctions as op
@@ -67,18 +67,19 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         cleanedElectrons = op.select(electrons, lambda el : op.NOT(
         op.rng_any(muons, lambda mu : op.deltaR(el.p4, mu.p4) < 0.3 )
         ))
+
+        # we are taking the second isopass to be on which is equal to the medium working point
+        isolatedElectrons = op.select(cleanedElectrons, lambda el : el.isopass & (1<<2) )
         
-        isolatedElectrons = op.select(cleanedElectrons, lambda ce : ce.isopass & (1<<2) )
-        
-        identifiedElectrons = op.select(isolatedElectrons, lambda ie : ie.idpass & (1<<2) )
+        identifiedElectrons = op.select(isolatedElectrons, lambda el : el.idpass & (1<<2) )
         
         cleanedMuons = op.select(muons, lambda mu : op.NOT(
         op.rng_any(electrons, lambda el : op.deltaR(mu.p4, el.p4) < 0.3 )
         ))
         
-        isolatedMuons = op.select(cleanedMuons, lambda cm : cm.isopass & (1<<2) )
+        isolatedMuons = op.select(cleanedMuons, lambda mu : mu.isopass & (1<<2) )
         
-        identifiedMuons = op.select(isolatedMuons, lambda im : im.idpass & (1<<2) )
+        identifiedMuons = op.select(isolatedMuons, lambda mu : mu.idpass & (1<<2) )
         
         InvMassMuMU = op.invariant_mass(identifiedMuons[0].p4, identifiedMuons[1].p4 )
         
@@ -86,36 +87,51 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         op.NOT(op.rng_any(identifiedElectrons, lambda el : op.deltaR(el.p4, j.p4) < 0.3) ),
         op.NOT(op.rng_any(identifiedMuons, lambda mu : op.deltaR(mu.p4, j.p4) < 0.3) )
         ))
-        
+
         cleanedGoodJets = op.select(cleanedJets, lambda j : op.AND(
         j.pt > 30, op.abs(j.eta) < 2.5
         ))
-        
+
+        btaggedJets = op.select(cleanedGoodJets, lambda j : j.btag & (1<<2))
+
+        met = op.select(t.metpf, lambda met : met.pt > 40)
+
         #selections
 
-        sel1 = noSel.refine("nmumu", cut = [op.AND((op.rng_len(identifiedMuons) > 1), (op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ))]) # Oppositely charged MuMu selection
+        #selection1 : Oppositely charged MuMu selection
+        sel1 = noSel.refine("nmumu", cut = [op.AND(
+            (op.rng_len(identifiedMuons) > 1), (op.product(identifiedMuons[0].charge, identifiedMuons[1].charge) < 0 ))]) 
 
-        sel2 = sel1.refine("InvM", cut = [op.NOT(op.in_range(76, InvMassMuMU, 106))]) # Invariant mass selection
-            
-        sel3 = sel2.refine("njet", cut = [op.rng_len(cleanedGoodJets) > 1]) # two jets selection
-            
-        sel4 = sel3.refine("btag", cut = [op.OR(cleanedGoodJets[0].btag & (1<<2), cleanedGoodJets[1].btag & (1<<2))]) # at least 1 among two leading jets is b-tagged, we are taking the second isopass to be on which is equal to the medium b-tag working point
-            
-        sel5 = sel4.refine("MET", cut = [t.metpf[0].pt > 40]) # MET > 40 GeV, here the met pt cut requires indexing and t.met[0].pt is equivalent to t.met.pt
-                    
+        #selection2 : Invariant mass selection
+        sel2 = sel1.refine("InvM", cut = [op.NOT(op.in_range(76, InvMassMuMU, 106))])
+
+        #selection3 : two jets selection
+        sel3 = sel2.refine("njet", cut = [op.rng_len(cleanedGoodJets) > 1])
+    
+        #selection4 : at least 1 among two leading jets is b-tagged
+        sel4 = sel3.refine("btag", cut = [op.OR(
+            cleanedGoodJets[0].btag & (1<<2), cleanedGoodJets[1].btag & (1<<2))])
+
+        #selection5 : MET > 40 GeV
+        sel5 = sel4.refine("MET", cut = [op.rng_len(met) > 0])
+
         #plots
             
             #noSel
         plots.append(Plot.make1D("nJetsNoSel", op.rng_len(cleanedGoodJets), noSel, EquidistantBinning(10, 0., 10.), title="nJets"))
-            
+
+        plots.append(Plot.make1D("nbtaggedJetsNoSel", op.rng_len(btaggedJets), noSel, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
+  
         plots.append(Plot.make1D("nMuNoSel", op.rng_len(identifiedMuons), noSel, EquidistantBinning(15, 0., 15.), title="nMuons"))
         
         plots.append(Plot.make1D("METptNoSel", t.metpf[0].pt, noSel, EquidistantBinning(50, 0., 250), title="MET_PT"))
         
             #sel1
         
-        plots.append(Plot.make1D("nJetsSel1", op.rng_len(cleanedGoodJets), sel1, EquidistantBinning(10, 0., 10.), title="nJets"))  
-            
+        plots.append(Plot.make1D("nJetsSel1", op.rng_len(cleanedGoodJets), sel1, EquidistantBinning(10, 0., 10.), title="nJets"))
+
+        plots.append(Plot.make1D("nbtaggedJetsSel1", op.rng_len(btaggedJets), sel1, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
+
         plots.append(Plot.make1D("nMuSel1", op.rng_len(identifiedMuons), sel1, EquidistantBinning(10, 0., 10.), title="nMuons"))
 
         plots.append(Plot.make1D("InvMassTwoMuonsSel1", InvMassMuMU, sel1, EquidistantBinning(30, 0, 300), title="m(ll)"))
@@ -134,6 +150,8 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
 
         plots.append(Plot.make1D("nJetsSel2", op.rng_len(cleanedGoodJets), sel2, EquidistantBinning(10, 0., 10.), title="nJets"))
 
+        plots.append(Plot.make1D("nbtaggedJetsSel2", op.rng_len(btaggedJets), sel2, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
+
         plots.append(Plot.make1D("nMuSel2", op.rng_len(identifiedMuons), sel2, EquidistantBinning(10, 0., 10.), title="nMuons"))
 
         plots.append(Plot.make1D("InvMassTwoMuonsSel2", InvMassMuMU, sel2, EquidistantBinning(20, 20., 300.), title="m(ll)"))
@@ -151,6 +169,8 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             #sel3
             
         plots.append(Plot.make1D("nJetsSel3", op.rng_len(cleanedGoodJets), sel3, EquidistantBinning(10, 0., 10.), title="nJets"))
+
+        plots.append(Plot.make1D("nbtaggedJetsSel3", op.rng_len(btaggedJets), sel3, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
 
         plots.append(Plot.make1D("LeadingJetPTSel3", cleanedGoodJets[0].pt, sel3, EquidistantBinning(50, 0., 350.), title="Leading jet PT"))
             
@@ -177,7 +197,9 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             #sel4
              
         plots.append(Plot.make1D("nJetsSel4", op.rng_len(cleanedGoodJets), sel4, EquidistantBinning(10, 0, 10), title="nJets"))
-            
+
+        plots.append(Plot.make1D("nbtaggedJetsSel4", op.rng_len(btaggedJets), sel4, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
+
         plots.append(Plot.make1D("LeadingJetPTSel4", cleanedGoodJets[0].pt, sel4, EquidistantBinning(50, 0., 250.), title="Leading jet PT"))
             
         plots.append(Plot.make1D("SubLeadingJetPTSel4", cleanedGoodJets[1].pt, sel4, EquidistantBinning(50, 0., 250.), title="SubLeading jet PT"))
@@ -203,7 +225,9 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             #sel5
                 
         plots.append(Plot.make1D("nJetsSel5", op.rng_len(cleanedGoodJets), sel5, EquidistantBinning(10, 0, 10), title="nJets"))
-            
+
+        plots.append(Plot.make1D("nbtaggedJetsSel5", op.rng_len(btaggedJets), sel5, EquidistantBinning(10, 0., 10.), title="nbtaggedJets"))
+
         plots.append(Plot.make1D("LeadingJetPTSel5", cleanedGoodJets[0].pt, sel5, EquidistantBinning(50, 0., 250.), title="Leading jet PT"))
             
         plots.append(Plot.make1D("SubLeadingJetPTSel5", cleanedGoodJets[1].pt, sel5, EquidistantBinning(50, 0., 250.), title="SubLeading jet PT"))

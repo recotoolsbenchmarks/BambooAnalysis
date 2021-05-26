@@ -1,4 +1,4 @@
-""" Example CMS Phase2 simulation analysis module """
+"""CMS Phase2 simulation analysis module """
 
 #############################################
 ##                                         ##
@@ -94,7 +94,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
 
         btaggedJets = op.select(cleanedGoodJets, lambda j : j.btag & (1<<2))
 
-        met = op.select(t.metpf, lambda met : met.pt > 40)
+        met = op.select(t.metpuppi)
 
         #selections
 
@@ -113,7 +113,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             cleanedGoodJets[0].btag & (1<<2), cleanedGoodJets[1].btag & (1<<2))])
 
         #selection5 : MET > 40 GeV
-        sel5 = sel4.refine("MET", cut = [op.rng_len(met) > 0])
+        sel5 = sel4.refine("MET", cut = [met[0].pt > 40])
 
         #plots
             
@@ -124,7 +124,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
   
         plots.append(Plot.make1D("nMuNoSel", op.rng_len(identifiedMuons), noSel, EquidistantBinning(15, 0., 15.), title="nMuons"))
         
-        plots.append(Plot.make1D("METptNoSel", t.metpf[0].pt, noSel, EquidistantBinning(50, 0., 250), title="MET_PT"))
+        plots.append(Plot.make1D("METptNoSel", met[0].pt, noSel, EquidistantBinning(50, 0., 250), title="MET_PT"))
         
             #sel1
         
@@ -144,7 +144,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             
         plots.append(Plot.make1D("SubLeadingMuonEtaSel1", muons[1].eta, sel1, EquidistantBinning(30, -3, 3), title="SubLeading Muon eta"))
         
-        plots.append(Plot.make1D("METptSel1", t.metpf[0].pt, sel1, EquidistantBinning(50, 0., 250), title="MET_PT"))
+        plots.append(Plot.make1D("METptSel1", met[0].pt, sel1, EquidistantBinning(50, 0., 250), title="MET_PT"))
                             
             #sel2
 
@@ -164,7 +164,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
             
         plots.append(Plot.make1D("SubLeadingMuonEtaSel2", muons[1].eta, sel2, EquidistantBinning(30, -3, 3), title=" SubLeading Muon Eta"))
 
-        plots.append(Plot.make1D("METptSel2", t.metpf[0].pt, sel2, EquidistantBinning(50, 0., 250), title="MET_PT"))
+        plots.append(Plot.make1D("METptSel2", met[0].pt, sel2, EquidistantBinning(50, 0., 250), title="MET_PT"))
                         
             #sel3
             
@@ -192,7 +192,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
                 
         plots.append(Plot.make1D("InvMassTwoMuonsSel3", InvMassMuMU, sel3, EquidistantBinning(30, 0, 300), title="m(ll)"))
         
-        plots.append(Plot.make1D("METptSel3", t.metpf[0].pt, sel3, EquidistantBinning(50, 0., 250), title="MET_PT"))
+        plots.append(Plot.make1D("METptSel3", met[0].pt, sel3, EquidistantBinning(50, 0., 250), title="MET_PT"))
         
             #sel4
              
@@ -220,7 +220,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
 
         plots.append(Plot.make1D("InvMassTwoMuonsSel4", InvMassMuMU, sel4, EquidistantBinning(30, 0, 300), title="m(ll)"))
         
-        plots.append(Plot.make1D("METptSel4", t.metpf[0].pt, sel4, EquidistantBinning(50, 0., 250), title="MET_PT"))
+        plots.append(Plot.make1D("METptSel4", met[0].pt, sel4, EquidistantBinning(50, 0., 250), title="MET_PT"))
 
             #sel5
                 
@@ -248,7 +248,7 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
 
         plots.append(Plot.make1D("InvMassTwoMuonsSel5", InvMassMuMU, sel5, EquidistantBinning(30, 0, 300), title="m(ll)"))
 
-        plots.append(Plot.make1D("METptSel5", t.metpf[0].pt, sel5, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
+        plots.append(Plot.make1D("METptSel5", met[0].pt, sel5, EquidistantBinning(50, 0., 250), title="MET_PT > 40"))
 
         # Efficiency Report on terminal and the .tex output
 

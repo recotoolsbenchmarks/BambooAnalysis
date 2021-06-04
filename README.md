@@ -81,4 +81,4 @@ pdflatex yields_HL-LHC.tex
 
 ### Outputs
 
-See examples: [http://aguzel.web.cern.ch/aguzel/rtb/](http://aguzel.web.cern.ch/aguzel/rtb/)
+See examples: [http://aguzel.web.cern.ch/aguzel/rtb/bamboo/](http://aguzel.web.cern.ch/aguzel/rtb/bamboo/)

@@ -386,6 +386,24 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         
         cleanedGoodJets30_3toInf = op.select(cleanedJets, lambda j: op.AND(
             j.pt > 30, op.abs(j.eta) > 3))
+        
+        cleanedGoodJets50_0to1_5 = op.select(
+            cleanedJets, lambda j: op.AND(j.pt > 50, op.abs(j.eta) < 1.5))
+
+        cleanedGoodJets50_1_5to3 = op.select(cleanedJets, lambda j: op.AND(
+            j.pt > 50, op.NOT(op.AND(op.abs(j.eta) < 1.5, op.abs(j.eta) > 3))))
+
+        cleanedGoodJets50_3toInf = op.select(cleanedJets, lambda j: op.AND(
+            j.pt > 50, op.abs(j.eta) > 3))
+
+        cleanedGoodJets100_0to1_5 = op.select(
+            cleanedJets, lambda j: op.AND(j.pt > 100, op.abs(j.eta) < 1.5))
+
+        cleanedGoodJets100_1_5to3 = op.select(cleanedJets, lambda j: op.AND(
+            j.pt > 100, op.NOT(op.AND(op.abs(j.eta) < 1.5, op.abs(j.eta) > 3))))
+
+        cleanedGoodJets100_3toInf = op.select(cleanedJets, lambda j: op.AND(
+            j.pt > 100, op.abs(j.eta) > 3))
 
         cleanedGoodJets30 = op.select(cleanedJets, lambda j: j.pt > 30)
 
@@ -401,33 +419,103 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
 
         sel1_1 = noSel.refine(
             "nJet30_1", cut=[op.rng_len(cleanedGoodJets30) > 0])
-        # sel1_1_1 = noSel.refine(
-        #     "nJet30_1_1", cut=[op.rng_len(cleanedGoodJets30_0to1_5) > 0])
+        sel1_1_1 = noSel.refine(
+            "nJet30_1_1", cut=[op.rng_len(cleanedGoodJets30_0to1_5) > 0])
+        sel1_1_2 = noSel.refine(
+            "nJet30_1_2", cut=[op.rng_len(cleanedGoodJets30_1_5to3) > 0])
+        sel1_1_3 = noSel.refine(
+            "nJet30_1_3", cut=[op.rng_len(cleanedGoodJets30_3toInf) > 0])
         sel2_1 = noSel.refine(
             "nJet50_1", cut=[op.rng_len(cleanedGoodJets50) > 0])
+        sel1_2_1 = noSel.refine(
+            "nJet50_1_1", cut=[op.rng_len(cleanedGoodJets50_0to1_5) > 0])
+        sel1_2_2 = noSel.refine(
+            "nJet50_1_2", cut=[op.rng_len(cleanedGoodJets50_1_5to3) > 0])
+        sel1_2_3 = noSel.refine(
+            "nJet50_1_3", cut=[op.rng_len(cleanedGoodJets50_3toInf) > 0])
         sel3_1 = noSel.refine(
             "nJet100_1", cut=[op.rng_len(cleanedGoodJets100) > 0])
+        sel1_3_1 = noSel.refine(
+            "nJet100_1_1", cut=[op.rng_len(cleanedGoodJets100_0to1_5) > 0])
+        sel1_3_2 = noSel.refine(
+            "nJet100_1_2", cut=[op.rng_len(cleanedGoodJets100_1_5to3) > 0])
+        sel1_3_3 = noSel.refine(
+            "nJet100_1_3", cut=[op.rng_len(cleanedGoodJets100_3toInf) > 0])
 
         sel1_2 = noSel.refine(
             "nJet30_2", cut=[op.rng_len(cleanedGoodJets30) > 1])
+        sel2_1_1 = noSel.refine(
+            "nJet30_2_1", cut=[op.rng_len(cleanedGoodJets30_0to1_5) > 1])
+        sel2_1_2 = noSel.refine(
+            "nJet30_2_2", cut=[op.rng_len(cleanedGoodJets30_1_5to3) > 1])
+        sel2_1_3 = noSel.refine(
+            "nJet30_2_3", cut=[op.rng_len(cleanedGoodJets30_3toInf) > 1])
         sel2_2 = noSel.refine(
             "nJet50_2", cut=[op.rng_len(cleanedGoodJets50) > 1])
+        sel2_2_1 = noSel.refine(
+            "nJet50_2_1", cut=[op.rng_len(cleanedGoodJets50_0to1_5) > 1])
+        sel2_2_2 = noSel.refine(
+            "nJet50_2_2", cut=[op.rng_len(cleanedGoodJets50_1_5to3) > 1])
+        sel2_2_3 = noSel.refine(
+            "nJet50_2_3", cut=[op.rng_len(cleanedGoodJets50_3toInf) > 1])
         sel3_2 = noSel.refine(
             "nJet100_2", cut=[op.rng_len(cleanedGoodJets100) > 1])
+        sel2_3_1 = noSel.refine(
+            "nJet100_2_1", cut=[op.rng_len(cleanedGoodJets100_0to1_5) > 1])
+        sel2_3_2 = noSel.refine(
+            "nJet100_2_2", cut=[op.rng_len(cleanedGoodJets100_1_5to3) > 1])
+        sel2_3_3 = noSel.refine(
+            "nJet100_2_3", cut=[op.rng_len(cleanedGoodJets100_3toInf) > 1])
 
         sel1_3 = noSel.refine(
             "nJet30_3", cut=[op.rng_len(cleanedGoodJets30) > 2])
+        sel3_1_1 = noSel.refine(
+            "nJet30_3_1", cut=[op.rng_len(cleanedGoodJets30_0to1_5) > 2])
+        sel3_1_2 = noSel.refine(
+            "nJet30_3_2", cut=[op.rng_len(cleanedGoodJets30_1_5to3) > 2])
+        sel3_1_3 = noSel.refine(
+            "nJet30_3_3", cut=[op.rng_len(cleanedGoodJets30_3toInf) > 2])
         sel2_3 = noSel.refine(
             "nJet50_3", cut=[op.rng_len(cleanedGoodJets50) > 2])
+        sel3_2_1 = noSel.refine(
+            "nJet50_3_1", cut=[op.rng_len(cleanedGoodJets50_0to1_5) > 2])
+        sel3_2_2 = noSel.refine(
+            "nJet50_3_2", cut=[op.rng_len(cleanedGoodJets50_1_5to3) > 2])
+        sel3_2_3 = noSel.refine(
+            "nJet50_3_3", cut=[op.rng_len(cleanedGoodJets50_3toInf) > 2])
         sel3_3 = noSel.refine(
             "nJet100_3", cut=[op.rng_len(cleanedGoodJets100) > 2])
+        sel3_3_1 = noSel.refine(
+            "nJet100_3_1", cut=[op.rng_len(cleanedGoodJets100_0to1_5) > 2])
+        sel3_3_2 = noSel.refine(
+            "nJet100_3_2", cut=[op.rng_len(cleanedGoodJets100_1_5to3) > 2])
+        sel3_3_3 = noSel.refine(
+            "nJet100_3_3", cut=[op.rng_len(cleanedGoodJets100_3toInf) > 2])
         
         sel1_4 = noSel.refine(
             "nJet30_4", cut=[op.rng_len(cleanedGoodJets30) > 3])
+        sel4_1_1 = noSel.refine(
+            "nJet30_4_1", cut=[op.rng_len(cleanedGoodJets30_0to1_5) > 3])
+        sel4_1_2 = noSel.refine(
+            "nJet30_4_2", cut=[op.rng_len(cleanedGoodJets30_1_5to3) > 3])
+        sel4_1_3 = noSel.refine(
+            "nJet30_4_3", cut=[op.rng_len(cleanedGoodJets30_3toInf) > 3])
         sel2_4 = noSel.refine(
             "nJet50_4", cut=[op.rng_len(cleanedGoodJets50) > 3])
+        sel4_2_1 = noSel.refine(
+            "nJet50_4_1", cut=[op.rng_len(cleanedGoodJets50_0to1_5) > 3])
+        sel4_2_2 = noSel.refine(
+            "nJet50_4_2", cut=[op.rng_len(cleanedGoodJets50_1_5to3) > 3])
+        sel4_2_3 = noSel.refine(
+            "nJet50_4_3", cut=[op.rng_len(cleanedGoodJets50_3toInf) > 3])
         sel3_4 = noSel.refine(
             "nJet100_4", cut=[op.rng_len(cleanedGoodJets100) > 3])
+        sel4_3_1 = noSel.refine(
+            "nJet100_4_1", cut=[op.rng_len(cleanedGoodJets100_0to1_5) > 3])
+        sel4_3_2 = noSel.refine(
+            "nJet100_4_2", cut=[op.rng_len(cleanedGoodJets100_1_5to3) > 3])
+        sel4_3_3 = noSel.refine(
+            "nJet100_4_3", cut=[op.rng_len(cleanedGoodJets100_3toInf) > 3])
         
         # plots
 
@@ -436,105 +524,204 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         plots.append(Plot.make1D("nJets_jetPT_30GeV", op.rng_len(
             cleanedGoodJets30), noSel, EquidistantBinning(15, 0., 15.), title="nJets (jet p_{T} > 30GeV)"))
 
-        plots.append(Plot.make1D("Jet1_pt_jetPT_30GeV", cleanedGoodJets30[0].pt, sel1_1, EquidistantBinning(
-            30, 0., 4000.), title="Jet1 PT > 30"))
+        plots.append(Plot.make1D("Jet1_pT_jetPT_30GeV", cleanedGoodJets30[0].pt, sel1_1, EquidistantBinning(
+            50, 0., 4000.), title="Jet1_pT (jet p_{T} > 30GeV)"))
 
         plots.append(Plot.make1D("Jet1_eta_jetPT_30GeV", cleanedGoodJets30[0].eta, sel1_1, EquidistantBinning(
-            30, -3, 3), title="Jet1 eta PT > 30"))
+            30, -3, 3), title="Jet1_eta (jet p_{T} > 30GeV)"))
         
-        # plots.append(Plot.make1D("test", cleanedGoodJets30_0to1_5[0].eta, sel1_1_1, EquidistantBinning(
-        #     30, -3, 3), title="test"))
+        plots.append(Plot.make1D("Jet1_pT_0to1_5_jetPT_30GeV", cleanedGoodJets30_0to1_5[0].pt, sel1_1_1, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 0 < eta < 1.5, (jet p_{T} > 30GeV)"))
 
-        # plots.append(Plot.make1D("Jet1_eta_1_5to3_jetPT_30GeV", cleanedGoodJets30_1_5to3[0].eta, sel1_1, EquidistantBinning(
-        #     30, -3, 3), title="Jet1 1.5 < eta < 3 PT > 30"))
+        plots.append(Plot.make1D("Jet1_pT_1_5to3_jetPT_30GeV", cleanedGoodJets30_1_5to3[0].pt, sel1_1_2, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 1.5 < eta < 3, (jet p_{T} > 30GeV)"))
         
-        # plots.append(Plot.make1D("Jet1_eta_3toInf_jetPT_30GeV", cleanedGoodJets30_3toInf[0].eta, sel1_1, EquidistantBinning(
-        #     30, -3, 3), title="Jet1 eta > 3 PT > 30"))
+        plots.append(Plot.make1D("Jet1_pT_3toInf_jetPT_30GeV", cleanedGoodJets30_3toInf[0].pt, sel1_1_3, EquidistantBinning(
+            50, 0, 1000), title="Jet1_pT eta > 3, (jet p_{T} > 30GeV)"))
 
-        plots.append(Plot.make1D("Jet2_pt_jetPT_30GeV", cleanedGoodJets30[1].pt, sel1_2, EquidistantBinning(
-            50, 0., 4000.), title="Jet2 PT > 30"))
+        plots.append(Plot.make1D("Jet2_pT_jetPT_30GeV", cleanedGoodJets30[1].pt, sel1_2, EquidistantBinning(
+            50, 0., 4000.), title="Jet2_pT (jet p_{T} > 30GeV)"))
 
         plots.append(Plot.make1D("Jet2_eta_jetPT_30GeV", cleanedGoodJets30[1].eta, sel1_2, EquidistantBinning(
-            30, -3, 3), title="Jet2 PT > 30"))
+            30, -3, 3), title="Jet2_eta (jet p_{T} > 30GeV)"))
 
-        plots.append(Plot.make1D("Jet3_pt_jetPT_30GeV", cleanedGoodJets30[2].pt, sel1_3, EquidistantBinning(
-            50, 0., 2000.), title="Jet3 PT > 30"))
+        plots.append(Plot.make1D("Jet2_pT_0to1_5_jetPT_30GeV", cleanedGoodJets30_0to1_5[1].pt, sel2_1_1, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 0 < eta < 1.5, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_1_5to3_jetPT_30GeV", cleanedGoodJets30_1_5to3[1].pt, sel2_1_2, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 1.5 < eta < 3, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_3toInf_jetPT_30GeV", cleanedGoodJets30_3toInf[1].pt, sel2_1_3, EquidistantBinning(
+            50, 0, 500), title="Jet2_pT eta > 3, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_jetPT_30GeV", cleanedGoodJets30[2].pt, sel1_3, EquidistantBinning(
+            50, 0., 2000.), title="Jet3_pT (jet p_{T} > 30GeV)"))
 
         plots.append(Plot.make1D("Jet3_eta_jetPT_30GeV", cleanedGoodJets30[2].eta, sel1_3, EquidistantBinning(
-            30, -3, 3), title="Jet3 PT > 30"))
+            30, -3, 3), title="Jet3_eta (jet p_{T} > 30GeV)"))
 
-        plots.append(Plot.make1D("Jet4_pt_jetPT_30GeV", cleanedGoodJets30[3].pt, sel1_4, EquidistantBinning(
-            30, 0., 2000.), title="Jet4 PT > 30"))
+        plots.append(Plot.make1D("Jet3_pT_0to1_5_jetPT_30GeV", cleanedGoodJets30_0to1_5[2].pt, sel3_1_1, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 0 < eta < 1.5, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_1_5to3_jetPT_30GeV", cleanedGoodJets30_1_5to3[2].pt, sel3_1_2, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 1.5 < eta < 3, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_3toInf_jetPT_30GeV", cleanedGoodJets30_3toInf[2].pt, sel3_1_3, EquidistantBinning(
+            50, 0, 200), title="Jet3_pT eta > 3, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_jetPT_30GeV", cleanedGoodJets30[3].pt, sel1_4, EquidistantBinning(
+            50, 0., 2000.), title="Jet4_pT (jet p_{T} > 30GeV)"))
 
         plots.append(Plot.make1D("Jet4_eta_jetPT_30GeV", cleanedGoodJets30[3].eta, sel1_4, EquidistantBinning(
-            30, -3, 3), title="Jet4 PT > 30"))
+            30, -3, 3), title="Jet4_eta (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_0to1_5_jetPT_30GeV", cleanedGoodJets30_0to1_5[3].pt, sel4_1_1, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 0 < eta < 1.5, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_1_5to3_jetPT_30GeV", cleanedGoodJets30_1_5to3[3].pt, sel4_1_2, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 1.5 < eta < 3, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_3toInf_jetPT_30GeV", cleanedGoodJets30_3toInf[3].pt, sel4_1_3, EquidistantBinning(
+            50, 0, 200), title="Jet4_pT eta > 3, (jet p_{T} > 30GeV)"))
 
         plots.append(Plot.make1D("MET_jetPT_30GeV", met[0].pt, sel1, EquidistantBinning(
-            50, 0, 1000), title="MET PT (jet p_{T} > 30GeV)"))
+            50, 0, 1000), title="MET (jet p_{T} > 30GeV)"))
 
     #     # ### 50 GeV
 
         plots.append(Plot.make1D("nJets_jetPT_50GeV", op.rng_len(
             cleanedGoodJets50), noSel, EquidistantBinning(15, 0., 15.), title="nJets (jet p_{T} > 50GeV)"))
 
-        plots.append(Plot.make1D("Jet1_pt_jetPT_50GeV", cleanedGoodJets50[0].pt, sel2_1, EquidistantBinning(
-            30, 0., 4000.), title="Jet1 PT > 50"))
+        plots.append(Plot.make1D("Jet1_pT_jetPT_50GeV", cleanedGoodJets50[0].pt, sel2_1, EquidistantBinning(
+            50, 0., 4000.), title="Jet1_pT (jet p_{T} > 50GeV)"))
 
         plots.append(Plot.make1D("Jet1_eta_jetPT_50GeV", cleanedGoodJets50[0].eta, sel2_1, EquidistantBinning(
-            30, -3, 3), title="Jet1 PT > 50"))
+            30, -3, 3), title="Jet1_eta (jet p_{T} > 50GeV)"))
+        
+        plots.append(Plot.make1D("Jet1_pT_0to1_5_jetPT_50GeV", cleanedGoodJets50_0to1_5[0].pt, sel1_2_1, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 0 < eta < 1.5, (jet p_{T} > 50GeV)"))
 
-        plots.append(Plot.make1D("Jet2_pt_jetPT_50GeV", cleanedGoodJets50[1].pt, sel2_2, EquidistantBinning(
-            30, 0., 4000.), title="Jet2 PT > 50"))
+        plots.append(Plot.make1D("Jet1_pT_1_5to3_jetPT_50GeV", cleanedGoodJets50_1_5to3[0].pt, sel1_2_2, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 1.5 < eta < 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet1_pT_3toInf_jetPT_50GeV", cleanedGoodJets50_3toInf[0].pt, sel1_2_3, EquidistantBinning(
+            50, 0, 1000), title="Jet1_pT eta > 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_jetPT_50GeV", cleanedGoodJets50[1].pt, sel2_2, EquidistantBinning(
+            50, 0., 4000.), title="Jet2_pT (jet p_{T} > 50GeV)"))
 
         plots.append(Plot.make1D("Jet2_eta_jetPT_50GeV", cleanedGoodJets50[1].eta, sel2_2, EquidistantBinning(
-            30, -3, 3), title="Jet2 PT > 50"))
+            30, -3, 3), title="Jet2_eta (jet p_{T} > 50GeV)"))
+        
+        plots.append(Plot.make1D("Jet2_pT_0to1_5_jetPT_50GeV", cleanedGoodJets50_0to1_5[1].pt, sel2_2_1, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 0 < eta < 1.5, (jet p_{T} > 50GeV)"))
 
-        plots.append(Plot.make1D("Jet3_pt_jetPT_50GeV", cleanedGoodJets50[2].pt, sel2_3, EquidistantBinning(
-            30, 0., 2000.), title="Jet3 PT > 50"))
+        plots.append(Plot.make1D("Jet2_pT_1_5to3_jetPT_50GeV", cleanedGoodJets50_1_5to3[1].pt, sel2_2_2, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 1.5 < eta < 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_3toInf_jetPT_50GeV", cleanedGoodJets50_3toInf[1].pt, sel2_2_3, EquidistantBinning(
+            50, 0, 500), title="Jet2_pT eta > 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_jetPT_50GeV", cleanedGoodJets50[2].pt, sel2_3, EquidistantBinning(
+            50, 0., 2000.), title="Jet3_pT (jet p_{T} > 50GeV)"))
 
         plots.append(Plot.make1D("Jet3_eta_jetPT_50GeV", cleanedGoodJets50[2].eta, sel2_3, EquidistantBinning(
-            30, -3, 3), title="Jet3 PT > 50"))
+            30, -3, 3), title="Jet3_eta (jet p_{T} > 50GeV)"))
+        
+        plots.append(Plot.make1D("Jet3_pT_0to1_5_jetPT_50GeV", cleanedGoodJets50_0to1_5[2].pt, sel3_2_1, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 0 < eta < 1.5, (jet p_{T} > 50GeV)"))
 
-        plots.append(Plot.make1D("Jet4_pt_jetPT_50GeV", cleanedGoodJets50[3].pt, sel2_4, EquidistantBinning(
-            30, 0., 2000.), title="Jet4 PT > 50"))
+        plots.append(Plot.make1D("Jet3_pT_1_5to3_jetPT_50GeV", cleanedGoodJets50_1_5to3[2].pt, sel3_2_2, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 1.5 < eta < 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_3toInf_jetPT_50GeV", cleanedGoodJets50_3toInf[2].pt, sel3_2_3, EquidistantBinning(
+            50, 0, 200), title="Jet3_pT eta > 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_jetPT_50GeV", cleanedGoodJets50[3].pt, sel2_4, EquidistantBinning(
+            50, 0., 2000.), title="Jet4_pT (jet p_{T} > 50GeV)"))
 
         plots.append(Plot.make1D("Jet4_eta_jetPT_50GeV", cleanedGoodJets50[3].eta, sel2_4, EquidistantBinning(
-            30, -3, 3), title="Jet4 PT > 50"))
+            30, -3, 3), title="Jet4_eta (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_0to1_5_jetPT_50GeV", cleanedGoodJets50_0to1_5[3].pt, sel4_2_1, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 0 < eta < 1.5, (jet p_{T} > 30GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_1_5to3_jetPT_50GeV", cleanedGoodJets50_1_5to3[3].pt, sel4_2_2, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 1.5 < eta < 3, (jet p_{T} > 50GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_3toInf_jetPT_50GeV", cleanedGoodJets50_3toInf[3].pt, sel4_2_3, EquidistantBinning(
+            50, 0, 200), title="Jet4_pT eta > 3, (jet p_{T} > 50GeV)"))
 
         plots.append(Plot.make1D("MET_jetPT_50GeV", met[0].pt, sel2, EquidistantBinning(
-            30, 0, 1000), title="MET PT (jet p_{T} > 50GeV)"))
+            50, 0, 1000), title="MET (jet p_{T} > 50GeV)"))
 
     #  ### 100 GeV
 
         plots.append(Plot.make1D("nJets_jetPT_100GeV", op.rng_len(
             cleanedGoodJets100), noSel, EquidistantBinning(15, 0., 15.), title="nJets (jet p_{T} > 100GeV)"))
 
-        plots.append(Plot.make1D("Jet1_pt_jetPT_100GeV", cleanedGoodJets100[0].pt, sel3_1, EquidistantBinning(
-            30, 0., 4000.), title="Jet1 PT > 100"))
+        plots.append(Plot.make1D("Jet1_pT_jetPT_100GeV", cleanedGoodJets100[0].pt, sel3_1, EquidistantBinning(
+            50, 0., 4000.), title="Jet1_pT (jet p_{T} > 100GeV)"))
 
         plots.append(Plot.make1D("Jet1_eta_jetPT_100GeV", cleanedGoodJets100[0].eta, sel3_1, EquidistantBinning(
-            30, -3, 3), title="Jet1 PT > 100"))
+            30, -3, 3), title="Jet1_eta (jet p_{T} > 100GeV)"))
+        
+        plots.append(Plot.make1D("Jet1_pT_0to1_5_jetPT_100GeV", cleanedGoodJets100_0to1_5[0].pt, sel1_3_1, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 0 < eta < 1.5, (jet p_{T} > 100GeV)"))
 
-        plots.append(Plot.make1D("Jet2_pt_jetPT_100GeV", cleanedGoodJets100[1].pt, sel3_2, EquidistantBinning(
-            30, 0., 4000.), title="Jet2 PT > 100"))
+        plots.append(Plot.make1D("Jet1_pT_1_5to3_jetPT_100GeV", cleanedGoodJets100_1_5to3[0].pt, sel1_3_2, EquidistantBinning(
+            50, 0, 4000), title="Jet1_pT 1.5 < eta < 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet1_pT_3toInf_jetPT_100GeV", cleanedGoodJets100_3toInf[0].pt, sel1_3_3, EquidistantBinning(
+            50, 0, 1000), title="Jet1_pT eta > 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_jetPT_100GeV", cleanedGoodJets100[1].pt, sel3_2, EquidistantBinning(
+            50, 0., 4000.), title="Jet2_pT (jet p_{T} > 100GeV)"))
 
         plots.append(Plot.make1D("Jet2_eta_jetPT_100GeV", cleanedGoodJets100[1].eta, sel3_2, EquidistantBinning(
-            30, -3, 3), title="Jet2 PT > 100"))
+            30, -3, 3), title="Jet2_eta (jet p_{T} > 100GeV)"))
+        
+        plots.append(Plot.make1D("Jet2_pT_0to1_5_jetPT_100GeV", cleanedGoodJets100_0to1_5[1].pt, sel2_3_1, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 0 < eta < 1.5, (jet p_{T} > 100GeV)"))
 
-        plots.append(Plot.make1D("Jet3_pt_jetPT_100GeV", cleanedGoodJets100[2].pt, sel3_3, EquidistantBinning(
-            30, 0., 2000.), title="Jet3 PT > 100"))
+        plots.append(Plot.make1D("Jet2_pT_1_5to3_jetPT_100GeV", cleanedGoodJets100_1_5to3[1].pt, sel2_3_2, EquidistantBinning(
+            50, 0, 4000), title="Jet2_pT 1.5 < eta < 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet2_pT_3toInf_jetPT_100GeV", cleanedGoodJets100_3toInf[1].pt, sel2_3_3, EquidistantBinning(
+            50, 0, 500), title="Jet2_pT eta > 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_jetPT_100GeV", cleanedGoodJets100[2].pt, sel3_3, EquidistantBinning(
+            50, 0., 2000.), title="Jet3_pT (jet p_{T} > 100GeV)"))
 
         plots.append(Plot.make1D("Jet3_eta_jetPT_100GeV", cleanedGoodJets100[2].eta, sel3_3, EquidistantBinning(
-            30, -3, 3), title="Jet3 PT > 100"))
+            30, -3, 3), title="Jet3_eta (jet p_{T} > 100GeV)"))
+        
+        plots.append(Plot.make1D("Jet3_pT_0to1_5_jetPT_100GeV", cleanedGoodJets100_0to1_5[2].pt, sel3_3_1, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 0 < eta < 1.5, (jet p_{T} > 100GeV)"))
 
-        plots.append(Plot.make1D("Jet4_pt_jetPT_100GeV", cleanedGoodJets100[3].pt, sel3_4, EquidistantBinning(
-            30, 0., 2000.), title="Jet4 PT > 100"))
+        plots.append(Plot.make1D("Jet3_pT_1_5to3_jetPT_100GeV", cleanedGoodJets100_1_5to3[2].pt, sel3_3_2, EquidistantBinning(
+            50, 0, 2000), title="Jet3_pT 1.5 < eta < 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet3_pT_3toInf_jetPT_100GeV", cleanedGoodJets100_3toInf[2].pt, sel3_3_3, EquidistantBinning(
+            50, 0, 200), title="Jet3_pT eta > 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_jetPT_100GeV", cleanedGoodJets100[3].pt, sel3_4, EquidistantBinning(
+            50, 0., 2000.), title="Jet4_pT (jet p_{T} > 100GeV)"))
 
         plots.append(Plot.make1D("Jet4_eta_jetPT_100GeV", cleanedGoodJets100[3].eta, sel3_4, EquidistantBinning(
-            30, -3, 3), title="Jet4 PT > 100"))
+            30, -3, 3), title="Jet4_eta (jet p_{T} > 100GeV)"))
+        
+        plots.append(Plot.make1D("Jet4_pT_0to1_5_jetPT_100GeV", cleanedGoodJets100_0to1_5[3].pt, sel4_3_1, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 0 < eta < 1.5, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_1_5to3_jetPT_100GeV", cleanedGoodJets100_1_5to3[3].pt, sel4_3_2, EquidistantBinning(
+            50, 0, 2000), title="Jet4_pT 1.5 < eta < 3, (jet p_{T} > 100GeV)"))
+
+        plots.append(Plot.make1D("Jet4_pT_3toInf_jetPT_100GeV", cleanedGoodJets100_3toInf[3].pt, sel4_3_3, EquidistantBinning(
+            50, 0, 200), title="Jet4_pT eta > 3, (jet p_{T} > 100GeV)"))
 
         plots.append(Plot.make1D("MET_jetPT_100GeV", met[0].pt, sel3, EquidistantBinning(
-            30, 0, 1000), title="MET PT (jet p_{T} > 100GeV)"))
+            50, 0, 1000), title="MET (jet p_{T} > 100GeV)"))
 
         # Efficiency Report on terminal and the .tex output
 

@@ -148,7 +148,7 @@ def _makeYieldsTexTable(report, samples, entryPlots, stretch=1.5, orientation="v
         leg.AddEntry(cutflow_histo_Delphes, "Delphes", "l")
         leg.AddEntry(cutflow_histo_FS, "FS", "l")
         leg.Draw()
-        c1.SaveAs("cutflow.gif")
+        c1.SaveAs("cutflow.png")
         logger.info("Plot for selection cutflow is available")
     if smp_data:
         sepStr_v += f"|{align}|"
@@ -536,15 +536,14 @@ class CMSPhase2SimTest(CMSPhase2SimHistoModule):
         plots.append(Plot.make1D("MET_jetPT_100GeV", met[0].pt, sel3, EquidistantBinning(
             30, 0, 1000), title="MET PT (jet p_{T} > 100GeV)"))
 
-    #     # Efficiency Report on terminal and the .tex output
+        # Efficiency Report on terminal and the .tex output
 
-    #     cfr = CutFlowReport("yields")
-    #     cfr.add(noSel, "None")
-    #     cfr.add(sel1, "20GeV")
-    #     cfr.add(sel2, "30GeV")
-    #     cfr.add(sel3, "50GeV")
-    #     cfr.add(sel4, "100GeV")
+        cfr = CutFlowReport("yields")
+        cfr.add(noSel, "None")
+        cfr.add(sel1, "30GeV")
+        cfr.add(sel2, "50GeV")
+        cfr.add(sel3, "100GeV")
 
-    #     plots.append(cfr)
+        plots.append(cfr)
 
         return plots

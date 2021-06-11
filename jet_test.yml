@@ -1,0 +1,51 @@
+tree: myana/mytree
+eras:
+  HL-LHC:
+    luminosity: 3000000 # 1/pb
+samples:
+  FS_Iter6_11_3_QCD:
+    era: HL-LHC
+    type: MC
+    group: FS_Iter6_11_3_QCD
+    files:
+      - /eos/user/a/aguzel/FS_Iter6_11_3_QCD_Pt-15to3000_TuneCP5_Flat.root
+    generated-events: nEvents
+    cross-section: 950
+    stack-index: 1
+  
+  Delphes343pre11_v14d_QCD:
+    era: HL-LHC
+    type: MC
+    group: Delphes343pre11_v14d_QCD
+    files:
+      - /eos/cms/store/group/upgrade/RTB/DelphesFlat_343pre07/QCD_Pt-15to3000_TuneCP5_Flat_14TeV-pythia8_200PU_v7closure.root
+    generated-events: nEvents
+    cross-section: 950
+    stack-index: 0
+
+plotIt:
+  configuration:
+    width: 700
+    height: 600
+    luminosity-label: '%1$.2f fb^{-1} (13 TeV)'
+    experiment: CMS
+    extra-label: HL-LHC
+    luminosity-error: 0.025
+    show-overflow: true
+  plotdefaults:
+    log-y: True
+    show-errors: false
+  legend:
+    position: [0.7, 0.8, 0.91, 0.91]
+  groups:
+    FS_Iter6_11_3_QCD:
+      legend: FS_Iter6_11_3_QCD
+      fill-color: 0
+      line-color: "#FF0000" # Red
+      line-width: 3
+      line-type: 7
+    Delphes343pre11_v14d_QCD:
+      legend: Delphes343pre11_v14d_QCD
+      fill-color: 0
+      line-color: "#0000FF" # Blue
+      line-width: 3
